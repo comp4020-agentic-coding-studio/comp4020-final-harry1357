@@ -28,9 +28,47 @@ const shadowMessages = utils.ruleMessages(shadowName, {
     "a hard offset (0 blur) is a decision. See the design gates in CLAUDE.md.",
 });
 
-const shadowRule = (primary) => (root, result) => {
-  if (!utils.validateOptions(result, shadowName, { actual: primary, possible: [true] })) return;
+// A design block may lift a gate for named selectors only, and only by saying
+// why: `[true, { allowSelectors: ["regex", ...], lifted: "block: reason" }]`.
+// .stylelintrc.json is strict JSON and can't hold a comment, so `lifted` is the
+// comment, and an allow-list without one is a config error that lifts nothing.
+// A declaration is lifted when some rule enclosing it (itself, or a parent
+// through CSS nesting) has EVERY selector in its list matching, so a lifted
+// selector can't carry an unlifted one in with it.
+const isNonEmptyString = (value) => typeof value === "string" && value.trim().length > 0;
+
+const LIFT_OPTIONS = { allowSelectors: [isNonEmptyString], lifted: [isNonEmptyString] };
+
+function liftFor(ruleName, secondary, result) {
+  let allowed = (secondary?.allowSelectors ?? []).map((source) => new RegExp(source));
+  if (allowed.length > 0 && !isNonEmptyString(secondary?.lifted)) {
+    result.warn(`${ruleName}: allowSelectors needs a "lifted" reason naming the design block; nothing is lifted without one.`, {
+      stylelintType: "invalidOption",
+    });
+    allowed = [];
+  }
+  return (decl) => {
+    if (allowed.length === 0) return false;
+    for (let node = decl.parent; node; node = node.parent) {
+      if (node.type === "rule" && node.selectors.every((sel) => allowed.some((pattern) => pattern.test(sel.trim())))) {
+        return true;
+      }
+    }
+    return false;
+  };
+}
+
+const shadowRule = (primary, secondary) => (root, result) => {
+  const valid = utils.validateOptions(
+    result,
+    shadowName,
+    { actual: primary, possible: [true] },
+    { actual: secondary, possible: LIFT_OPTIONS, optional: true },
+  );
+  if (!valid) return;
+  const isLifted = liftFor(shadowName, secondary, result);
   root.walkDecls(/^(-\w+-)?box-shadow$/i, (decl) => {
+    if (isLifted(decl)) return;
     for (const shadow of decl.value.split(",")) {
       if (/^\s*(none|inherit|initial|unset|revert)\s*$/i.test(shadow)) continue;
       // box-shadow: [inset] <offset-x> <offset-y> [blur] [spread] <color>
@@ -57,36 +95,17 @@ const radiusMessages = utils.ruleMessages(radiusName, {
     "every framework ships. See the design gates in CLAUDE.md.",
 });
 
-// A design block may lift the radius ban for named selectors only, and only by
-// saying why: `[true, { allowSelectors: ["regex", ...], lifted: "week: reason" }]`.
-// .stylelintrc.json is strict JSON and can't hold a comment, so `lifted` is the
-// comment, and an allow-list without one is a config error rather than a
-// quiet exemption. Every selector in a rule's list must match, so a lifted
-// selector can't carry an unlifted one in with it.
-const isNonEmptyString = (value) => typeof value === "string" && value.trim().length > 0;
-
 const radiusRule = (primary, secondary) => (root, result) => {
   const valid = utils.validateOptions(
     result,
     radiusName,
     { actual: primary, possible: [true] },
-    { actual: secondary, possible: { allowSelectors: [isNonEmptyString], lifted: [isNonEmptyString] }, optional: true },
+    { actual: secondary, possible: LIFT_OPTIONS, optional: true },
   );
   if (!valid) return;
-  let allowed = (secondary?.allowSelectors ?? []).map((source) => new RegExp(source));
-  if (allowed.length > 0 && !isNonEmptyString(secondary?.lifted)) {
-    result.warn(`${radiusName}: allowSelectors needs a "lifted" reason naming the week; nothing is lifted without one.`, {
-      stylelintType: "invalidOption",
-    });
-    allowed = [];
-  }
-  const isLifted = (rule) =>
-    allowed.length > 0 &&
-    rule?.type === "rule" &&
-    rule.selectors.every((selector) => allowed.some((pattern) => pattern.test(selector.trim())));
-
+  const isLifted = liftFor(radiusName, secondary, result);
   root.walkDecls(/^(-\w+-)?border(-[a-z]+)*-radius$/i, (decl) => {
-    if (isLifted(decl.parent)) return;
+    if (isLifted(decl)) return;
     for (const radius of lengths(decl.value)) {
       if (radius.px > 2) {
         utils.report({

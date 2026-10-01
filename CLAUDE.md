@@ -89,123 +89,116 @@ growing. That fails the route.
 
 <!-- CARRY-FORWARD:END design-gates -->
 
-## Design: final project — the rail
+## Design: the battle screen
 
-The subject is a turn-order rail on a games table: a brass bar with a strike
-plate at one end, and a token for everyone in the fight sliding toward the
-plate one notch per tick. Whoever reaches the plate acts; everyone else waits
-where they stand. That is the CTB queue made into a thing you could pick up,
-and it is the right picture for this app specifically, because there is only
-one rail. The server owns it, and every screen in the room is a window onto the
-same bar.
+The subject is a JRPG battle screen that a player of the genre recognises on
+sight: a field with depth, the party on one side, a large enemy on the other, a
+bordered command window with a cursor, damage numbers that pop and rise, and a
+turn-order strip. **The genre's conventions are ours to use. Its assets are
+not.** Nothing comes from an existing game: no sprites, portraits, window
+styles, logos, enemy designs, fonts made to imitate one, or music. Every file
+is original or openly licensed under rule 10 below. The Orrery and all the UI
+chrome are original regardless of what the party art is.
 
-**Original, all of it.** The roles (Bulwark, Lancer, Mender, Herald), the enemy
-(The Orrery) and every sigil are drawn for this app as inline SVG built from
-basic shapes. No sprites, portraits, icons, fonts, sounds, names or UI from any
-existing game. Final Fantasy X supplies the arithmetic, cited in A1, and
-nothing visible. The Mender's sigil is a ringed circle, not a cross: a red
-cross is a protected emblem, and a green one is still somebody's first-aid
-icon.
+**Scope: inside `#battle`, the game's rules; outside it, the web's.** `#battle`
+is the whole game stage: the character select and the fight. Inside it these
+gates are **lifted by name**, because each is a convention of the genre being
+drawn, not a framework default:
 
-**Palette**: six tokens, five roles.
+- **radius**: window corners and HP-bar caps
+- **gradients**: the field's depth, the floor's falloff, window fills
+- **glow**: blurred shadows and drop-shadows for the Orrery's core, hit
+  flashes and the lit portrait
+- **pixel fonts**: the pixel faces below
+
+Radius and glow are lifted mechanically, in `.stylelintrc.json`, through the
+plugin's `allowSelectors` with a required `lifted` reason. The pattern matches
+only selectors that *begin* with `#battle` (so `#battlefield` doesn't count),
+and it follows CSS nesting up to its parent rule. Gradients and pixel fonts
+are judged gates with no linter, so this paragraph is their lift.
+`spec/gates.test.ts` holds the scope: everything inside `#battle` may be soft
+and glowing; the site header, the `/readme/` page and anything else outside it
+may not.
+
+**The look:** 16-bit-era pixel art on a deep observatory field: a domed dark
+sky with a faint star grid, and a perspective floor that recedes toward the
+Orrery. The brass-and-ink palette carries over as the UI chrome: windows are
+ink panels with a brass border and card-coloured text. Sprites are scaled by
+whole numbers with `image-rendering: pixelated` and are never smoothed.
+
+**Palette**: six tokens. Everything else is mixed from them (`color-mix`),
+never a seventh hex.
 
 | token | hex | role |
 | --- | --- | --- |
-| `--felt` | `#1d2a24` | background: the table the rail is bolted to |
-| `--card` | `#f1ead9` | surface: the panels, and the ground all body text sits on |
-| `--ink` | `#1a1814` | text |
-| `--ink-quiet` | `#5b5446` | text, quiet: labels, the log's tick column |
-| `--brass` | `#b58a3a` | accent: the rail, its notches, the strike plate — the queue and nothing else |
-| `--ember` | `#b3341f` | highlight: harm — the Orrery's turn, damage, a downed token |
+| `--void` | `#0a0e1a` | background: the observatory dark, and the field the floor is drawn from |
+| `--ink` | `#1a1814` | surface: every window, plate and portrait frame |
+| `--card` | `#f1ead9` | text: window text, names, damage numbers |
+| `--card-quiet` | `#a89f8c` | quiet text: labels and secondary lines on windows |
+| `--brass` | `#b58a3a` | accent: window borders, the cursor, the Orrery's rings |
+| `--ember` | `#e0563a` | highlight: harm — the Orrery's turn, hit flashes, a downed portrait |
 
-**`--ink-quiet` is text on `--card`, and only there.** On `--card` it is about
-6.25:1, which clears 4.5:1 for anything a visitor needs to read: labels, the
-log's tick column, the "wait" on a name tag, and the labels of actions while
-they're disabled. On `--felt` it is about 2:1, so it is never text on the
-table. On your own `--ink` tag it is invisible, which is why that tag flips its
-units to `--card`. Measured, not assumed: on 2026-10-01 headless Chrome walked
-every visible element painted in `--ink-quiet`, across every page state at
-both viewports, and found all of them on `--card`. `spec/contrast.test.ts`
-keeps a map from each selector that paints text in it to its ground. A new
-selector fails until its ground is declared, and a stale entry fails too.
-Borders, outlines and the strength-ring track may use it freely; they are
-graphics, and at 6.25:1 on `--card` they clear 1.4.11's 3:1 anyway.
+`--ember` is brighter than the rail's ember because its grounds are now dark:
+it clears 4.5:1 on both `--ink` and `--void`. Healing is `--card` with a `+`
+and a brass outline, not a seventh colour. `spec/contrast.test.ts` holds the
+pairs, and `spec/design.test.ts` holds this table to the served CSS.
 
-`--brass` is reserved for the queue. The moment a button or a heading is
-brass, the rail stops being the one thing on the table made of metal.
-`--brass` on `--card` is about 2.6:1, too low for text, so a link on a card is
-`--ink` with a brass underline, never brass letters.
+**Type**, loaded from Google Fonts with real fallbacks, and used **only inside
+`#battle`**:
 
-**Type pairing**, replacing the browser default (Times, which is what the
-placeholder rendered in):
+- display: `"Press Start 2P", Silkscreen, ui-monospace, Menlo, monospace` for
+  the title, window headings and damage numbers
+- body: `VT323, ui-monospace, "SF Mono", Menlo, monospace` for everything
+  else on the stage, numbers included (VT323 is monospaced already)
 
-- display: `Copperplate, "Copperplate Gothic Light", "Engravers MT", "Iowan Old
-  Style", serif`, the lettering engraved on a brass name plate
-- body: `"Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua",
-  Georgia, serif`, because a raid is read like a rulebook
-- mono: `ui-monospace, "SF Mono", Menlo, Consolas, monospace`, for **counters,
-  HP and tick numbers only**. Mono means "the server computed this number";
-  spending it on labels spends that meaning.
+The faces are SIL OFL 1.1. They are served by Google, not shipped, so rule 10
+(which covers files under `src/assets/`) doesn't reach them. CREDITS.md lists
+them anyway, under "served, not shipped". **Never self-host them under
+`src/assets/`**: OFL isn't CC0 or CC-BY, so that would break rule 10. Outside
+`#battle` (the header link, `/readme/`) the gates stand, and the rulebook faces
+carry on: `Copperplate, "Copperplate Gothic Light", "Engravers MT", "Iowan Old
+Style", serif` for display and `"Iowan Old Style", "Palatino Linotype",
+Palatino, Georgia, serif` for body, on `--card` with `--ink` text.
 
-No web fonts. Nothing is fetched from a third party, and the first paint of a
-turn-based game should not wait on a typeface. stylelint's `value-keyword-case`
-lowercases unquoted family names, so the served stack reads `copperplate`.
-Font matching ignores case, so that changes nothing. Don't "fix" it back.
+**Signature element: the Orrery.** An original clockwork enemy of nested brass
+rings rotating around a dark core, drawn as SVG with each ring its own group so
+the rings turn independently, alternating direction at different periods. The
+core may be a pixel sprite. It idles constantly. **As its HP falls the rings
+slow, and they lose segments**: each ring is a set of arc segments, and the
+outer rings shed theirs first, at fixed HP thresholds, so the enemy visibly
+comes apart. Revolution spins the rings up. A hit flashes them. Under
+`prefers-reduced-motion` nothing rotates, but segments are still shed and the
+flash is a single static frame, so the state change still shows.
 
-**Signature element: the turn queue as a physical rail.** A notched brass bar
-with the strike plate at its leading end. Each combatant is a disc token
-stamped with its sigil, the name on a tag beneath, placed at the notch its
-counter says. Tokens on the same notch stack in seat order. The token on the
-plate is the active one, and only the server puts it there. Between two server
-states a token may *slide* (CSS transition, off under
-`prefers-reduced-motion`), but it always lands exactly where the latest state
-says. The rail renders the queue; it never computes it. At 390px the rail
-stands up vertically, plate at the top, rather than shrinking its notches to
-nothing.
+**Composition, 1920×1080:** the field fills the stage. The party stands left
+in a staggered row on the floor (back rank higher and smaller), each with a
+name and HP bar beneath, facing right. The Orrery is large on the right. The
+turn strip runs down the right edge: portraits ordered by wait, the active one
+at the top and lit, your own marked, Hasted and Braced as icons on the
+portrait. The command window sits bottom left, bordered, with the cursor. The
+log is a narrow window beside it, the least important thing on screen.
 
-**What the starter's defaults are being replaced with**, since there is no
-keep-the-starter option:
+**Composition, 390×844:** the Orrery at the top, the turn strip horizontal
+beneath it, then the party, then the command window. Nothing scrolls sideways.
+`innerWidth` is checked before any measurement is believed.
 
-- Times, the browser default → the three faces above
-- default link blue and visited purple → `--ink` text, `--brass` underline
-- white page and a single centred column → `--felt` table carrying the rail
-  across the top, with the action panel beside the log beneath it (two
-  columns that collapse to one), all body text on `--card` panels
-- unstyled form controls → square-cornered fields and buttons on `--card`,
-  with a visible `--ink` focus ring
+**Motion:** idle on everything (sprites breathe, rings turn, the core pulses),
+a slight camera push-in on impacts, and screen shake on heavy hits. Damage
+numbers pop and rise. Under `prefers-reduced-motion` every effect has an
+equivalent that shows the same state change with no movement: frame swaps,
+bars set rather than drained, numbers that appear in place.
 
-**Lifted, by name: the radius ban, for token discs only.** A token is a
-counter on a rail, and a counter is round. Drawing it square to satisfy a rule
-written against framework defaults would make the signature element worse in
-order to obey a gate that was never about it. The lift covers `.token-disc`
-(and its pseudo-elements, which draw the active ring). It does **not** cover
-the `.token` box, which also holds the name tag; the tag is a card and stays
-square. Everything else keeps the 2px ceiling.
+**What the previous design is replaced with**, since there is no keep-it
+option:
 
-- **Where it's lifted:** in `.stylelintrc.json`, as the gate says. That file is
-  strict JSON and can't hold a comment, so the plugin's `allowSelectors`
-  option *requires* a `lifted` string naming this block and the reason. A lift
-  without one is a config error, and nothing is lifted.
-- **How it's held:** `spec/gates.test.ts` runs the real config. A disc may be
-  round; a tag, a button or the token box may not; a lifted selector can't
-  carry an unlifted one in through a selector list; and a lift that doesn't
-  say why is refused.
-- **Tokens are still drawn as SVG `<circle>`s,** because SVG is the better tool
-  for a stamped disc with a sigil inside it. That's a drawing choice, not a way
-  round the gate; the lift is what makes the disc legitimate.
-
-No other gate is lifted. A hard-edged token shadow (`2px 2px 0`) is the only
-shadow in the design.
-
-**How the gate's design test works on this template.** The starter here
-shipped no stylesheet at all (the placeholder rendered in browser defaults),
-so there is no starter theme in git to compare against. `spec/design.test.ts`
-instead holds the served CSS to **the palette table above**, parsed out of
-this file at test time. Change a hex here without changing the stylesheet, or
-the other way round, and the spec goes red. `spec/contrast.test.ts` does the
-WCAG arithmetic on the pairs this block claims, plus a floor of 2:1 between
-`--ink` and `--ink-quiet` so the two inks can't collapse into one. WCAG has no
-figure for that gap, so 2:1 is my number; the palette sits at about 2.4.
+- the brass rail → the turn strip of portraits. It is still the server's
+  queue, rendered in the order sent (rule 1).
+- disc tokens → licensed party sprites and the original Orrery
+- the felt table → the observatory field and perspective floor
+- serif and Copperplate on the stage → the two pixel faces (the rulebook faces
+  stay outside `#battle`)
+- the action panel of buttons → a bordered command window with a cursor,
+  operable by arrow keys and Enter alone, as well as by mouse and touch
 
 ## What the app must never do
 
@@ -218,14 +211,14 @@ around it.
    whose turn it is. Client code never sorts the queue, never decrements a
    counter, never predicts the next actor, and never enables an action because
    *it* thinks a counter reached zero. It renders the `queue` and `activeId`
-   the server sent, in the order sent. Animating a token between two server
-   states is drawing, not deciding. *Spec: two clients in one battle receive
+   the server sent, in the order sent; the turn strip is that queue drawn as
+   portraits. Animating between two server states is drawing, not deciding. *Spec: two clients in one battle receive
    identical queues. Judged in `src/client/`.*
 2. **An action is never queued.** An action arriving while the actor's counter
    isn't zero is rejected (409) and dropped. It is not buffered, not deferred to
    their next turn, and not retried by the client. The client holds no pending
-   action either: the action panel stays disabled until the server says it is
-   your turn. *Spec: an early action is rejected, and nothing fires when the
+   action either: the command window stays disabled until the server says it
+   is your turn. *Spec: an early action is rejected, and nothing fires when the
    turn comes.*
 3. **No accounts.** A person is a session cookie, plus a name, plus a role.
    Nothing else: no email, password, OAuth or profile page. The server mints
@@ -260,6 +253,18 @@ around it.
    player, never removes someone who has acted since their last hold, and
    never lets a timeout decide *order*: it only decides that a turn passes.
    *Spec: `spec/pacing.test.ts`. Why: `docs/adr/002`.*
+9. **Every state change is shown on the battle screen before it reaches the
+   log. The log is derivative; an event with no renderer doesn't ship.** Every
+   event kind the server can broadcast has a renderer in the client's
+   registry, and the client writes an event's log line only once its renderer
+   has shown it. *Spec: `spec/shown.test.ts`. Every broadcast event type has a
+   renderer, and on B's screen the strike shows within one tick and before its
+   log line.*
+10. **No asset ships without a licence. Every file under `src/assets/` has an
+    entry in `CREDITS.md` with source URL, author and licence, and the licence
+    is CC0 or CC-BY only. Nothing from a commercial game, nothing share-alike,
+    nothing marked personal use.** CREDITS.md is written *before* a file is
+    copied in, not after. *Spec: `spec/assets.test.ts`.*
 
 ## How to work in here
 

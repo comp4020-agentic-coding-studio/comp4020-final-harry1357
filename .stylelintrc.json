@@ -5,12 +5,18 @@
     "declaration-property-value-disallowed-list": {
       "backdrop-filter": ["/.+/"]
     },
-    "design-gates/no-blurred-shadow": true,
+    "design-gates/no-blurred-shadow": [
+      true,
+      {
+        "allowSelectors": ["^#battle(?![\\w-])"],
+        "lifted": "Design: the battle screen. Inside #battle the game's rules apply, and glow is the genre's: the Orrery's core, hit flashes, the lit portrait. Outside #battle the gate stands."
+      }
+    ],
     "design-gates/no-soft-corners": [
       true,
       {
-        "allowSelectors": ["^\\.token-disc(::?[a-z-]+)?$", "^\\.token(\\[[^\\]]+\\])*\\s+\\.token-disc(::?[a-z-]+)?$"],
-        "lifted": "Design: final project. A token is a counter on a rail, and a counter is round. Token discs only; every other corner stays square."
+        "allowSelectors": ["^#battle(?![\\w-])"],
+        "lifted": "Design: the battle screen. Inside #battle the game's rules apply: window corners and HP-bar caps are rounded in the genre. Outside #battle the gate stands."
       }
     ]
   }
