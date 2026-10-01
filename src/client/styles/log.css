@@ -1,0 +1,26 @@
+/* The log window: the narration, written after the screen has shown it. The
+   least important thing on the stage, and it looks it. */
+#battle .log-window {
+  display: flex;
+  flex-direction: column;
+  max-height: 12rem;
+  padding-block: 0.5rem;
+}
+
+#battle .log {
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+  font-size: 1.15rem;
+}
+
+#battle .log-line {
+  padding-block: 0.1rem;
+  overflow-wrap: anywhere;
+}
+
+#battle .log-line[data-kind="boss"],
+#battle .log-line[data-kind="down"] {
+  color: var(--ember);
+}

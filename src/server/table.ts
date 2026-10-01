@@ -5,7 +5,7 @@
 // write throws before anything is committed or seen.
 
 import type { WSContext } from "hono/ws";
-import type { ActionId, BattleState, ServerMessage } from "../shared/protocol.ts";
+import type { ActionId, BattleEvent, BattleState, ServerMessage } from "../shared/protocol.ts";
 import { newId, type CharacterWrite, type Store } from "./db.ts";
 import { act, advance, createBattle, isEnded, join, view, type Battle, type Clock, type Step } from "./rules.ts";
 
@@ -14,7 +14,7 @@ const DROP_AFTER_MS = 10 * 60 * 1000;
 
 export type Table = ReturnType<typeof createTable>;
 
-export function createTable(store: Store, turnMs: number) {
+export function createTable(store: Store, turnMs: number, tickMs: number) {
   const battles = new Map<string, Battle>();
   const watchers = new Map<string, Set<WSContext>>();
   /** Hashed session → character, for everyone seated since boot. Only they can be standing. */
@@ -22,13 +22,14 @@ export function createTable(store: Store, turnMs: number) {
   let publicId: string | null = null;
 
   const clock = (): Clock => ({ now: Date.now(), turnMs });
+  const timing = { tickMs, turnMs };
 
   function apply(step: Step, character: CharacterWrite | null = null): Battle {
     const next = step.battle;
     if (step.durable || character) store.writeStep(next.id, step.effects, Date.now(), character);
     next.version += 1;
     battles.set(next.id, next);
-    broadcast(next);
+    broadcast(next, step.effects.events);
     if (step.effects.status && isEnded(next)) {
       const seated = Object.keys(next.joined).length;
       console.log(`battle ${next.id} ended ${next.status} at tick ${next.tick} (${seated} seated)`);
@@ -37,10 +38,10 @@ export function createTable(store: Store, turnMs: number) {
     return next;
   }
 
-  function broadcast(b: Battle): void {
+  function broadcast(b: Battle, events: BattleEvent[]): void {
     const set = watchers.get(b.id);
     if (!set || set.size === 0) return;
-    const message = JSON.stringify({ type: "state", battle: view(b) } satisfies ServerMessage);
+    const message = JSON.stringify({ type: "state", battle: view(b, timing), events } satisfies ServerMessage);
     for (const ws of set) send(ws, message);
   }
 
@@ -85,7 +86,7 @@ export function createTable(store: Store, turnMs: number) {
   /** The state of a battle: live from memory, or what the database keeps of one that's over. */
   function state(id: string): BattleState | null {
     const live = battles.get(id);
-    if (live) return view(live);
+    if (live) return view(live, timing);
     const row = store.battle(id);
     if (!row) return null;
     const log = store.log(id);
@@ -93,6 +94,8 @@ export function createTable(store: Store, turnMs: number) {
       battleId: id,
       version: 0,
       tick: log.at(-1)?.tick ?? 0,
+      tickMs,
+      turnMs,
       status: row.status,
       activeId: null,
       turnDeadline: null,
@@ -149,7 +152,7 @@ export function createTable(store: Store, turnMs: number) {
         if (!set) watchers.set(id, (set = new Set()));
         set.add(ws);
       }
-      send(ws, JSON.stringify({ type: "state", battle: current } satisfies ServerMessage));
+      send(ws, JSON.stringify({ type: "state", battle: current, events: [] } satisfies ServerMessage));
       return true;
     },
 
@@ -157,7 +160,7 @@ export function createTable(store: Store, turnMs: number) {
       watchers.get(id)?.delete(ws);
     },
 
-    start(tickMs: number): NodeJS.Timeout {
+    start(): NodeJS.Timeout {
       return setInterval(tick, tickMs);
     },
   };

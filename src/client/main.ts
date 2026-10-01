@@ -1,13 +1,32 @@
-// The browser at the table. It watches the one rail the server owns and draws
-// it; it sends a person's join and their chosen action, and shows what the
-// server answers. It never decides whose turn it is (CLAUDE.md, rules 1 and 2).
-import type { BattleState, JoinResponse, MeResponse, RaidResponse, RoleId } from "../shared/protocol.ts";
-import { renderLog } from "./log.ts";
-import { getJSON, watchBattle, type Link, type Watch } from "./net.ts";
-import { mountRail, renderFallen } from "./rail.ts";
-import { mountSeat } from "./seat.ts";
-import { mark, type MarkId } from "./sigils.ts";
+// The browser at the table: assembles the battle screen's parts and talks to the
+// one server. It never decides whose turn it is (CLAUDE.md rules 1 and 2): the
+// command window is live only while the server says it's your turn, and an
+// action is one POST that is shown if refused and never retried. Every message
+// goes through the conductor, which shows events before it logs them (rule 9).
+import manifestJson from "../assets/sprites.json";
+import orrerySvg from "../assets/orrery/orrery.svg";
+import {
+  ROLES,
+  type ActionId,
+  type ActionResponse,
+  type BattleState,
+  type JoinResponse,
+  type MeResponse,
+  type RaidResponse,
+  type RoleId,
+} from "../shared/protocol.ts";
+import type { JoinResult, SpriteManifest } from "./battle/api.ts";
+import { createConductor } from "./battle/conductor.ts";
+import { createLog } from "./battle/log.ts";
+import { RENDERERS } from "./battle/registry.ts";
+import { createAudio } from "./audio/audio.ts";
+import { mountCommandWindow, type CommandWindow } from "./command/window.ts";
+import { mountJoin } from "./join/join.ts";
+import { getJSON, postJSON, watchBattle, type Link } from "./net.ts";
+import { createScene } from "./scene/scene.ts";
+import { createStrip } from "./strip/strip.ts";
 
+const manifest = manifestJson as unknown as SpriteManifest;
 const OVER = new Set(["won", "lost", "abandoned"]);
 
 function need<T extends Element>(selector: string): T {
@@ -16,167 +35,138 @@ function need<T extends Element>(selector: string): T {
   return el;
 }
 
-const railEl = need<HTMLElement>("[data-rail]");
-const railStatus = need<HTMLElement>("[data-rail-status]");
-const fallenHost = need<HTMLElement>("[data-fallen]");
-const fallenList = need<HTMLElement>("[data-fallen-list]");
-const logList = need<HTMLElement>("[data-log]");
-const logEmpty = need<HTMLElement>("[data-log-empty]");
+const battleEl = need<HTMLElement>("#battle");
+const announce = need<HTMLElement>("[data-announce]");
 const linkEl = need<HTMLElement>("[data-link]");
-const bootNote = need<HTMLElement>("[data-boot]");
 
-// The legend wears the same glyphs as the discs.
-for (const item of document.querySelectorAll<HTMLElement>("[data-legend]")) {
-  item.prepend(mark(item.dataset.legend as MarkId, "mark"));
-}
-
-const rail = mountRail(railEl);
-const seat = mountSeat(need<HTMLElement>("[data-seat-panel]"), onJoined, () => void loadMe());
+const parts = { manifest, orrerySvg };
+const scene = createScene(need<HTMLElement>("[data-scene]"), parts);
+const strip = createStrip(need<HTMLElement>("[data-rail]"), parts);
+const audio = createAudio({ muteButton: need<HTMLButtonElement>("[data-mute]") });
+const log = createLog(need<HTMLElement>("[data-log]"));
+const commandEl = need<HTMLElement>("[data-command]");
+const join = mountJoin(need<HTMLElement>("[data-join-screen]"), { manifest, onJoin });
 
 const app = {
-  battleId: null as string | null,
-  state: null as BattleState | null,
+  battleId: "",
   me: null as MeResponse | null,
-  /** The character this page has joined with, or the cookie's character. */
   myId: null as string | null,
-  joinedRole: null as RoleId | null,
-  joined: false,
+  role: null as RoleId | null,
+  state: null as BattleState | null,
+  command: null as CommandWindow | null,
+  commandRole: null as RoleId | null,
+  joinShown: false,
+  endedShown: false,
+  /** The turn whose hold warning has already sounded (by its deadline). */
+  warned: null as number | null,
 };
 
-let watch: Watch | null = null;
+const conductor = createConductor({ scene, strip, audio, log, registry: RENDERERS, onState });
 
-function inThisBattle(): boolean {
-  const { state, myId } = app;
-  if (!myId) return false;
-  if (app.joined) return true;
-  return !!state && (state.queue.some((t) => t.id === myId) || state.fallen.some((t) => t.id === myId));
+function say(text: string): void {
+  announce.textContent = "";
+  // a fresh node each time, so the same words twice are announced twice
+  requestAnimationFrame(() => (announce.textContent = text));
 }
 
-function setText(el: Element, text: string): void {
-  if (el.textContent !== text) el.textContent = text;
+function standing(state: BattleState, id: string | null): boolean {
+  return !!id && state.queue.some((t) => t.id === id);
 }
 
-function paintStatus(state: BattleState): void {
-  const holder = state.queue.find((t) => t.id === state.activeId);
-  let phase: string;
-  if (state.status === "waiting") phase = "Waiting for the first seat to be taken.";
-  else if (state.status === "won") phase = "Won. The Orrery is stilled.";
-  else if (state.status === "lost") phase = "Lost. The Orrery stands.";
-  else if (state.status === "abandoned") phase = "Abandoned.";
-  else if (!holder) phase = "The clock is running.";
-  else if (holder.kind === "boss") phase = "The Orrery is on the plate.";
-  else phase = `${holder.name}${holder.id === app.myId ? " (you)" : ""} is on the plate.`;
-
-  const key = `${state.tick}|${phase}|${holder?.kind ?? ""}`;
-  if (railStatus.dataset.key === key) return;
-  railStatus.dataset.key = key;
-  railStatus.dataset.holder = holder?.kind ?? "none";
-  const tickWord = document.createElement("span");
-  tickWord.className = "status-tick";
-  const num = document.createElement("span");
-  num.className = "num";
-  num.textContent = String(state.tick);
-  tickWord.append("Tick ", num);
-  const phaseEl = document.createElement("span");
-  phaseEl.className = "status-phase";
-  phaseEl.textContent = phase;
-  railStatus.replaceChildren(tickWord, phaseEl);
+function mountCommand(role: RoleId): void {
+  if (app.command && app.commandRole === role) return;
+  app.command?.destroy();
+  commandEl.replaceChildren();
+  app.commandRole = role;
+  app.command = mountCommandWindow(commandEl, {
+    actions: ROLES[role].actions,
+    allies: () => {
+      const state = app.state;
+      if (!state) return [];
+      const party = state.queue.filter((t) => t.kind === "character");
+      const mine = party.filter((t) => t.id === app.myId);
+      return [...mine, ...party.filter((t) => t.id !== app.myId)].map((t) => ({ id: t.id, name: t.id === app.myId ? `${t.name} (you)` : t.name }));
+    },
+    onTarget: (targetId) => scene.target(targetId),
+    onChoose: (action, targetId) => void choose(action, targetId),
+  });
 }
 
-function paint(): void {
-  const { state } = app;
-  const mine = inThisBattle() ? app.myId : null;
-  if (mine) document.body.dataset.me = mine;
-  else delete document.body.dataset.me;
-
-  if (state) {
-    rail.render(state, mine);
-    renderFallen(fallenHost, fallenList, state.fallen, mine);
-    renderLog(logList, state.log);
-    logEmpty.hidden = state.log.length > 0;
-    paintStatus(state);
-  }
-  if (app.battleId) {
-    seat.render({
-      battleId: app.battleId,
-      state,
-      character: app.me?.character ?? null,
-      myId: app.myId,
-      joinedRole: app.joinedRole,
-      joined: app.joined,
-    });
-  }
+async function choose(action: ActionId, targetId: string | null): Promise<void> {
+  scene.target(null);
+  app.command?.setEnabled(false);
+  const res = await postJSON<ActionResponse>(
+    `/api/battles/${app.battleId}/actions`,
+    targetId && targetId !== "orrery" ? { action, targetId } : { action },
+  );
+  // Refused means dropped: say so, and wait for the server's next word.
+  if (!res.ok) say(res.error ?? "That didn't go through.");
 }
 
-/** Every state the client draws comes through here, already the newest. */
-function receive(state: BattleState): void {
-  const wasOver = !!app.state && OVER.has(app.state.status);
+function onState(state: BattleState): void {
   app.state = state;
-  bootNote.hidden = true;
-  paint();
+  const mine = standing(state, app.myId);
+  document.body.dataset.me = app.myId ?? "";
+
   if (OVER.has(state.status)) {
-    // Nothing more will change on this battle. Stop watching it, and fetch the
-    // record again so the trace shows how this one went.
-    watch?.stop();
-    watch = null;
-    setLink("over");
-    if (!wasOver) void loadMe();
+    battleEl.dataset.phase = "ended";
+    app.command?.setEnabled(false);
+    app.command?.setCountdown(null);
+    if (!app.endedShown) {
+      app.endedShown = true;
+      join.ended(state.status as "won" | "lost" | "abandoned");
+    }
+    return;
+  }
+
+  if (mine) {
+    if (app.joinShown) {
+      app.joinShown = false;
+      join.hide();
+    }
+    battleEl.dataset.phase = "fight";
+    const role = (state.queue.find((t) => t.id === app.myId)?.role ?? app.role) as RoleId;
+    mountCommand(role);
+    const myTurn = state.status === "fighting" && state.activeId === app.myId;
+    app.command?.setEnabled(myTurn);
+    app.command?.setCountdown(
+      myTurn && state.turnDeadline !== null ? Math.max(0, Math.min(1, (state.turnDeadline - Date.now()) / state.turnMs)) : null,
+    );
+  } else {
+    battleEl.dataset.phase = "join";
+    app.command?.setEnabled(false);
+    if (!app.joinShown) {
+      app.joinShown = true;
+      join.show(app.me);
+    }
   }
 }
 
-function onJoined(res: JoinResponse): void {
-  app.myId = res.characterId;
-  app.joinedRole = res.character.role;
-  app.joined = true;
-  app.me = { character: res.character, battles: app.me?.battles ?? [] };
-  paint();
-}
-
-function setLink(link: Link | "over"): void {
-  const words: Record<Link | "over", string> = {
-    connecting: "Connecting to the table…",
-    live: "Live",
-    reconnecting: "Reconnecting…",
-    over: "Battle over",
-  };
-  linkEl.dataset.link = link;
-  setText(linkEl, words[link]);
+async function onJoin(name: string, role: RoleId): Promise<JoinResult> {
+  const res = await postJSON<JoinResponse>(`/api/battles/${app.battleId}/join`, { name, role });
+  if (!res.ok || !res.data) return { ok: false, error: res.error ?? "The table couldn't seat you." };
+  app.myId = res.data.characterId;
+  app.role = role;
+  conductor.setMe(app.myId);
+  say(`You take your seat as ${ROLES[role].label}.`);
+  void loadMe();
+  return { ok: true };
 }
 
 async function loadMe(): Promise<void> {
   const res = await getJSON<MeResponse>("/api/me");
   if (!res.ok || !res.data) return;
   app.me = res.data;
-  // The cookie's character is who we are, unless this page already joined.
-  if (!app.joined) app.myId = res.data.character?.id ?? null;
-  paint();
-}
-
-/** When the socket drops, ask once over HTTP whether the battle has ended
- *  (say the server restarted and closed it). A live battle is left to the
- *  reconnect, which brings full state with it. */
-async function checkEnded(battleId: string): Promise<void> {
-  const res = await getJSON<BattleState>(`/api/battles/${encodeURIComponent(battleId)}`);
-  if (res.status === 404) {
-    watch?.stop();
-    watch = null;
-    setLink("over");
-    showBoot("This raid is no longer at the table.", true);
-    return;
+  if (res.data.character && !app.myId) {
+    app.myId = res.data.character.id;
+    app.role = res.data.character.role;
+    conductor.setMe(app.myId);
   }
-  const state = res.data;
-  if (!res.ok || !state || state.battleId !== battleId || !OVER.has(state.status)) return;
-  const current = app.state;
-  if (current && OVER.has(current.status) && current.version >= state.version) return;
-  receive(state);
 }
 
-function showBoot(text: string, offerNext = false): void {
-  bootNote.hidden = false;
-  const line = bootNote.querySelector("[data-boot-line]");
-  if (line) setText(line, text);
-  const next = bootNote.querySelector<HTMLElement>("[data-boot-next]");
-  if (next) next.hidden = !offerNext;
+function setLink(link: Link): void {
+  linkEl.dataset.link = link;
+  linkEl.textContent = link === "live" ? "Live" : link === "connecting" ? "Connecting" : "Reconnecting";
 }
 
 async function findBattle(): Promise<string> {
@@ -185,21 +175,39 @@ async function findBattle(): Promise<string> {
   for (let attempt = 0; ; attempt++) {
     const res = await getJSON<RaidResponse>("/api/raid");
     if (res.ok && res.data?.battleId) return res.data.battleId;
-    showBoot("Looking for the table…");
     await new Promise((resolve) => setTimeout(resolve, Math.min(10_000, 1_000 * 2 ** attempt)));
   }
 }
 
 async function boot(): Promise<void> {
   setLink("connecting");
-  const mePromise = loadMe();
-  const battleId = await findBattle();
-  app.battleId = battleId;
-  railEl.dataset.battle = battleId;
-  // Watch straight away, so a visitor sees the live rail before joining.
-  watch = watchBattle(battleId, receive, setLink, () => void checkEnded(battleId));
-  paint();
-  await mePromise;
+  const me = loadMe();
+  app.battleId = await findBattle();
+  battleEl.dataset.battle = app.battleId;
+  await me;
+  watchBattle(
+    app.battleId,
+    (msg) => conductor.receive(msg),
+    (link) => {
+      setLink(link);
+      if (link === "reconnecting") conductor.resync();
+    },
+    () => {},
+  );
+  // The countdown drains between messages too: the clock is stopped while
+  // it's your turn, so the server sends nothing until someone acts.
+  setInterval(() => {
+    const state = app.state;
+    if (state && state.activeId === app.myId && state.turnDeadline !== null) {
+      const left = Math.max(0, Math.min(1, (state.turnDeadline - Date.now()) / state.turnMs));
+      app.command?.setCountdown(left);
+      // a quarter of the turn left: the hold warning, once per turn
+      if (left < 0.25 && app.warned !== state.turnDeadline) {
+        app.warned = state.turnDeadline;
+        audio.play("hold");
+      }
+    }
+  }, 200);
 }
 
 void boot();

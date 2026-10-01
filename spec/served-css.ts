@@ -14,13 +14,18 @@
  * `.panel-meta {`. It understands rules, declarations, grouping at-rules and
  * native nesting, and skips what isn't a style rule (`@font-face`,
  * `@keyframes`). Nothing more: it is a sensor, not a CSS engine.
+ *
+ * Only same-origin stylesheets are followed. The page also links Google Fonts'
+ * CSS for the pixel faces, and that is Google's @font-face, not our design.
+ * Fetching it would make the spec depend on someone else's network.
  */
 export async function servedCss(baseUrl: string, routes: readonly string[]): Promise<string> {
   const blocks: string[] = [];
   const fetched = new Set<string>();
 
+  const origin = new URL(baseUrl).origin;
   const sheet = async (href: URL): Promise<void> => {
-    if (fetched.has(href.href)) return;
+    if (href.origin !== origin || fetched.has(href.href)) return;
     fetched.add(href.href);
     const res = await fetch(href);
     if (!res.ok) throw new Error(`a stylesheet the page links, ${href.pathname}, answered ${res.status}`);

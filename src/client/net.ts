@@ -1,7 +1,7 @@
 // Talking to the one server: JSON over HTTP for asking and acting, a socket for
 // watching. Nothing here retries an action. A refusal comes back as a status
 // for the caller to show, and that is the end of it.
-import type { BattleState, ServerMessage } from "../shared/protocol.ts";
+import type { ServerMessage } from "../shared/protocol.ts";
 
 export interface Answer<T> {
   status: number;
@@ -50,14 +50,14 @@ export interface Watch {
 
 /**
  * Watch one battle over the socket. The server sends full state on open and
- * after every change, so a reconnect needs no catching up: the first message on
- * a new socket *is* the truth. Within one socket, messages arrive in order, and
+ * after every change, with the events that caused it, so a reconnect needs no
+ * catching up: the first message on a new socket *is* the truth. Within one socket, messages arrive in order, and
  * anything not newer than what was already handed on is dropped. Messages from
  * a socket that has been replaced are ignored outright.
  */
 export function watchBattle(
   battleId: string,
-  onState: (state: BattleState) => void,
+  onMessage: (msg: ServerMessage) => void,
   onLink: (link: Link) => void,
   onLost: () => void,
 ): Watch {
@@ -93,7 +93,7 @@ export function watchBattle(
       if (msg.type !== "state" || !msg.battle || msg.battle.battleId !== battleId) return;
       if (msg.battle.version <= newest) return;
       newest = msg.battle.version;
-      onState(msg.battle);
+      onMessage({ type: "state", battle: msg.battle, events: Array.isArray(msg.events) ? msg.events : [] });
     });
     current.addEventListener("close", () => {
       if (socket !== current || stopped) return;

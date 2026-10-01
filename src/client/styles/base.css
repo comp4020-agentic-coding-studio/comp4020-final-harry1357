@@ -1,0 +1,130 @@
+/* Tokens, type, the page outside #battle, and the window chrome every part of
+   the battle screen shares. The palette is CLAUDE.md's six tokens
+   (spec/design.test.ts holds them to the table there); everything else is
+   mixed from them. */
+:root {
+  --void: #0a0e1a;
+  --ink: #1a1814;
+  --card: #f1ead9;
+  --card-quiet: #a89f8c;
+  --brass: #b58a3a;
+  --ember: #e0563a;
+
+  /* inside #battle: the pixel faces, from Google Fonts, with real fallbacks */
+  --font-display: "Press Start 2P", silkscreen, ui-monospace, menlo, monospace;
+  --font-body: vt323, ui-monospace, "SF Mono", menlo, monospace;
+
+  /* outside #battle the gates stand: the rulebook faces */
+  --font-rule-display: copperplate, "Copperplate Gothic Light", "Engravers MT", "Iowan Old Style", serif;
+  --font-rule-body: "Iowan Old Style", "Palatino Linotype", palatino, georgia, serif;
+  --brass-dim: color-mix(in srgb, var(--brass) 55%, var(--ink));
+  --brass-lit: color-mix(in srgb, var(--brass) 55%, var(--card));
+
+  color-scheme: dark;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100dvh;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  background: var(--void);
+  color: var(--card);
+  font-family: var(--font-rule-body);
+}
+
+/* ---- outside #battle: the gates stand ------------------------------------ */
+
+.site-header {
+  display: flex;
+  justify-content: flex-end;
+  padding-block: 0.3rem;
+  padding-inline: 1rem;
+  background: var(--card);
+  color: var(--ink);
+  font-family: var(--font-rule-body);
+}
+
+a {
+  color: var(--ink);
+  text-decoration: underline;
+  text-decoration-color: var(--brass);
+  text-decoration-thickness: 2px;
+  text-underline-offset: 0.18em;
+}
+
+:focus-visible {
+  outline: 3px solid var(--ink);
+  outline-offset: 2px;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* ---- inside #battle: the game's rules ------------------------------------ */
+
+#battle {
+  position: relative;
+  min-width: 0;
+  font-family: var(--font-body);
+  font-size: 1.3rem;
+  line-height: 1.15;
+  color: var(--card);
+  background: var(--void);
+}
+
+#battle a {
+  color: var(--card);
+}
+
+#battle :focus-visible {
+  outline: 3px solid var(--brass-lit);
+  outline-offset: 2px;
+}
+
+#battle .battle-title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 0.85rem;
+  font-weight: 400;
+  letter-spacing: 0.08em;
+  color: var(--brass-lit);
+}
+
+/* The window: the genre's bordered box, drawn new. An ink panel with a faint
+   brass warmth at the top, a brass border with an inner ink line and a
+   second, dimmer brass line inside that, soft corners, and a hard drop. */
+#battle .window {
+  position: relative;
+  padding: 0.7rem 0.9rem;
+  color: var(--card);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--ink) 86%, var(--brass)) 0%, var(--ink) 55%);
+  border: 3px solid var(--brass);
+  border-radius: 7px;
+  box-shadow:
+    inset 0 0 0 2px var(--ink),
+    inset 0 0 0 3px var(--brass-dim),
+    0 4px 0 0 rgb(0 0 0 / 45%);
+}
+
+#battle .window-title {
+  margin: 0 0 0.4rem;
+  font-family: var(--font-display);
+  font-size: 0.6rem;
+  font-weight: 400;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--card-quiet);
+}

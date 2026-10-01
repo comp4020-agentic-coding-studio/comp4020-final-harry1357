@@ -29,7 +29,7 @@ const databasePath = resolve(process.env.DATABASE_PATH || "/data/raid.db");
 
 const store = openStore(databasePath, join(ROOT, "drizzle"));
 const closed = store.closeLiveBattles(Date.now());
-const table = createTable(store, turnMs);
+const table = createTable(store, turnMs, tickMs);
 const app = createApp(ROOT, store, table);
 
 const server = serve(
@@ -40,7 +40,7 @@ const server = serve(
         `turn ${turnMs}ms); closed ${closed} fight(s) left open by the last process.`,
     ),
 );
-const clock = table.start(tickMs);
+const clock = table.start();
 
 // Node as PID 1 in a container ignores SIGTERM unless told otherwise.
 for (const signal of ["SIGINT", "SIGTERM"] as const) {

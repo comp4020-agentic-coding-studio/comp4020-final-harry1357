@@ -114,6 +114,10 @@ export interface BattleState {
   /** Bumped on every broadcast. Two clients holding the same version hold the same state. */
   version: number;
   tick: number;
+  /** How long one tick is on this server, in ms: what "within one tick" means here. */
+  tickMs: number;
+  /** How long a character on the strike plate has before the server holds their turn, in ms. */
+  turnMs: number;
   status: BattleStatus;
   /** Whose turn it is, or null while the clock is running. Only the server sets this. */
   activeId: string | null;
@@ -127,7 +131,62 @@ export interface BattleState {
   log: LogEntry[];
 }
 
-export type ServerMessage = { type: "state"; battle: BattleState };
+// --- events ---------------------------------------------------------------
+// What happened, as well as what is. Every step the server broadcasts carries
+// the events that produced it, in order. An event that wrote a log line
+// carries that line's `seq`, and the client writes the line only after the
+// event's renderer has shown it (CLAUDE.md rule 9). `plate` (someone reached
+// the strike plate) writes no line. Every kind here must have a renderer in
+// src/client/battle/registry.ts; spec/shown.test.ts holds both sides.
+
+export const EVENT_KINDS = [
+  "join",
+  "strike",
+  "lunge",
+  "brace",
+  "mend",
+  "hasten",
+  "hold",
+  "leave",
+  "down",
+  "eclipse",
+  "perihelion",
+  "revolution",
+  "plate",
+  "end",
+] as const;
+
+export type EventKind = (typeof EVENT_KINDS)[number];
+
+interface EventBase {
+  /** The log line this event wrote; absent for `plate`. */
+  seq?: number;
+  tick: number;
+}
+
+export interface Hit {
+  targetId: string;
+  amount: number;
+}
+
+export type BattleEvent =
+  | (EventBase & { kind: "join"; actorId: string; returning: boolean })
+  | (EventBase & { kind: "strike" | "lunge"; actorId: string; targetId: typeof BOSS_ID; amount: number })
+  | (EventBase & { kind: "brace"; actorId: string })
+  | (EventBase & { kind: "mend"; actorId: string; targetId: string; amount: number })
+  | (EventBase & { kind: "hasten"; actorId: string; targetId: string })
+  | (EventBase & { kind: "hold"; actorId: string })
+  | (EventBase & { kind: "leave"; actorId: string })
+  | (EventBase & { kind: "down"; actorId: string })
+  | (EventBase & { kind: "eclipse"; actorId: typeof BOSS_ID; targetId: string; amount: number })
+  | (EventBase & { kind: "perihelion" | "revolution"; actorId: typeof BOSS_ID; hits: Hit[] })
+  | (EventBase & { kind: "plate"; actorId: string })
+  | (EventBase & { kind: "end"; outcome: "won" | "lost" | "abandoned" });
+
+export type EventOf<K extends EventKind> = Extract<BattleEvent, { kind: K }>;
+
+/** Every broadcast: the state as it now is, and the events that made it so (empty for a plain tick). */
+export type ServerMessage = { type: "state"; battle: BattleState; events: BattleEvent[] };
 
 export interface CharacterInfo {
   id: string;
