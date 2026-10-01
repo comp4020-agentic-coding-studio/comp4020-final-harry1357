@@ -1,18 +1,47 @@
 # syntax = docker/dockerfile:1
 
-# A placeholder, and yours to replace: it serves one page, plus README.md
-# verbatim at /readme/, which is enough to prove the deploy path end to end.
-# Whatever your app is built with, the image that replaces this one must serve
-# HTTP on 0.0.0.0:$PORT (fly.toml sets PORT) and publish README.md at /readme/
-# (spec/README.md says what's checked).
+# The image Fly builds and runs, and CI runs the spec against: one Node
+# process serving HTTP and the WebSocket on 0.0.0.0:$PORT, with its SQLite
+# database on the /data volume (docs/adr/001). The server is TypeScript run
+# directly by Node's type stripping, so only the client is built.
 
-FROM docker.io/library/busybox:1.38.0
-COPY placeholder/ /src/
-COPY README.md /src/
-# README.md goes into the page as-is, HTML-escaped, in place of @README@;
-# rendering it properly is your app's job
-RUN mkdir -p /site/readme \
-    && cp /src/index.html /site/ \
-    && sed 's/&/\&amp;/g; s/</\&lt;/g; s/>/\&gt;/g' /src/README.md > /src/body \
-    && sed -e '/@README@/{r /src/body' -e 'd}' /src/readme.html > /site/readme/index.html
-CMD ["sh", "-c", "exec httpd -f -p 0.0.0.0:${PORT:-8080} -h /site"]
+ARG NODE_VERSION=24
+FROM node:${NODE_VERSION}-slim AS base
+
+WORKDIR /app
+ENV NODE_ENV=production
+
+ARG PNPM_VERSION=11.9.0
+RUN npm install -g pnpm@$PNPM_VERSION
+
+# --- build stage: install everything, bundle the client, prune to prod deps --
+FROM base AS build
+
+# toolchain for better-sqlite3, in case no prebuilt binary matches the image
+RUN apt-get update -qq && \
+    apt-get install --no-install-recommends -y build-essential pkg-config python-is-python3
+
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+RUN pnpm install --frozen-lockfile --prod=false
+
+COPY . .
+RUN pnpm run build
+RUN pnpm prune --prod
+
+# --- runtime stage: the server source, the client bundle, prod deps ---------
+FROM base
+
+COPY --from=build /app/package.json /app/package.json
+COPY --from=build /app/node_modules /app/node_modules
+COPY --from=build /app/src /app/src
+COPY --from=build /app/dist /app/dist
+# the committed migrations, applied at boot
+COPY --from=build /app/drizzle /app/drizzle
+# /readme/ renders README.md per request, and serves the images it links
+COPY --from=build /app/README.md /app/README.md
+COPY --from=build /app/docs /app/docs
+
+ENV PORT=8080
+ENV DATABASE_PATH=/data/raid.db
+EXPOSE 8080
+CMD ["node", "src/server/main.ts"]

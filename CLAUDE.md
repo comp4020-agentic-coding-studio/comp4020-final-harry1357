@@ -135,7 +135,9 @@ placeholder rendered in):
   spending it on labels spends that meaning.
 
 No web fonts. Nothing is fetched from a third party, and the first paint of a
-turn-based game should not wait on a typeface.
+turn-based game should not wait on a typeface. stylelint's `value-keyword-case`
+lowercases unquoted family names, so the served stack reads `copperplate`.
+Font matching ignores case, so that changes nothing. Don't "fix" it back.
 
 **Signature element: the turn queue as a physical rail.** A notched brass bar
 with the strike plate at its leading end. Each combatant is a disc token
@@ -161,7 +163,18 @@ keep-the-starter option:
 
 **Nothing lifted.** No gate is suspended, so `.stylelintrc.json` carries no
 exemption comment. A hard-edged token shadow (`2px 2px 0`) is the only shadow
-in the design.
+in the design. Tokens are SVG `<circle>`s, never CSS-rounded boxes: a disc
+needs `border-radius: 50%`, which the gate rejects, and the gate is right.
+
+**How the gate's design test works on this template.** The starter here
+shipped no stylesheet at all (the placeholder rendered in browser defaults),
+so there is no starter theme in git to compare against. `spec/design.test.ts`
+instead holds the served CSS to **the palette table above**, parsed out of
+this file at test time. Change a hex here without changing the stylesheet, or
+the other way round, and the spec goes red. `spec/contrast.test.ts` does the
+WCAG arithmetic on the pairs this block claims, plus a floor of 2:1 between
+`--ink` and `--ink-quiet` so the two inks can't collapse into one. WCAG has no
+figure for that gap, so 2:1 is my number; the palette sits at about 2.4.
 
 ## What the app must never do
 
@@ -218,3 +231,30 @@ around it.
   its own commit.
 - `README.md`, `PROCESS.md` and `reflections/` are mine. Don't write them,
   draft them or "tidy" them.
+- **Run it:** `pnpm build && DATABASE_PATH=.data/raid.db pnpm start`, which
+  serves on `:8080`, the port `pnpm check` looks at by default (`APP_URL`
+  overrides it). The server is TypeScript run straight by Node (ADR-001); only
+  the client is built, so after a client change rebuild and reload. After a
+  server change restart the process, which ends every fight in progress, by
+  design. Env: `PORT`, `DATABASE_PATH`, `TICK_MS` (150), `TURN_TIMEOUT_MS`
+  (20000).
+- **`pnpm check` needs the app running**, because every spec runs over HTTP.
+  The exception is `spec/restart.test.ts`, which boots and SIGKILLs its own
+  server from source on a temp database, because a restart can't be done to
+  somebody else's process.
+- **Off the roster, run by hand** (they need Chrome; a roster that goes red
+  because a browser didn't launch teaches you to ignore it). Each takes
+  `APP_URL`:
+  - `pnpm check:viewports`: 1920×1080 and 390×844, clientWidth then
+    innerWidth, on `/readme/`, `/` and `/` with a full table of 24-character
+    names
+  - `pnpm check:keyboard`: join and strike by keyboard alone; every stop has
+    a visible ring
+  - `pnpm probe`: two separate browsers, measured propagation of one strike
+    to the other screen; fails any sample over 1000 ms
+
+  Run the first two after any layout work and the probe after any change to
+  how state reaches the page.
+- **Server code is erasable TypeScript only** (`erasableSyntaxOnly`): no
+  `enum`, `namespace` or parameter properties, and relative imports carry
+  `.ts`. tsc refuses them first, so Node never meets them.
