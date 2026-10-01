@@ -33,7 +33,10 @@ force_https = true
 # this is most of why the app costs cents, not dollars
 auto_stop_machines = "stop"
 auto_start_machines = true
-min_machines_running = 0
+# ...except here: one machine stays running, so a visit after a quiet night
+# doesn't wait ~4.6s on a cold start. About US$2.47/month in syd, paid by the
+# course org. docs/adr/003-always-on.md; revisit after the showcase.
+min_machines_running = 1
 
 [[vm]]
 size = "shared-cpu-1x"

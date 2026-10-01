@@ -3,6 +3,8 @@
 - **Status:** accepted
 - **Date:** 2026-10-01
 - **Supersedes:** nothing. This is the first decision in this repo.
+- **Amended by:** ADR-003. The machine no longer stops when idle, so an idle
+  stop is no longer one of the restarts that end a fight.
 
 ## Context
 
