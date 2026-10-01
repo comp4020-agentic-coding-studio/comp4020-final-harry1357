@@ -6,6 +6,12 @@
       "backdrop-filter": ["/.+/"]
     },
     "design-gates/no-blurred-shadow": true,
-    "design-gates/no-soft-corners": true
+    "design-gates/no-soft-corners": [
+      true,
+      {
+        "allowSelectors": ["^\\.token-disc(::?[a-z-]+)?$", "^\\.token(\\[[^\\]]+\\])*\\s+\\.token-disc(::?[a-z-]+)?$"],
+        "lifted": "Design: final project. A token is a counter on a rail, and a counter is round. Token discs only; every other corner stays square."
+      }
+    ]
   }
 }

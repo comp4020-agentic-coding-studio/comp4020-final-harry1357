@@ -57,9 +57,36 @@ const radiusMessages = utils.ruleMessages(radiusName, {
     "every framework ships. See the design gates in CLAUDE.md.",
 });
 
-const radiusRule = (primary) => (root, result) => {
-  if (!utils.validateOptions(result, radiusName, { actual: primary, possible: [true] })) return;
+// A design block may lift the radius ban for named selectors only, and only by
+// saying why: `[true, { allowSelectors: ["regex", ...], lifted: "week: reason" }]`.
+// .stylelintrc.json is strict JSON and can't hold a comment, so `lifted` is the
+// comment, and an allow-list without one is a config error rather than a
+// quiet exemption. Every selector in a rule's list must match, so a lifted
+// selector can't carry an unlifted one in with it.
+const isNonEmptyString = (value) => typeof value === "string" && value.trim().length > 0;
+
+const radiusRule = (primary, secondary) => (root, result) => {
+  const valid = utils.validateOptions(
+    result,
+    radiusName,
+    { actual: primary, possible: [true] },
+    { actual: secondary, possible: { allowSelectors: [isNonEmptyString], lifted: [isNonEmptyString] }, optional: true },
+  );
+  if (!valid) return;
+  let allowed = (secondary?.allowSelectors ?? []).map((source) => new RegExp(source));
+  if (allowed.length > 0 && !isNonEmptyString(secondary?.lifted)) {
+    result.warn(`${radiusName}: allowSelectors needs a "lifted" reason naming the week; nothing is lifted without one.`, {
+      stylelintType: "invalidOption",
+    });
+    allowed = [];
+  }
+  const isLifted = (rule) =>
+    allowed.length > 0 &&
+    rule?.type === "rule" &&
+    rule.selectors.every((selector) => allowed.some((pattern) => pattern.test(selector.trim())));
+
   root.walkDecls(/^(-\w+-)?border(-[a-z]+)*-radius$/i, (decl) => {
+    if (isLifted(decl.parent)) return;
     for (const radius of lengths(decl.value)) {
       if (radius.px > 2) {
         utils.report({

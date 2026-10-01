@@ -161,10 +161,28 @@ keep-the-starter option:
 - unstyled form controls → square-cornered fields and buttons on `--card`,
   with a visible `--ink` focus ring
 
-**Nothing lifted.** No gate is suspended, so `.stylelintrc.json` carries no
-exemption comment. A hard-edged token shadow (`2px 2px 0`) is the only shadow
-in the design. Tokens are SVG `<circle>`s, never CSS-rounded boxes: a disc
-needs `border-radius: 50%`, which the gate rejects, and the gate is right.
+**Lifted, by name: the radius ban, for token discs only.** A token is a
+counter on a rail, and a counter is round. Drawing it square to satisfy a rule
+written against framework defaults would make the signature element worse in
+order to obey a gate that was never about it. The lift covers `.token-disc`
+(and its pseudo-elements, which draw the active ring). It does **not** cover
+the `.token` box, which also holds the name tag; the tag is a card and stays
+square. Everything else keeps the 2px ceiling.
+
+- **Where it's lifted:** in `.stylelintrc.json`, as the gate says. That file is
+  strict JSON and can't hold a comment, so the plugin's `allowSelectors`
+  option *requires* a `lifted` string naming this block and the reason. A lift
+  without one is a config error, and nothing is lifted.
+- **How it's held:** `spec/gates.test.ts` runs the real config. A disc may be
+  round; a tag, a button or the token box may not; a lifted selector can't
+  carry an unlifted one in through a selector list; and a lift that doesn't
+  say why is refused.
+- **Tokens are still drawn as SVG `<circle>`s,** because SVG is the better tool
+  for a stamped disc with a sigil inside it. That's a drawing choice, not a way
+  round the gate; the lift is what makes the disc legitimate.
+
+No other gate is lifted. A hard-edged token shadow (`2px 2px 0`) is the only
+shadow in the design.
 
 **How the gate's design test works on this template.** The starter here
 shipped no stylesheet at all (the placeholder rendered in browser defaults),
