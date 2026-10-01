@@ -128,3 +128,69 @@ describe("the rail's palette, checked as arithmetic", () => {
     ).toBeGreaterThanOrEqual(2);
   });
 });
+
+// --ink-quiet is text-safe on --card (about 6.25:1) and nowhere else: on --felt
+// it is about 2:1, and on the --ink of your own tag it barely registers. So
+// every rule that paints TEXT in it is listed here with the ground it sits on.
+// A new rule that uses it for text fails until someone decides its ground,
+// and an entry whose rule is gone fails too, so the map can't drift from the
+// sheet in either direction. The grounds were measured, not assumed: on
+// 2026-10-01, headless Chrome walked every visible element whose computed
+// colour is --ink-quiet (readme, an empty battle, spectating, joined, your
+// turn; 1920×1080 and 390×844) and found each one on --card. Re-measure when
+// a rule here moves to a new part of the page.
+const QUIET_GROUNDS: Readonly<Record<string, string>> = {
+  ".brand-line": "card", // the header band
+  ".link-state": "card", // the header band
+  ".tag-unit": "card", // inside a name tag; your own tag overrides it to --card on --ink
+  ".record dt": "card", // the seat panel
+  ".field-label": "card", // the seat panel
+  ".seat-who": "card", // the seat panel
+  ".button:disabled": "card", // the join button while a join is in flight
+  ".action-button:disabled": "card", // your actions while it isn't your turn
+  ".log-empty": "card", // the log panel
+  ".log-tick": "card", // the log panel
+};
+
+describe("--ink-quiet on its grounds", () => {
+  const paintsQuietText = (rule: Rule): boolean =>
+    rule.declarations.some((d) => d.property === "color" && /var\(\s*--ink-quiet\s*\)/.test(d.value));
+  const quietSelectors = (): string[] => [...new Set(sheet.filter(paintsQuietText).flatMap((r) => r.selectors))];
+
+  it("found the rules that paint text in --ink-quiet", () => {
+    // A parser that silently matched nothing would pass everything below.
+    expect(quietSelectors().length, "no rule in the served CSS uses --ink-quiet for text").toBeGreaterThanOrEqual(5);
+  });
+
+  it("knows the ground of every one of them", () => {
+    const unplaced = quietSelectors().filter((s) => !(s in QUIET_GROUNDS));
+    expect(unplaced, "these paint text in --ink-quiet on a ground nobody has declared or measured").toEqual([]);
+  });
+
+  it("lists no rule the stylesheet no longer has", () => {
+    const live = new Set(quietSelectors());
+    const stale = Object.keys(QUIET_GROUNDS).filter((s) => !live.has(s));
+    expect(stale, "these no longer paint text in --ink-quiet; drop them from the map").toEqual([]);
+  });
+
+  it("clears 4.5:1 on every ground it is painted on", () => {
+    for (const ground of new Set(Object.values(QUIET_GROUNDS))) {
+      expect(
+        contrast(token("ink-quiet"), token(ground)),
+        `--ink-quiet on --${ground} is ${ratio("ink-quiet", ground)}`,
+      ).toBeGreaterThanOrEqual(4.5);
+    }
+  });
+
+  it("never brings a ground of its own that isn't the one declared", () => {
+    for (const rule of sheet.filter(paintsQuietText)) {
+      const own = rule.declarations.find((d) => d.property === "background" || d.property === "background-color");
+      if (!own) continue;
+      for (const selector of rule.selectors) {
+        expect(colour(own.value, sheet), `${selector} paints --ink-quiet text on its own background`).toBe(
+          token(QUIET_GROUNDS[selector] ?? "card"),
+        );
+      }
+    }
+  });
+});

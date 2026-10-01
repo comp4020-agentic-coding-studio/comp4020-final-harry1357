@@ -118,6 +118,19 @@ icon.
 | `--brass` | `#b58a3a` | accent: the rail, its notches, the strike plate — the queue and nothing else |
 | `--ember` | `#b3341f` | highlight: harm — the Orrery's turn, damage, a downed token |
 
+**`--ink-quiet` is text on `--card`, and only there.** On `--card` it is about
+6.25:1, which clears 4.5:1 for anything a visitor needs to read: labels, the
+log's tick column, the "wait" on a name tag, and the labels of actions while
+they're disabled. On `--felt` it is about 2:1, so it is never text on the
+table. On your own `--ink` tag it is invisible, which is why that tag flips its
+units to `--card`. Measured, not assumed: on 2026-10-01 headless Chrome walked
+every visible element painted in `--ink-quiet`, across every page state at
+both viewports, and found all of them on `--card`. `spec/contrast.test.ts`
+keeps a map from each selector that paints text in it to its ground. A new
+selector fails until its ground is declared, and a stale entry fails too.
+Borders, outlines and the strength-ring track may use it freely; they are
+graphics, and at 6.25:1 on `--card` they clear 1.4.11's 3:1 anyway.
+
 `--brass` is reserved for the queue. The moment a button or a heading is
 brass, the rail stops being the one thing on the table made of metal.
 `--brass` on `--card` is about 2.6:1, too low for text, so a link on a card is
