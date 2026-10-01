@@ -1,9 +1,5 @@
-import { spawn } from "node:child_process";
-import { mkdtempSync, rmSync } from "node:fs";
-import { createServer } from "node:net";
-import { tmpdir } from "node:os";
-import { join as joinPath } from "node:path";
 import { afterAll, describe, expect, it } from "vitest";
+import { boot, cleanScratch, scratchDatabase } from "./boot.ts";
 import { act, battle, battleLog, join, me, newBattle, sleep, suffix } from "./raid.ts";
 
 // Characters and battle logs survive a restart; fights don't. A restart can't
@@ -12,75 +8,8 @@ import { act, battle, battleLog, join, me, newBattle, sleep, suffix } from "./ra
 // this file boots its own server from source against a temporary database,
 // kills it with SIGKILL (no graceful shutdown to hide behind) and boots it
 // again on the same file. See docs/adr/001.
-const SERVER = "src/server/main.ts";
 
-const dirs: string[] = [];
-afterAll(() => {
-  for (const dir of dirs) rmSync(dir, { recursive: true, force: true });
-});
-
-function scratchDatabase(): string {
-  const dir = mkdtempSync(joinPath(tmpdir(), "raid-restart-"));
-  dirs.push(dir);
-  return joinPath(dir, "raid.db");
-}
-
-async function freePort(): Promise<number> {
-  return new Promise((resolve, reject) => {
-    const server = createServer();
-    server.once("error", reject);
-    server.listen(0, "127.0.0.1", () => {
-      const address = server.address();
-      const port = typeof address === "object" && address ? address.port : 0;
-      server.close(() => resolve(port));
-    });
-  });
-}
-
-interface Booted {
-  base: string;
-  kill(): Promise<void>;
-}
-
-async function boot(databasePath: string, env: Record<string, string> = {}): Promise<Booted> {
-  const port = await freePort();
-  const child = spawn(process.execPath, [SERVER], {
-    env: { ...process.env, PORT: String(port), DATABASE_PATH: databasePath, ...env },
-    stdio: ["ignore", "pipe", "pipe"],
-  });
-  let output = "";
-  child.stdout.on("data", (chunk: Buffer) => (output += chunk));
-  child.stderr.on("data", (chunk: Buffer) => (output += chunk));
-  let exited = false;
-  const exit = new Promise<void>((resolve) =>
-    child.once("exit", () => {
-      exited = true;
-      resolve();
-    }),
-  );
-
-  const base = `http://127.0.0.1:${port}`;
-  for (const deadline = Date.now() + 15_000; ; await sleep(100)) {
-    if (exited) throw new Error(`${SERVER} exited before it answered:\n${output}`);
-    try {
-      if ((await fetch(base)).ok) break;
-    } catch {
-      // not listening yet
-    }
-    if (Date.now() > deadline) {
-      child.kill("SIGKILL");
-      throw new Error(`${SERVER} didn't answer at ${base} within 15s:\n${output}`);
-    }
-  }
-
-  return {
-    base,
-    kill: async () => {
-      if (!exited) child.kill("SIGKILL");
-      await exit;
-    },
-  };
-}
+afterAll(cleanScratch);
 
 describe("what survives a restart", () => {
   it("a character survives a server restart", async () => {

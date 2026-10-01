@@ -251,6 +251,15 @@ around it.
 7. **The database is only ever on the volume.** In production that is
    `DATABASE_PATH` under `/data`. Never a file baked into the image, and never
    a path that only exists locally.
+8. **The room never waits on one person, and the server never chooses for
+   them.** A character on the strike plate gets `TURN_TIMEOUT_MS` (20 s).
+   Then the server takes a *hold*: the turn passes with a rank-3 reset, and
+   nothing is dealt, healed or chosen in their name. Two holds **in a row**
+   and they leave the battle (they may rejoin from the same session). Acting
+   resets the count. The server never picks a real action for an absent
+   player, never removes someone who has acted since their last hold, and
+   never lets a timeout decide *order*: it only decides that a turn passes.
+   *Spec: `spec/pacing.test.ts`. Why: `docs/adr/002`.*
 
 ## How to work in here
 

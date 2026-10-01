@@ -20,7 +20,9 @@ function intEnv(name: string, fallback: number): number {
   return value;
 }
 
-const port = intEnv("PORT", 8080);
+// PORT=0 asks the OS for a free port; the log line reports the one bound,
+// which is how the spec's own servers find theirs without racing each other.
+const port = process.env.PORT === "0" ? 0 : intEnv("PORT", 8080);
 const tickMs = intEnv("TICK_MS", 150);
 const turnMs = intEnv("TURN_TIMEOUT_MS", 20_000);
 const databasePath = resolve(process.env.DATABASE_PATH || "/data/raid.db");
@@ -32,9 +34,9 @@ const app = createApp(ROOT, store, table);
 
 const server = serve(
   { fetch: app.fetch, port, hostname: "0.0.0.0", websocket: { server: new WebSocketServer({ noServer: true }) } },
-  () =>
+  (info) =>
     console.log(
-      `The Orrery is listening on 0.0.0.0:${port} (database ${databasePath}, tick ${tickMs}ms, ` +
+      `The Orrery is listening on 0.0.0.0:${info.port} (database ${databasePath}, tick ${tickMs}ms, ` +
         `turn ${turnMs}ms); closed ${closed} fight(s) left open by the last process.`,
     ),
 );
