@@ -1,6 +1,7 @@
 {
-  // Covers the supplied harness (spec/, scripts/); widen `include` if your app
-  // is TypeScript and you want `pnpm typecheck` to cover it too.
+  // Covers the supplied harness (spec/, scripts/) and the app (src/): the
+  // server runs as TypeScript under Node's type stripping, the client is
+  // bundled by esbuild, and `pnpm typecheck` holds both.
   "compilerOptions": {
     "target": "ES2023",
     "module": "ESNext",
@@ -8,6 +9,9 @@
     // Imports name the file they mean, extension and all --- which is what
     // node itself wants when it runs a .ts file directly.
     "allowImportingTsExtensions": true,
+    // Node strips types; it doesn't transform. No enum, namespace or
+    // parameter property, so the compiler refuses them before node does.
+    "erasableSyntaxOnly": true,
     "lib": ["ES2023", "DOM", "DOM.Iterable"],
     "types": ["node"],
     "strict": true,
@@ -16,5 +20,5 @@
     "moduleDetection": "force",
     "verbatimModuleSyntax": true
   },
-  "include": ["*.ts", "spec", "scripts"]
+  "include": ["*.ts", "spec", "scripts", "src"]
 }

@@ -4,19 +4,40 @@
   "type": "module",
   "scripts": {
     "prepare": "git rev-parse --git-dir >/dev/null 2>&1 && git config core.hooksPath .githooks || true",
+    "start": "node src/server/main.ts",
+    "build": "esbuild src/client/main.ts --bundle --format=esm --target=es2022 --sourcemap --outfile=dist/client/app.js",
     "typecheck": "tsc --noEmit",
-    "check": "pnpm typecheck && pnpm test",
+    "lint": "stylelint \"**/*.css\" --ignore-path .gitignore --allow-empty-input",
+    "check": "pnpm typecheck && pnpm lint && pnpm test",
     "check:evidence": "node scripts/check-evidence.ts",
+    "check:viewports": "node scripts/check-viewports.ts",
+    "check:keyboard": "node scripts/check-keyboard.ts",
+    "probe": "node scripts/probe-propagation.ts",
+    "db:generate": "drizzle-kit generate",
     "test": "vitest run"
   },
   "devDependencies": {
+    "@types/better-sqlite3": "^9.6.0",
     "@types/jsdom": "^30.0.0",
     "@types/node": "^24.0.0",
+    "@types/ws": "^8.18.2",
+    "drizzle-kit": "^0.31.11",
+    "esbuild": "^0.28.2",
     "jsdom": "^30.1.0",
+    "stylelint": "^17.15.0",
+    "stylelint-config-standard": "^40.0.0",
     "typescript": "^6.0.3",
     "vitest": "^5.0.1"
   },
   "engines": {
     "pnpm": ">=11"
+  },
+  "dependencies": {
+    "@hono/node-server": "^2.1.3",
+    "better-sqlite3": "^13.0.3",
+    "drizzle-orm": "^0.45.3",
+    "hono": "^4.13.11",
+    "marked": "^18.0.14",
+    "ws": "^8.22.0"
   }
 }

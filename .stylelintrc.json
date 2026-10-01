@@ -1,0 +1,11 @@
+{
+  "extends": "stylelint-config-standard",
+  "plugins": ["./stylelint-plugins/design-gates.js"],
+  "rules": {
+    "declaration-property-value-disallowed-list": {
+      "backdrop-filter": ["/.+/"]
+    },
+    "design-gates/no-blurred-shadow": true,
+    "design-gates/no-soft-corners": true
+  }
+}
