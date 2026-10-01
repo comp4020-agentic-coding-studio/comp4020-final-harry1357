@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="en-AU">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Orrery Raid: one brass rail, every screen at the table</title>
+    <meta name="description" content="A few people in separate browsers fight The Orrery on one turn rail the server owns." />
+    <link rel="stylesheet" href="/assets/styles.css" />
+    <script type="module" src="/assets/app.js"></script>
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="brand">
+        <h1 class="brand-name">Orrery Raid</h1>
+        <p class="brand-line">One rail. Every screen at the table is a window onto it.</p>
+      </div>
+      <p class="link-state" data-link="connecting">Connecting to the table…</p>
+      <nav class="site-nav" aria-label="Site">
+        <a href="/readme/">About this raid</a>
+      </nav>
+    </header>
+
+    <main class="table">
+      <section class="rail-section" aria-labelledby="rail-heading">
+        <div class="rail-head">
+          <h2 id="rail-heading" class="on-felt">The rail</h2>
+          <p class="rail-status" data-rail-status data-holder="none">Waiting for the table…</p>
+        </div>
+
+        <div class="rail" data-rail data-version="0">
+          <div class="rail-plate" data-rail-plate data-holder="none" aria-hidden="true">
+            <span class="plate-label">Strike plate</span>
+          </div>
+          <div class="rail-track" data-rail-track>
+            <div class="rail-bar" aria-hidden="true"></div>
+            <div class="rail-notches" data-rail-notches aria-hidden="true"></div>
+            <ol class="rail-tokens" data-rail-tokens aria-label="Turn order, as the server set it"></ol>
+          </div>
+        </div>
+
+        <div class="rail-foot">
+          <div class="legend card" aria-label="Reading the rail">
+            <p class="legend-line">
+              Each token sits at the notch of its <strong>wait</strong>, in ticks to the plate. The ring is its
+              strength.
+            </p>
+            <p class="legend-marks">
+              <span class="legend-mark" data-legend="hasted">Hasted: its next waits run short</span>
+              <span class="legend-mark" data-legend="braced">Braced: half damage until its turn</span>
+            </p>
+          </div>
+          <section class="fallen card" data-fallen aria-labelledby="fallen-heading" hidden>
+            <h3 id="fallen-heading">Off the rail</h3>
+            <ul class="fallen-list" data-fallen-list></ul>
+          </section>
+        </div>
+      </section>
+
+      <div class="lower">
+        <section class="seat-panel card" data-seat-panel aria-labelledby="seat-panel-heading">
+          <h2 id="seat-panel-heading" class="visually-hidden">Your place at the table</h2>
+
+          <div class="boot" data-boot role="status">
+            <p data-boot-line>Finding the raid…</p>
+            <p data-boot-next hidden><a class="button-link" href="/">Join the next raid</a></p>
+          </div>
+
+          <div class="greeting" data-greeting hidden>
+            <p class="greeting-line" data-greeting-line></p>
+            <dl class="record" data-record></dl>
+          </div>
+
+          <div class="ending" data-ending role="status" hidden>
+            <p class="ending-line" data-ending-line></p>
+            <p><a class="button-link" href="/">Join the next raid</a></p>
+          </div>
+
+          <p class="down-note" data-down hidden>
+            Your token has come off the rail. You can watch the rest of the fight, or take a new seat below if
+            the table will have you.
+          </p>
+
+          <form class="join" data-join aria-labelledby="join-heading" aria-describedby="join-help">
+            <h3 id="join-heading">Take a seat</h3>
+            <p id="join-help" class="join-help">
+              You're watching. Give the table a name and pick a role to join the fight.
+            </p>
+            <div class="field">
+              <label class="field-label" for="join-name">Your name at this table</label>
+              <input
+                id="join-name"
+                name="name"
+                type="text"
+                required
+                maxlength="24"
+                autocomplete="nickname"
+                spellcheck="false"
+                aria-describedby="join-error"
+              />
+            </div>
+            <fieldset class="roles">
+              <legend class="field-label">Role</legend>
+              <div class="role-options" data-role-options></div>
+            </fieldset>
+            <p class="form-error" id="join-error" data-join-error aria-live="polite" aria-atomic="true"></p>
+            <button class="button" type="submit">Take a seat</button>
+          </form>
+
+          <div class="seat" data-seat hidden>
+            <div class="seat-head">
+              <span class="seat-sigil" data-seat-sigil aria-hidden="true"></span>
+              <div>
+                <h3 class="seat-heading" data-seat-heading tabindex="-1">Your seat</h3>
+                <p class="seat-who" data-seat-who></p>
+              </div>
+            </div>
+            <p class="visually-hidden" data-turn-live aria-live="polite" aria-atomic="true"></p>
+            <p class="turn-status" data-turn-status data-mine="false"></p>
+            <p class="countdown" data-countdown></p>
+            <div class="actions" data-actions role="group" aria-label="Your actions" tabindex="-1"></div>
+            <p class="form-error" data-action-error aria-live="polite" aria-atomic="true"></p>
+          </div>
+        </section>
+
+        <section class="log-panel card" aria-labelledby="log-heading">
+          <h2 id="log-heading">The log</h2>
+          <p class="log-empty" data-log-empty>Nothing has happened at this table yet.</p>
+          <ol class="log" data-log role="log" aria-labelledby="log-heading"></ol>
+        </section>
+      </div>
+    </main>
+  </body>
+</html>
