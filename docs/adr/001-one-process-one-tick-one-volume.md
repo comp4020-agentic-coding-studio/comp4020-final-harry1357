@@ -74,11 +74,12 @@ to SQLite on the volume.
   bundled, with esbuild. The cost is that server code is limited to erasable
   syntax: no `enum`, `namespace` or parameter properties.
 - **HTTP:** Hono on `@hono/node-server`. I picked Hono over Fastify because
-  Hono is small, works with standard `Request` and `Response` objects, and its
-  WebSocket adapter attaches to the same server. Fastify's plugin
+  Hono is small, works with standard `Request` and `Response` objects, and
+  `@hono/node-server` 2 upgrades WebSockets on the same server itself (over
+  `ws`), with no separate adapter. Fastify's plugin
   encapsulation and schema compilation solve problems that one page and a
   handful of routes don't have. Either fits in 256 MB.
-- **Real-time:** a WebSocket endpoint (`@hono/node-ws`) that pushes the full
+- **Real-time:** a WebSocket endpoint (`upgradeWebSocket` from `@hono/node-server`) that pushes the full
   battle state after every tick and every action. Actions go over HTTP POST,
   so a refusal is a real status code (409) that a test can assert with plain
   `fetch`. The socket only carries state from the server to clients. SSE would
