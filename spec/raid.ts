@@ -118,9 +118,19 @@ export const token = (state: BattleState, id: string | null): Token | undefined 
 
 export const boss = (state: BattleState): Token | undefined => state.queue.find((t) => t.kind === "boss");
 
+/** One thing that happened, as the server broadcast it alongside the state. */
+export interface Event {
+  kind: string;
+  seq?: number;
+  actorId?: string | null;
+  [field: string]: unknown;
+}
+
 export interface Watcher {
   /** Every state this socket has received, in arrival order. */
   states: BattleState[];
+  /** Every event this socket has received, in arrival order. */
+  events: Event[];
   opened: Promise<void>;
   /** The first state from index `from` on that satisfies `test`. */
   waitFor(test: (state: BattleState) => boolean, what: string, timeoutMs: number, from?: number): Promise<BattleState>;
@@ -133,6 +143,7 @@ export function watch(base: string, battleId: string): Watcher {
   url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
   const socket = new WebSocket(url);
   const states: BattleState[] = [];
+  const events: Event[] = [];
   const listeners = new Set<() => void>();
 
   const opened = new Promise<void>((resolve, reject) => {
@@ -141,8 +152,9 @@ export function watch(base: string, battleId: string): Watcher {
   });
 
   socket.addEventListener("message", (event) => {
-    const msg = JSON.parse(String(event.data)) as { type?: string; battle?: BattleState };
+    const msg = JSON.parse(String(event.data)) as { type?: string; battle?: BattleState; events?: Event[] };
     if (msg.type === "state" && msg.battle) {
+      if (Array.isArray(msg.events)) events.push(...msg.events);
       states.push(msg.battle);
       for (const listener of listeners) listener();
     }
@@ -168,5 +180,5 @@ export function watch(base: string, battleId: string): Watcher {
     });
   }
 
-  return { states, opened, waitFor, close: () => socket.close() };
+  return { states, events, opened, waitFor, close: () => socket.close() };
 }
