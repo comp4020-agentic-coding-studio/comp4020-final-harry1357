@@ -88,3 +88,133 @@ growing. That fails the route.
    stale and no SHA to update when the template moves.
 
 <!-- CARRY-FORWARD:END design-gates -->
+
+## Design: final project — the rail
+
+The subject is a turn-order rail on a games table: a brass bar with a strike
+plate at one end, and a token for everyone in the fight sliding toward the
+plate one notch per tick. Whoever reaches the plate acts; everyone else waits
+where they stand. That is the CTB queue made into a thing you could pick up,
+and it is the right picture for this app specifically, because there is only
+one rail. The server owns it, and every screen in the room is a window onto the
+same bar.
+
+**Original, all of it.** The roles (Bulwark, Lancer, Mender, Herald), the enemy
+(The Orrery) and every sigil are drawn for this app as inline SVG built from
+basic shapes. No sprites, portraits, icons, fonts, sounds, names or UI from any
+existing game. Final Fantasy X supplies the arithmetic, cited in A1, and
+nothing visible. The Mender's sigil is a ringed circle, not a cross: a red
+cross is a protected emblem, and a green one is still somebody's first-aid
+icon.
+
+**Palette**: six tokens, five roles.
+
+| token | hex | role |
+| --- | --- | --- |
+| `--felt` | `#1d2a24` | background: the table the rail is bolted to |
+| `--card` | `#f1ead9` | surface: the panels, and the ground all body text sits on |
+| `--ink` | `#1a1814` | text |
+| `--ink-quiet` | `#5b5446` | text, quiet: labels, the log's tick column |
+| `--brass` | `#b58a3a` | accent: the rail, its notches, the strike plate — the queue and nothing else |
+| `--ember` | `#b3341f` | highlight: harm — the Orrery's turn, damage, a downed token |
+
+`--brass` is reserved for the queue. The moment a button or a heading is
+brass, the rail stops being the one thing on the table made of metal.
+`--brass` on `--card` is about 2.6:1, too low for text, so a link on a card is
+`--ink` with a brass underline, never brass letters.
+
+**Type pairing**, replacing the browser default (Times, which is what the
+placeholder rendered in):
+
+- display: `Copperplate, "Copperplate Gothic Light", "Engravers MT", "Iowan Old
+  Style", serif`, the lettering engraved on a brass name plate
+- body: `"Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua",
+  Georgia, serif`, because a raid is read like a rulebook
+- mono: `ui-monospace, "SF Mono", Menlo, Consolas, monospace`, for **counters,
+  HP and tick numbers only**. Mono means "the server computed this number";
+  spending it on labels spends that meaning.
+
+No web fonts. Nothing is fetched from a third party, and the first paint of a
+turn-based game should not wait on a typeface.
+
+**Signature element: the turn queue as a physical rail.** A notched brass bar
+with the strike plate at its leading end. Each combatant is a disc token
+stamped with its sigil, the name on a tag beneath, placed at the notch its
+counter says. Tokens on the same notch stack in seat order. The token on the
+plate is the active one, and only the server puts it there. Between two server
+states a token may *slide* (CSS transition, off under
+`prefers-reduced-motion`), but it always lands exactly where the latest state
+says. The rail renders the queue; it never computes it. At 390px the rail
+stands up vertically, plate at the top, rather than shrinking its notches to
+nothing.
+
+**What the starter's defaults are being replaced with**, since there is no
+keep-the-starter option:
+
+- Times, the browser default → the three faces above
+- default link blue and visited purple → `--ink` text, `--brass` underline
+- white page and a single centred column → `--felt` table carrying the rail
+  across the top, with the action panel beside the log beneath it (two
+  columns that collapse to one), all body text on `--card` panels
+- unstyled form controls → square-cornered fields and buttons on `--card`,
+  with a visible `--ink` focus ring
+
+**Nothing lifted.** No gate is suspended, so `.stylelintrc.json` carries no
+exemption comment. A hard-edged token shadow (`2px 2px 0`) is the only shadow
+in the design.
+
+## What the app must never do
+
+These are the claims the raid stands on, written as prohibitions. Each one says
+where it is held: a `spec/` test, or *judged* when only reading the code can
+catch it. If a change needs one of these broken, stop and say so. Don't route
+around it.
+
+1. **No client ever decides turn order.** The server is the only authority on
+   whose turn it is. Client code never sorts the queue, never decrements a
+   counter, never predicts the next actor, and never enables an action because
+   *it* thinks a counter reached zero. It renders the `queue` and `activeId`
+   the server sent, in the order sent. Animating a token between two server
+   states is drawing, not deciding. *Spec: two clients in one battle receive
+   identical queues. Judged in `src/client/`.*
+2. **An action is never queued.** An action arriving while the actor's counter
+   isn't zero is rejected (409) and dropped. It is not buffered, not deferred to
+   their next turn, and not retried by the client. The client holds no pending
+   action either: the action panel stays disabled until the server says it is
+   your turn. *Spec: an early action is rejected, and nothing fires when the
+   turn comes.*
+3. **No accounts.** A person is a session cookie, plus a name, plus a role.
+   Nothing else: no email, password, OAuth or profile page. The server mints
+   the cookie (HttpOnly). Identity always comes from the cookie, never from a
+   name or id in a request body.
+4. **No two people in one battle share a name.** Names are compared trimmed
+   and case-insensitively. A join that collides is refused (409), never
+   suffixed or silently renamed. The same name in a *different* battle is
+   fine. *Spec.*
+5. **The live fight lives in memory, and every turn is written through.** The
+   battle in progress is held in the one Node process, and SQLite is never read
+   to decide what happens next. After every turn (a player's action, a timeout,
+   or the Orrery's move), that turn's durable consequences are written to
+   SQLite on the volume: the log line, the characters' records and the battle's
+   status. That write happens **before** the new state is broadcast, so nothing
+   anyone has seen can be lost to a crash.
+6. **Characters and battle logs survive restart and redeploy. Fights don't,
+   and the app never pretends they did.** On boot, any battle still marked live
+   is closed as abandoned, with a log line saying the server restarted. A fight
+   is never resumed with counters reconstructed or invented. *Spec: a
+   character survives a restart, and a completed battle's log is readable
+   after one.*
+7. **The database is only ever on the volume.** In production that is
+   `DATABASE_PATH` under `/data`. Never a file baked into the image, and never
+   a path that only exists locally.
+
+## How to work in here
+
+- Commit when the checks pass. Never commit a red state, **with one
+  exception**: a `spec/` test that is red because the feature isn't built yet
+  is a *target*, not a regression. Those are committed red on purpose, and the
+  red-to-green commits are the record of the work. Never weaken one to get a
+  green roster. If a spec test is wrong, say why and change it deliberately, in
+  its own commit.
+- `README.md`, `PROCESS.md` and `reflections/` are mine. Don't write them,
+  draft them or "tidy" them.
