@@ -171,7 +171,8 @@ export interface Hit {
 
 export type BattleEvent =
   | (EventBase & { kind: "join"; actorId: string; returning: boolean })
-  | (EventBase & { kind: "strike" | "lunge"; actorId: string; targetId: typeof BOSS_ID; amount: number })
+  | (EventBase & { kind: "strike"; actorId: string; targetId: typeof BOSS_ID; amount: number })
+  | (EventBase & { kind: "lunge"; actorId: string; targetId: typeof BOSS_ID; amount: number })
   | (EventBase & { kind: "brace"; actorId: string })
   | (EventBase & { kind: "mend"; actorId: string; targetId: string; amount: number })
   | (EventBase & { kind: "hasten"; actorId: string; targetId: string })
@@ -179,10 +180,12 @@ export type BattleEvent =
   | (EventBase & { kind: "leave"; actorId: string })
   | (EventBase & { kind: "down"; actorId: string })
   | (EventBase & { kind: "eclipse"; actorId: typeof BOSS_ID; targetId: string; amount: number })
-  | (EventBase & { kind: "perihelion" | "revolution"; actorId: typeof BOSS_ID; hits: Hit[] })
+  | (EventBase & { kind: "perihelion"; actorId: typeof BOSS_ID; hits: Hit[] })
+  | (EventBase & { kind: "revolution"; actorId: typeof BOSS_ID; hits: Hit[] })
   | (EventBase & { kind: "plate"; actorId: string })
   | (EventBase & { kind: "end"; outcome: "won" | "lost" | "abandoned" });
 
+/** One member per kind, so this never collapses to `never` (a member whose kind was a pair did). */
 export type EventOf<K extends EventKind> = Extract<BattleEvent, { kind: K }>;
 
 /** Every broadcast: the state as it now is, and the events that made it so (empty for a plain tick). */
