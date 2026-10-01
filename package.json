@@ -12,6 +12,7 @@
     "check:evidence": "node scripts/check-evidence.ts",
     "check:viewports": "node scripts/check-viewports.ts",
     "check:keyboard": "node scripts/check-keyboard.ts",
+    "check:tags": "node scripts/check-tags.ts",
     "probe": "node scripts/probe-propagation.ts",
     "db:generate": "drizzle-kit generate",
     "test": "vitest run"

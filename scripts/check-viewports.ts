@@ -568,7 +568,7 @@ const longName = (n: number): string => "W".repeat(22) + String(n).padStart(2, "
 /** A battle with a full table in it, so the rail is measured with tokens on
  *  it. An empty page fits no matter what the stylesheet says, and a sensor
  *  that measured the easy version reports exactly what a clean page reports. */
-async function seededBattle(): Promise<string> {
+export async function seededBattle(): Promise<string> {
   const battleId = await newBattle(APP_URL);
   for (const [i, role] of (["bulwark", "lancer", "mender"] as const).entries()) {
     const seat = await joinBattle(APP_URL, battleId, longName(i + 1), role);
@@ -587,7 +587,7 @@ async function mustAnswer(route: string): Promise<void> {
 }
 
 /** Joins through the real form with trusted input, as a person would. */
-async function joinByForm(page: Page): Promise<string> {
+export async function joinByForm(page: Page): Promise<string> {
   await page.until(`!!document.querySelector("form[data-join]")`, "form[data-join]", 10_000);
   await page.activate(`form[data-join] input[name="name"]`);
   await page.until(`document.activeElement === document.querySelector('form[data-join] input[name="name"]')`, "the name field to take focus", 2_000);

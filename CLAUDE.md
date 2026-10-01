@@ -292,9 +292,15 @@ around it.
     a visible ring
   - `pnpm probe`: two separate browsers, measured propagation of one strike
     to the other screen; fails any sample over 1000 ms
+  - `pnpm check:tags`: at 390×844, a table of four with 24-character names
+    plays a run of strikes, and every rendered state is measured; it fails if
+    two name tags intersect or a disc lands on someone else's tag. It measures
+    where tokens *land* (reduced motion), and it self-tests on planted boxes
+    first. Breaking the lane logic on purpose produced 64 collisions, so it is
+    looking.
 
-  Run the first two after any layout work and the probe after any change to
-  how state reaches the page.
+  Run the viewport, keyboard and tag checks after any layout work, and the
+  probe after any change to how state reaches the page.
 - **Server code is erasable TypeScript only** (`erasableSyntaxOnly`): no
   `enum`, `namespace` or parameter properties, and relative imports carry
   `.ts`. tsc refuses them first, so Node never meets them.
