@@ -1,1 +1,624 @@
-/* SCAFFOLD STUB, owned by the join-screen area: the character select. */
+/* The join screen: the character select over the field, and the panel that
+   says how a raid ended. stage.css places the veil; this is everything on it.
+   The fight keeps playing behind, so the veil lets the pointer through to the
+   battle bar (the sound toggle) and only the select itself catches it.
+
+   Fluid down to 358px with no media query: the shell, the deck and each card
+   are containers, and the sprites step between whole-number scales by the
+   width of their own card. mobile.css owns the 390×844 composition. */
+
+#battle .join {
+  pointer-events: none;
+}
+
+#battle .join-shell {
+  container: join-shell / inline-size;
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: 1rem;
+  width: min(100%, 82rem);
+
+  /* Centred in the first screenful, whatever height the stage behind runs
+     to, and top-aligned when it doesn't fit, so nothing is lost above the
+     scroll. */
+  align-self: start;
+  min-height: min(100%, calc(100dvh - 4.5rem));
+  pointer-events: auto;
+}
+
+/* ---- the title: a poster for the <h1>, hidden from assistive tech --------- */
+
+#battle .join-title {
+  display: grid;
+  justify-items: center;
+  gap: 0.6rem;
+  font-family: var(--font-display);
+  line-height: 1;
+  user-select: none;
+  filter: drop-shadow(0 4px 0 var(--void));
+}
+
+#battle .join-title-the {
+  padding-left: 0.6em;
+  font-size: 8px;
+  letter-spacing: 0.6em;
+  text-transform: uppercase;
+  color: var(--card-quiet);
+}
+
+#battle .join-title-word {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.06em;
+  font-size: 32px;
+  text-transform: uppercase;
+}
+
+/* 16-bit lettering: two hard bands of brass, lit above and plain below */
+#battle .join-title-rest {
+  color: transparent;
+  background: linear-gradient(180deg, var(--brass-lit) 0 48%, var(--brass) 48% 100%);
+  background-clip: text;
+}
+
+#battle .join-glyph {
+  flex: none;
+  width: 1em;
+  height: 1em;
+  margin-bottom: -0.0625em;
+  overflow: visible;
+}
+
+#battle .join-glyph-ring {
+  stroke: var(--brass);
+}
+
+#battle .join-glyph-ring-inner {
+  stroke: var(--brass-lit);
+}
+
+#battle .join-glyph-core {
+  fill: var(--ember);
+}
+
+#battle .join-glyph-moon-body {
+  fill: var(--card);
+}
+
+#battle .join-glyph-outer,
+#battle .join-glyph-inner,
+#battle .join-glyph-moon {
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+/* a graduated scale under the name, the instrument's rule */
+#battle .join-scale {
+  width: calc(100% + 2rem);
+  height: 10px;
+  background:
+    linear-gradient(var(--brass-dim), var(--brass-dim)) bottom / 100% 2px no-repeat,
+    repeating-linear-gradient(90deg, var(--brass-dim) 0 2px, transparent 2px 8px) bottom / 100% 5px no-repeat,
+    repeating-linear-gradient(90deg, var(--brass) 0 2px, transparent 2px 40px) bottom / 100% 10px no-repeat;
+}
+
+@container join-shell (width >= 36rem) {
+  #battle .join-title-the {
+    font-size: 16px;
+  }
+
+  #battle .join-title-word {
+    font-size: 48px;
+  }
+}
+
+@container join-shell (width >= 64rem) {
+  #battle .join-title-word {
+    font-size: 64px;
+  }
+}
+
+/* ---- the select ------------------------------------------------------------ */
+
+#battle .join-form {
+  display: grid;
+  gap: 1rem;
+  width: 100%;
+  padding: clamp(0.75rem, 2vw, 1.5rem);
+}
+
+#battle .join-form[hidden],
+#battle .join-end[hidden] {
+  display: none;
+}
+
+#battle .join-label {
+  margin: 0;
+  padding: 0;
+  font-family: var(--font-display);
+  font-size: 0.625rem;
+  letter-spacing: 0.1em;
+  line-height: 1.4;
+  text-transform: uppercase;
+  color: var(--card-quiet);
+}
+
+#battle .join-greeting {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  margin: 0;
+  font-size: 1.4rem;
+  color: var(--card-quiet);
+}
+
+#battle .join-greeting::before {
+  flex: none;
+  width: 0.45rem;
+  height: 0.45rem;
+  content: "";
+  background: var(--brass-dim);
+  transform: rotate(45deg) translateY(-0.1rem);
+}
+
+#battle .join-greeting[data-returning] {
+  color: var(--card);
+}
+
+#battle .join-greeting[data-returning]::before {
+  background: var(--brass-lit);
+}
+
+/* the nameplate: an engraved slot on a solid ground, so the ember of an
+   error reads at full contrast here and not on the window's warm top */
+#battle .join-plate {
+  display: grid;
+  grid-template:
+    "label" auto
+    "input" auto
+    "error" auto
+    / minmax(0, 1fr);
+  gap: 0.4rem 1rem;
+  align-items: center;
+  padding: 0.7rem 0.8rem;
+  background: color-mix(in srgb, var(--void) 55%, var(--ink));
+  border: 1px solid var(--brass-dim);
+  border-radius: 4px;
+}
+
+#battle .join-plate > .join-label {
+  grid-area: label;
+}
+
+#battle .join-name {
+  grid-area: input;
+  width: 100%;
+  min-width: 0;
+  padding: 0.25rem 0.6rem;
+  font: inherit;
+  font-size: 1.7rem;
+  line-height: 1.1;
+  color: var(--card);
+  caret-color: var(--brass-lit);
+  background: var(--void);
+  border: 2px solid var(--brass-dim);
+  border-radius: 3px;
+}
+
+#battle .join-name::placeholder {
+  color: var(--card-quiet);
+  opacity: 1;
+}
+
+#battle .join-name:hover {
+  border-color: var(--brass);
+}
+
+#battle .join-name:focus {
+  border-color: var(--brass-lit);
+}
+
+#battle .join-name[aria-invalid="true"] {
+  border-color: var(--ember);
+}
+
+#battle .join-error {
+  grid-area: error;
+  min-height: 1.2em;
+  margin: 0;
+  font-size: 1.3rem;
+  color: var(--ember);
+}
+
+#battle .join-error:not(:empty)::before {
+  display: inline-block;
+  width: 0.5rem;
+  height: 0.5rem;
+  margin-right: 0.5rem;
+  content: "";
+  background: var(--ember);
+}
+
+@container join-shell (width >= 44rem) {
+  #battle .join-plate {
+    grid-template: "label input error" auto / auto minmax(0, 26rem) minmax(0, 1fr);
+  }
+}
+
+/* ---- the four seats ---------------------------------------------------------- */
+
+#battle .join-cast {
+  display: grid;
+  gap: 0.6rem;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+#battle .join-deck {
+  container: join-deck / inline-size;
+}
+
+#battle .join-cards {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: clamp(0.5rem, 1.2vw, 0.9rem);
+}
+
+@container join-deck (width >= 68.5rem) {
+  #battle .join-cards {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+#battle .join-card {
+  container: join-card / inline-size;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow: hidden;
+  cursor: pointer;
+  color: var(--card);
+  background: var(--ink);
+  border: 2px solid var(--brass-dim);
+  border-radius: 5px;
+  box-shadow: 0 3px 0 0 color-mix(in srgb, var(--void) 70%, transparent);
+}
+
+/* The radio is the control; the card is what you see of it. It sits at the
+   card's centre, so a click aimed at it lands on the card. */
+#battle .join-radio {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 1px;
+  height: 1px;
+  margin: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  clip-path: inset(50%);
+  appearance: none;
+}
+
+/* its ring is drawn on the card, where it can be seen */
+#battle .join-radio:focus-visible {
+  outline: none;
+}
+
+#battle .join-plinth {
+  --scale: 1;
+
+  position: relative;
+  display: flex;
+  flex: none;
+  align-items: flex-end;
+  justify-content: center;
+  height: calc((var(--tallest) + 14) * var(--scale) * 1px);
+  padding-bottom: calc(6px * var(--scale));
+  overflow: hidden;
+
+  /* a slice of the observatory: a faint star grid over the dark, deepening
+     toward the floor */
+  background:
+    radial-gradient(circle, color-mix(in srgb, var(--card) 22%, transparent) 0 1px, transparent 1.5px) 7px 5px / 23px 19px,
+    linear-gradient(180deg, var(--void) 0%, color-mix(in srgb, var(--void) 60%, var(--ink)) 100%);
+  border-bottom: 1px solid var(--brass-dim);
+}
+
+/* the floor the sprite stands on */
+#battle .join-plinth::before {
+  position: absolute;
+  bottom: calc(2px * var(--scale));
+  left: 50%;
+  width: 72%;
+  height: calc(12px * var(--scale));
+  content: "";
+  background: radial-gradient(closest-side, color-mix(in srgb, var(--brass) 30%, transparent), transparent);
+  transform: translateX(-50%);
+}
+
+#battle .join-sprite {
+  position: relative;
+  flex: none;
+  width: calc(var(--w) * var(--scale) * 1px);
+  height: calc(var(--h) * var(--scale) * 1px);
+  background-repeat: no-repeat;
+  background-position: calc(var(--fx) * var(--scale) * -1px) calc(var(--fy) * var(--scale) * -1px);
+  background-size: calc(var(--sheet-w) * var(--scale) * 1px) auto;
+  image-rendering: pixelated;
+  filter: brightness(0.7) saturate(0.65);
+}
+
+#battle .join-sprite[data-mirror] {
+  transform: scaleX(-1);
+}
+
+#battle .join-role {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.7rem 0.7rem 0.3rem;
+  font-family: var(--font-display);
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  line-height: 1.2;
+  text-transform: uppercase;
+}
+
+#battle .join-cursor,
+#battle .join-mark {
+  display: inline-flex;
+  flex: none;
+  width: 0.6em;
+  color: var(--brass-lit);
+}
+
+#battle .join-cursor svg,
+#battle .join-mark svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+#battle .join-mark {
+  visibility: hidden;
+}
+
+#battle .join-blurb {
+  padding: 0 0.7rem;
+  font-size: 1.2rem;
+  line-height: 1.1;
+  color: var(--card-quiet);
+}
+
+#battle .join-moves {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  margin-top: auto;
+  padding: 0.55rem 0.7rem 0.7rem;
+}
+
+#battle .join-move {
+  padding: 0 0.35rem;
+  font-size: 1.05rem;
+  line-height: 1.2;
+  color: var(--card-quiet);
+  border: 1px solid var(--brass-dim);
+  border-radius: 2px;
+}
+
+@container join-card (width >= 16.5rem) {
+  #battle .join-plinth {
+    --scale: 2;
+  }
+
+  #battle .join-role {
+    font-size: 16px;
+  }
+
+  #battle .join-blurb {
+    font-size: 1.35rem;
+  }
+}
+
+/* hover: the border warms */
+#battle .join-card:hover {
+  border-color: var(--brass);
+}
+
+/* the chosen seat is lit: brass rim and glow, the floor brightens, the sprite
+   is in full colour and the cursor points at its name */
+#battle .join-card:has(.join-radio:checked) {
+  background: linear-gradient(180deg, color-mix(in srgb, var(--ink) 82%, var(--brass)) 0%, var(--ink) 70%);
+  border-color: var(--brass-lit);
+  box-shadow:
+    0 0 0 1px var(--brass),
+    0 0 22px 2px color-mix(in srgb, var(--brass) 42%, transparent),
+    0 3px 0 0 color-mix(in srgb, var(--void) 70%, transparent);
+}
+
+#battle .join-card:has(.join-radio:checked) .join-plinth::before {
+  background: radial-gradient(closest-side, color-mix(in srgb, var(--brass-lit) 60%, transparent), transparent);
+}
+
+#battle .join-card:has(.join-radio:checked) .join-sprite {
+  filter: none;
+}
+
+#battle .join-card:has(.join-radio:checked) .join-role {
+  color: var(--brass-lit);
+}
+
+#battle .join-card:has(.join-radio:checked) .join-mark {
+  visibility: visible;
+}
+
+#battle .join-card:has(.join-radio:checked) .join-blurb,
+#battle .join-card:has(.join-radio:checked) .join-move {
+  color: var(--card);
+}
+
+#battle .join-card:has(.join-radio:checked) .join-move {
+  border-color: var(--brass);
+}
+
+/* keyboard focus on a radio rings its whole card */
+#battle .join-card:has(.join-radio:focus-visible) {
+  outline: 3px solid var(--brass-lit);
+  outline-offset: 3px;
+}
+
+/* ---- the seat button and the next-raid link ---------------------------------- */
+
+#battle .join-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 1rem;
+}
+
+#battle .join-submit,
+#battle .join-next {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.75em;
+  padding: 0.85rem 1.2rem;
+  font-family: var(--font-display);
+  font-size: 14px;
+  letter-spacing: 0.06em;
+  line-height: 1;
+  text-decoration: none;
+  text-transform: uppercase;
+  cursor: pointer;
+  color: var(--ink);
+  background: var(--brass);
+  border: 2px solid var(--brass-lit);
+  border-radius: 4px;
+  box-shadow:
+    inset 0 -3px 0 0 var(--brass-dim),
+    0 4px 0 0 color-mix(in srgb, var(--void) 70%, transparent);
+}
+
+#battle .join-submit .join-cursor,
+#battle .join-next .join-cursor {
+  color: var(--ink);
+}
+
+#battle .join-submit:hover,
+#battle .join-next:hover {
+  background: var(--brass-lit);
+}
+
+#battle .join-submit:active,
+#battle .join-next:active {
+  box-shadow: inset 0 -1px 0 0 var(--brass-dim);
+  transform: translateY(3px);
+}
+
+#battle .join-submit:disabled {
+  cursor: progress;
+  color: var(--card-quiet);
+  background: var(--ink);
+  border-color: var(--brass-dim);
+  box-shadow: none;
+  transform: none;
+}
+
+#battle .join-submit:disabled .join-cursor {
+  visibility: hidden;
+}
+
+/* ---- the end panel -------------------------------------------------------------- */
+
+#battle .join-end {
+  display: grid;
+  justify-items: center;
+  gap: 1rem;
+  width: min(100%, 46rem);
+  padding: clamp(1rem, 3vw, 2rem);
+  text-align: center;
+}
+
+#battle .join-end-title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 16px;
+  font-weight: 400;
+  line-height: 1.5;
+  color: var(--brass-lit);
+}
+
+#battle .join-end-line {
+  max-width: 34rem;
+  margin: 0;
+  font-size: 1.45rem;
+  color: var(--card);
+}
+
+/* lost: an ember rule under the headline, the colour of harm */
+#battle .join-end[data-outcome="lost"] .join-end-title {
+  padding-bottom: 0.6rem;
+  border-bottom: 3px solid var(--ember);
+}
+
+@container join-shell (width >= 36rem) {
+  #battle .join-end-title {
+    font-size: 24px;
+  }
+}
+
+/* ---- motion: only when it's welcome -------------------------------------------- */
+
+@media (prefers-reduced-motion: no-preference) {
+  #battle .join-glyph-outer {
+    animation: join-turn 26s linear infinite;
+  }
+
+  #battle .join-glyph-inner {
+    animation: join-turn 9s linear infinite reverse;
+  }
+
+  #battle .join-glyph-moon {
+    animation: join-turn 14s linear infinite;
+  }
+
+  /* won: the rings grind to a halt where they stand */
+  #battle .join-shell[data-outcome="won"] .join-glyph-outer,
+  #battle .join-shell[data-outcome="won"] .join-glyph-inner,
+  #battle .join-shell[data-outcome="won"] .join-glyph-moon {
+    animation-play-state: paused;
+  }
+
+  #battle .join-card:has(.join-radio:checked) .join-mark,
+  #battle .join-submit:hover .join-cursor,
+  #battle .join-submit:focus-visible .join-cursor,
+  #battle .join-next:hover .join-cursor,
+  #battle .join-next:focus-visible .join-cursor {
+    animation: join-nudge 0.9s steps(1) infinite;
+  }
+
+  #battle .join-card,
+  #battle .join-sprite {
+    transition:
+      border-color 120ms,
+      box-shadow 120ms,
+      filter 160ms;
+  }
+}
+
+@keyframes join-turn {
+  to {
+    transform: rotate(1turn);
+  }
+}
+
+@keyframes join-nudge {
+  50% {
+    translate: 3px 0;
+  }
+}

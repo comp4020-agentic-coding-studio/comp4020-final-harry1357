@@ -283,13 +283,23 @@ around it.
   server change restart the process, which ends every fight in progress, by
   design. Env: `PORT`, `DATABASE_PATH`, `TICK_MS` (150), `TURN_TIMEOUT_MS`
   (20000).
-- **`pnpm check` needs the app running**, because every spec runs over HTTP.
-  The exception is `spec/restart.test.ts`, which boots and SIGKILLs its own
-  server from source on a temp database, because a restart can't be done to
-  somebody else's process.
-- **Off the roster, run by hand** (they need Chrome; a roster that goes red
-  because a browser didn't launch teaches you to ignore it). Each takes
-  `APP_URL`:
+- **`pnpm check` needs the app running**, because the specs run over HTTP.
+  Three exceptions boot or drive something of their own:
+  - `spec/restart.test.ts`, `spec/pacing.test.ts` and the first test in
+    `spec/shown.test.ts` boot their own server from source (`spec/boot.ts`:
+    `PORT=0`, the server reports the port it bound) with a scratch database,
+    a fast clock or a short turn.
+  - `spec/command.test.ts` mounts the real command window in jsdom.
+  - **The second test in `spec/shown.test.ts` drives real headless Chrome**
+    (`spec/browser.ts`), because "B's screen shows the strike before its log
+    line" is a claim only a rendered page can answer. That reverses the old
+    rule that Chrome stays off the roster, on purpose and for this one claim:
+    CI's `ubuntu-latest` runner ships Chrome, and `spec/browser.ts` fails
+    loudly (never skips) when there's none. If it ever goes red because a
+    browser didn't launch, fix the launch. Don't move the claim off the
+    roster.
+- **Off the roster, run by hand.** These need Chrome and measure layout,
+  timing and feel rather than a contract. Each takes `APP_URL`:
   - `pnpm check:viewports`: 1920×1080 and 390×844, clientWidth then
     innerWidth, on `/readme/`, `/` and `/` with a full table of 24-character
     names
@@ -298,14 +308,24 @@ around it.
   - `pnpm probe`: two separate browsers, measured propagation of one strike
     to the other screen; fails any sample over 1000 ms
   - `pnpm check:tags`: at 390×844, a table of four with 24-character names
-    plays a run of strikes, and every rendered state is measured; it fails if
-    two name tags intersect or a disc lands on someone else's tag. It measures
-    where tokens *land* (reduced motion), and it self-tests on planted boxes
-    first. Breaking the lane logic on purpose produced 64 collisions, so it is
-    looking.
+    plays a run of strikes, and no two name plates may intersect. It
+    measures where things *land* (reduced motion), and it self-tests on
+    planted boxes first.
 
   Run the viewport, keyboard and tag checks after any layout work, and the
   probe after any change to how state reaches the page.
+- **The battle screen is assembled from parts that meet in one contract,
+  `src/client/battle/api.ts`.** Effects (`src/client/battle/registry.ts`) talk
+  to the scene, the strip and the audio only through its methods. That keeps
+  the registry importable without a DOM, and lets `spec/effects.test.ts` run
+  every reduced variant against a recording stand-in. A new visual idea
+  becomes a method there (state or motion, and say which) before it becomes
+  code anywhere else.
+- **Assets go in through CREDITS.md, not past it** (rule 10). Write the row,
+  then copy the file. `pnpm assets` rebuilds everything derived (the down
+  frames, `sprites.json`, the Orrery) from `scripts/assets/`, and the source
+  sheets are pinned to an upstream commit. Never edit a derived file by hand;
+  change its script.
 - **Server code is erasable TypeScript only** (`erasableSyntaxOnly`): no
   `enum`, `namespace` or parameter properties, and relative imports carry
   `.ts`. tsc refuses them first, so Node never meets them.

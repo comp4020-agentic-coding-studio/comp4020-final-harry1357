@@ -1,1 +1,171 @@
-/* SCAFFOLD STUB, owned by the phone layout (390×844), last in the cascade. */
+/* The phone, 390×844 (CLAUDE.md, "Design: the battle screen", composition at
+   390×844): the Orrery at the top, the turn strip as a row beneath it, then
+   the party, then the command window, then a short log. The join screen takes
+   the screen as a character select. Nothing scrolls the page sideways; the
+   strip may scroll sideways inside itself. Last in the cascade (styles.css),
+   so at equal specificity it wins. pnpm check:viewports and pnpm check:tags
+   are how this file is believed; a screenshot isn't, until innerWidth is.
+
+   How the field survives the move. The strip isn't inside the scene, but it
+   has to sit between the Orrery and the party, which are. Rather than
+   dissolve the scene (display: contents takes its box away: no rect for
+   anything that measures it, no transform for the camera's shake and
+   push-in, no containing block for the overlays), the scene stays a box
+   spanning the stage's first three rows, and its rows ARE the stage's rows
+   (grid-template-rows: subgrid). The Orrery takes the first, the party the
+   third, and the strip, a sibling in the stage, takes the middle one, drawn
+   over the field. The field and the effects overlay stay absolute inside the
+   scene, so together they cover Orrery, strip and party: the fight still
+   sits on the observatory field, and numbers and projectiles still land on
+   whoever they're about.
+
+   ASSUMPTIONS about the others' markup. Every selector here that isn't this
+   file's own leans on one of these; if one stops being true, the phone
+   breaks there first.
+
+   shared (index.html, main.ts):
+   - #battle > .stage holds .scene[data-scene], aside.strip[data-rail],
+     section.command[data-command] and section.log-window; the join screen,
+     section.join[data-join-screen], is the stage's sibling inside #battle.
+   - #battle[data-phase] is "fight" exactly while this page has a character
+     standing in the battle, and "join" or "ended" while the join screen is
+     up (main.ts sets it on every state).
+
+   the scene:
+   - [data-field] (sky and floor), [data-boss], [data-party] and [data-fx]
+     are DIRECT children of [data-scene], and are placed by CSS rather than
+     by inline geometry set from script (so they can be re-placed here).
+   - The field and the effects overlay draw themselves to fill whatever box
+     they're given; numbers and projectiles are positioned against [data-fx]
+     or [data-scene] (both still boxes here), not against the viewport.
+   - [data-party]'s direct children are one element per party member, each
+     holding that member's [data-sprite] with its [data-plate] beneath it.
+   - A plate wraps its name rather than clipping it.
+
+   the turn strip, the command window, the join screen: see the notes by
+   their rules below. */
+
+@media (width <= 46rem) {
+  /* ---- the bar: one line, tighter --------------------------------------- */
+
+  #battle .battle-bar {
+    gap: 0.5rem;
+    padding-inline: 0.75rem;
+  }
+
+  /* ---- the stage: one column, top to bottom ------------------------------ */
+
+  #battle .stage {
+    grid-template:
+      "boss" auto
+      "strip" auto
+      "party" auto
+      "command" auto
+      "log" auto
+      / minmax(0, 1fr);
+    gap: 0.5rem;
+    padding: 0.5rem;
+  }
+
+  #battle [data-scene] {
+    display: grid;
+    grid-row: boss-start / party-end;
+    grid-column: 1;
+    grid-template-rows: subgrid;
+    grid-template-columns: minmax(0, 1fr);
+    min-height: 0;
+  }
+
+  /* the sky and floor, and the overlay numbers fly in: the whole scene */
+  #battle [data-scene] > [data-field],
+  #battle [data-scene] > [data-fx] {
+    position: absolute;
+    inset: 0;
+    grid-area: auto;
+    width: auto;
+    height: auto;
+  }
+
+  #battle [data-scene] > [data-fx] {
+    pointer-events: none;
+  }
+
+  /* ---- the Orrery: first row, centred ------------------------------------ */
+
+  #battle [data-scene] > [data-boss] {
+    position: relative;
+    inset: auto;
+    grid-row: 1;
+    grid-column: 1;
+    place-self: center;
+  }
+
+  /* ---- the turn strip: second row, a row of portraits -------------------- */
+
+  #battle .stage > [data-rail] {
+    --strip-flow: row;
+    --strip-face: 56px;
+    --strip-face-lit: 72px;
+
+    position: relative;
+    z-index: 1;
+    grid-area: strip;
+    min-width: 0;
+    min-height: 0;
+  }
+
+  /* ---- the party: third row, two by two ---------------------------------- */
+
+  #battle [data-scene] > [data-party] {
+    position: relative;
+    inset: auto;
+    grid-row: 3;
+    grid-column: 1;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.5rem;
+    align-items: end;
+    min-width: 0;
+    overflow-x: clip;
+  }
+
+  #battle [data-party] > * {
+    position: relative;
+    inset: auto;
+    min-width: 0;
+  }
+
+  #battle [data-party] [data-plate] {
+    max-width: 100%;
+    overflow-wrap: anywhere;
+  }
+
+  /* ---- the command window and the log ------------------------------------ */
+
+  #battle .stage > .log-window {
+    max-height: 7.5rem;
+  }
+
+  /* ---- the join screen: the character select takes the screen ------------
+     While no character of this page's is standing, the stage steps out of
+     the flow and out of sight, and the select takes its row, filling the
+     screen beneath the bar. The stage is hidden but still laid out (not
+     display: none), so whatever the scene and strip run while someone picks
+     (animations, their end events, measurements) runs the same as ever. */
+
+  #battle:not([data-phase="fight"]) > .stage {
+    position: absolute;
+    inset: 0;
+    overflow: clip;
+    visibility: hidden;
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  #battle > .join {
+    position: relative;
+    inset: auto;
+    z-index: 1;
+    overflow: visible;
+  }
+}

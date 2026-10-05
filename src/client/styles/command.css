@@ -1,1 +1,311 @@
-/* SCAFFOLD STUB, owned by the command-window area. */
+/* The command window (CLAUDE.md, "Design: the battle screen"): the genre's
+   bordered list with a cursor, drawn new. The chrome is base.css's .window;
+   this file draws what is inside it: the brass clock-hand pointer, each
+   option with its rank word, the target step, and the turn clock draining
+   along the top edge. Phone placement is mobile.css's. The window itself is
+   fluid down to 358px (a container query, not a media query, picks one line
+   or two per option), and every control it offers a finger is 44px or more. */
+
+#battle .command {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  padding-top: 1.05rem;
+}
+
+#battle .command[data-enabled="false"] {
+  border-color: var(--brass-dim);
+}
+
+#battle .command-title {
+  margin: 0;
+}
+
+/* ---- the turn clock: a bar along the top edge, brass to ember ------------ */
+
+#battle .command-clock {
+  position: absolute;
+  inset: 3px 3px auto;
+  height: 6px;
+  overflow: hidden;
+  border-radius: 2px 2px 0 0;
+  background: color-mix(in srgb, var(--void) 80%, var(--brass));
+}
+
+#battle .command-clock-fill {
+  height: 100%;
+  background: var(--brass);
+  transform-origin: left center;
+}
+
+#battle .command-clock[data-low] .command-clock-fill {
+  background: var(--ember);
+}
+
+/* ---- the list ------------------------------------------------------------ */
+
+#battle .command-menu {
+  container: command-menu / inline-size;
+  display: grid;
+  gap: 0.2rem;
+  border-radius: 3px;
+}
+
+#battle .command-option {
+  display: grid;
+  grid-template-areas:
+    "pointer label rank"
+    ". blurb blurb";
+  grid-template-columns: 36px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.15rem 0.6rem;
+  width: 100%;
+  min-height: 44px;
+  margin: 0;
+  padding: 0.35rem 0.6rem 0.4rem 0.4rem;
+  border: 0;
+  border-radius: 3px;
+  color: var(--card);
+  background: transparent;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+@container command-menu (width >= 40rem) {
+  #battle .command-option {
+    grid-template-areas: "pointer label blurb rank";
+    grid-template-columns: 36px 7.5rem minmax(0, 1fr) auto;
+  }
+}
+
+#battle .command-option:disabled {
+  cursor: default;
+}
+
+#battle .command-option:enabled:hover:not([data-cursor]) {
+  background: color-mix(in srgb, var(--brass) 7%, transparent);
+}
+
+#battle .command-option[data-cursor] {
+  background: color-mix(in srgb, var(--brass) 15%, transparent);
+}
+
+#battle .command-option[data-aiming] {
+  box-shadow: inset 0 0 0 2px var(--brass);
+}
+
+#battle .command-option:disabled > :not(.command-pointer) {
+  opacity: 0.5;
+}
+
+#battle .command-pointer {
+  grid-area: pointer;
+  width: 36px;
+  height: 21px;
+  visibility: hidden;
+}
+
+#battle .command-option[data-cursor] .command-pointer {
+  visibility: visible;
+}
+
+#battle .command-label {
+  grid-area: label;
+  font-family: var(--font-display);
+  font-size: 0.75rem;
+  line-height: 1.5;
+  letter-spacing: 0.04em;
+}
+
+#battle .command-option[data-aiming] .command-label {
+  color: var(--brass-lit);
+}
+
+#battle .command-rank {
+  grid-area: rank;
+  padding-inline: 0.4rem;
+  border: 1px solid var(--brass-dim);
+  border-radius: 2px;
+  font-size: 1.1rem;
+  white-space: nowrap;
+  color: var(--brass-lit);
+}
+
+#battle .command-blurb {
+  grid-area: blurb;
+  min-width: 0;
+  font-size: 1.15rem;
+  color: var(--card-quiet);
+}
+
+/* ---- pixel art: the hand and the step arrows ----------------------------- */
+
+#battle .command .pixel-body {
+  fill: var(--brass);
+}
+
+#battle .command .pixel-light {
+  fill: var(--card);
+}
+
+#battle .command-option:disabled .pixel-body {
+  fill: var(--brass-dim);
+}
+
+/* ---- the foot: a hint line, or the target step --------------------------- */
+
+#battle .command-foot {
+  container: command-foot / inline-size;
+  display: flex;
+  align-items: center;
+  min-height: calc(44px + 0.4rem + 2px);
+  padding-top: 0.4rem;
+  border-top: 2px solid var(--brass-dim);
+}
+
+#battle .command-hint {
+  margin: 0;
+  font-size: 1.15rem;
+  color: var(--card-quiet);
+}
+
+#battle .command[data-enabled="true"] .command-hint {
+  color: var(--brass-lit);
+}
+
+/* The target step. Narrow, the name gets a line of its own and may wrap (a
+   24-character name is never cut short); wide, it's one row, ◀ name ▶ with
+   Confirm and Back at the far end. */
+#battle .command-aim {
+  display: grid;
+  grid-template-areas:
+    "label pointer name name name"
+    "prev next . confirm back";
+  grid-template-columns: auto auto minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 0.4rem 0.5rem;
+  width: 100%;
+}
+
+@container command-foot (width >= 40rem) {
+  #battle .command-aim {
+    grid-template-areas: "label prev pointer name next . confirm back";
+    grid-template-columns: auto auto auto minmax(0, max-content) auto minmax(0, 1fr) auto auto;
+  }
+}
+
+#battle .command-aim[hidden] {
+  display: none;
+}
+
+#battle .command-aim-label {
+  grid-area: label;
+  font-family: var(--font-display);
+  font-size: 0.55rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--brass-lit);
+}
+
+#battle .command-aim-pointer {
+  grid-area: pointer;
+  width: 36px;
+  height: 21px;
+}
+
+#battle .command-aim-name {
+  grid-area: name;
+  min-width: 0;
+  font-size: 1.3rem;
+  overflow-wrap: anywhere;
+}
+
+#battle .command-key {
+  min-width: 44px;
+  min-height: 44px;
+  margin: 0;
+  padding: 0 0.85rem;
+  border: 2px solid var(--brass-dim);
+  border-radius: 3px;
+  color: var(--card);
+  background: var(--ink);
+  font-family: var(--font-display);
+  font-size: 0.6rem;
+  letter-spacing: 0.06em;
+  cursor: pointer;
+}
+
+#battle .command-key:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
+#battle .command-key:enabled:hover {
+  border-color: var(--brass);
+}
+
+#battle .command-confirm {
+  grid-area: confirm;
+  border-color: var(--brass);
+}
+
+#battle .command-back {
+  grid-area: back;
+}
+
+#battle .command-step {
+  display: grid;
+  place-items: center;
+  padding: 0;
+}
+
+#battle .command-step[data-step="-1"] {
+  grid-area: prev;
+}
+
+#battle .command-step[data-step="1"] {
+  grid-area: next;
+}
+
+#battle .command-step[hidden] {
+  display: none;
+}
+
+#battle .command-step-art {
+  width: 12px;
+  height: 21px;
+}
+
+#battle .command-step[data-step="-1"] .command-step-art {
+  scale: -1 1;
+}
+
+/* ---- motion: the hand bobs, the clock drains, low time blinks ------------ */
+
+@keyframes command-bob {
+  50% {
+    translate: 3px 0;
+  }
+}
+
+@keyframes command-low {
+  50% {
+    background: color-mix(in srgb, var(--ember) 55%, var(--ink));
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  #battle .command-option[data-cursor]:enabled:not([data-aiming]) .command-pointer,
+  #battle .command-aim-pointer {
+    animation: command-bob 0.9s steps(1, end) infinite;
+  }
+
+  #battle .command-clock-fill {
+    transition: transform 0.2s linear;
+  }
+
+  #battle .command-clock[data-low] .command-clock-fill {
+    animation: command-low 0.8s steps(1, end) infinite;
+  }
+}

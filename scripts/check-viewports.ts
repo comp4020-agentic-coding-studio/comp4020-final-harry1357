@@ -1,13 +1,13 @@
 import { type ChildProcess, spawn } from "node:child_process";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { join as joinBattle, newBattle } from "../spec/raid.ts";
 
-// Does the raid fit the two viewports it is marked at?
+// Does the battle screen fit the two viewports it is marked at?
 //
-//   APP_URL=http://localhost:8094 pnpm check:viewports
+//   APP_URL=http://localhost:8080 pnpm check:viewports
 //
 // Carried from comp4020-crit7-harry1357 and re-pointed at a running app
 // (APP_URL, the same variable the spec uses) rather than booting one: the
@@ -19,28 +19,42 @@ import { join as joinBattle, newBattle } from "../spec/raid.ts";
 // any layout work and before you ship.
 //
 // The claim is narrow: no page body scrolls sideways, at 1920×1080 or at
-// 390×844, on /readme/, on / before joining, and on / after joining a battle
-// that has people in it. Wide content may scroll inside its own
-// `overflow-x: auto` container --- that is the fix, not the failure.
+// 390×844, on three routes:
+//   - /readme/ (outside #battle: the rulebook page)
+//   - / before joining: the character select (form[data-join])
+//   - / after joining THROUGH THAT FORM, into a battle that already seats
+//     three more characters with 24-character names via the API. That route
+//     is only measured once the table is really drawn: five portraits on the
+//     turn strip (four characters and the Orrery) and four sprites with four
+//     name plates in the party. An empty field fits whatever the stylesheet
+//     says, and a sensor that measured the easy version reports exactly what
+//     a clean page reports.
+// Wide content may scroll inside its own `overflow-x: auto` container (the
+// phone's turn strip does) --- that is the fix, not the failure.
 //
 // The order of the checks is CLAUDE.md's (design gates), and they fail
-// differently on purpose:
+// differently on purpose. 1 and 2 are read on their own, before anything else
+// on the page is measured or photographed:
 //   1. `documentElement.clientWidth` must equal the width asked for. If it
 //      doesn't, the EMULATION never took and every number after it describes
 //      a viewport nobody asked for, so the run throws.
 //   2. `innerWidth` must equal it too. Under mobile emulation the layout
 //      viewport grows to meet content wider than itself, so a mismatch is the
-//      browser reporting overflow. That fails the route.
-//   3. No visible element's box may cross `clientWidth`, which names what
-//      pushed the page out.
+//      browser reporting overflow. That fails the route, and the screenshot of
+//      that route is saved as UNTRUSTED: it is a picture of a wider page.
+//   3. Only then, the per-element walk: no visible element's box may cross
+//      `clientWidth`, which names what pushed the page out.
 //
 // This file also carries the CDP plumbing (launch, attach, input) that
-// scripts/check-keyboard.ts imports, so the two sensors drive the browser the
-// same way. Nothing runs on import: main() is guarded at the bottom.
+// scripts/check-keyboard.ts and scripts/check-tags.ts import, so the sensors
+// drive the browser the same way. Nothing runs on import: main() is guarded at
+// the bottom.
 
 export const APP_URL = process.env.APP_URL ?? "http://localhost:8080";
 const CHROME = process.env.CHROME ?? "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
-const CDP_PORT = Number(process.env.CDP_PORT ?? 9401);
+/** Unset: Chrome picks a free port and says which in DevToolsActivePort, so
+ *  two sensors (or two people's) running at once never meet on one port. */
+const CDP_PORT = process.env.CDP_PORT ? Number(process.env.CDP_PORT) : 0;
 
 export interface Viewport {
   name: string;
@@ -165,20 +179,33 @@ const KEYS = {
 } as const;
 export type KeyName = keyof typeof KEYS;
 
-async function cdpVersion(): Promise<{ webSocketDebuggerUrl: string } | null> {
+async function cdpVersion(port: number): Promise<{ webSocketDebuggerUrl: string } | null> {
+  if (!port) return null;
   try {
-    const res = await fetch(`http://127.0.0.1:${CDP_PORT}/json/version`, { signal: AbortSignal.timeout(1000) });
+    const res = await fetch(`http://127.0.0.1:${port}/json/version`, { signal: AbortSignal.timeout(1000) });
     return res.ok ? ((await res.json()) as { webSocketDebuggerUrl: string }) : null;
   } catch {
     return null;
   }
 }
 
-/** Headless Chrome on CDP_PORT with a throwaway profile. Refuses to start if
- *  something already answers on that port: a probe that attached to someone
+/** The port this run's Chrome bound: the fixed CDP_PORT, or the one it wrote
+ *  into its own (throwaway) profile, so it can only ever be this run's. */
+function boundPort(profile: string): number {
+  if (CDP_PORT) return CDP_PORT;
+  try {
+    return Number(readFileSync(join(profile, "DevToolsActivePort"), "utf8").split("\n")[0]) || 0;
+  } catch {
+    return 0; // not written yet
+  }
+}
+
+/** Headless Chrome with a throwaway profile, on a port of its own choosing
+ *  (or on CDP_PORT when that is set). With a fixed port it refuses to start
+ *  if something already answers there: a probe that attached to someone
  *  else's browser would measure their tabs and report it as yours. */
 export async function launch(): Promise<Browser> {
-  if (await cdpVersion()) {
+  if (await cdpVersion(CDP_PORT)) {
     throw new ProbeError(
       `something is already answering on the debugging port ${CDP_PORT}; refusing to drive a browser this run didn't start`,
     );
@@ -221,12 +248,14 @@ export async function launch(): Promise<Browser> {
   for (let attempt = 0; attempt < 100 && !version; attempt++) {
     if (spawnError || exited) break;
     await sleep(100);
-    version = await cdpVersion();
+    version = await cdpVersion(boundPort(profile));
   }
   if (!version) {
     await kill();
     throw new ProbeError(
-      spawnError ? `could not start Chrome at ${CHROME} (${String(spawnError)}); set CHROME` : `Chrome never exposed port ${CDP_PORT}`,
+      spawnError
+        ? `could not start Chrome at ${CHROME} (${String(spawnError)}); set CHROME`
+        : `Chrome never exposed its debugging port${CDP_PORT ? ` ${CDP_PORT}` : " (no DevToolsActivePort)"}`,
     );
   }
 
@@ -403,7 +432,7 @@ export async function settleScroll(evaluate: <T>(expression: string) => Promise<
 
 // --- the measurement -----------------------------------------------------------
 
-interface Measurement {
+interface Widths {
   clientWidth: number;
   innerWidth: number;
   scrollWidth: number;
@@ -411,9 +440,24 @@ interface Measurement {
   dpr: number;
   touch: number;
   viewportMeta: string | null;
+}
+
+interface Measurement extends Widths {
   count: number;
   offenders: string[];
 }
+
+// Read first and on its own: the numbers that say whether anything after them
+// describes the viewport that was asked for.
+const WIDTHS = `(() => {
+  const html = document.documentElement;
+  const meta = document.querySelector('meta[name="viewport"]');
+  return {
+    clientWidth: html.clientWidth, innerWidth, scrollWidth: html.scrollWidth,
+    screenWidth: screen.width, dpr: devicePixelRatio, touch: navigator.maxTouchPoints,
+    viewportMeta: meta ? meta.getAttribute("content") : null,
+  };
+})()`;
 
 // Per element, against clientWidth: no visible box may cross the edge.
 // Skipped: anything with an ancestor below <body> whose overflow-x isn't
@@ -451,47 +495,51 @@ const MEASURE = `(() => {
       offenders.push(describe(el, rect));
     }
   }
-  const meta = document.querySelector('meta[name="viewport"]');
-  return {
-    clientWidth: vw, innerWidth, scrollWidth: html.scrollWidth,
-    screenWidth: screen.width, dpr: devicePixelRatio, touch: navigator.maxTouchPoints,
-    viewportMeta: meta ? meta.getAttribute("content") : null,
-    count: offenders.length, offenders: offenders.slice(0, 8),
-  };
+  return { count: offenders.length, offenders: offenders.slice(0, 8) };
 })()`;
 
-/** Measures, and throws if the emulation itself is what's wrong. */
-async function measure(page: Page, where: string): Promise<{ m: Measurement; problems: string[] }> {
+/**
+ * Measures, in CLAUDE.md's order, and throws if the emulation itself is what's
+ * wrong. `fits` is false when innerWidth says the page grew: whatever is
+ * measured or photographed after that describes a wider page than the one
+ * asked for, so the caller must not believe it.
+ */
+async function measure(page: Page, where: string): Promise<{ m: Measurement; problems: string[]; fits: boolean }> {
   const { width, mobile, scale } = page.viewport;
-  const m = await page.evaluate<Measurement>(MEASURE);
+  const w = await page.evaluate<Widths>(WIDTHS);
   // The setup is part of what's being trusted. A canary can pass in conditions
   // the real measurements never meet, so assert the emulation directly.
-  if (m.screenWidth !== width || m.dpr !== scale || (mobile && m.touch < 1)) {
+  if (w.screenWidth !== width || w.dpr !== scale || (mobile && w.touch < 1)) {
     throw new ProbeError(
-      `${where}: the ${width}px emulation didn't take (screen ${m.screenWidth}px, dpr ${m.dpr}, touch points ${m.touch})`,
+      `${where}: the ${width}px emulation didn't take (screen ${w.screenWidth}px, dpr ${w.dpr}, touch points ${w.touch})`,
     );
   }
   const problems: string[] = [];
-  if (m.clientWidth !== width) {
+  // 1. clientWidth: did the emulation take?
+  if (w.clientWidth !== width) {
     // A phone with no `width=device-width` lays the page out at 980px. That is
     // the page's doing, not the probe's, and it is the one way clientWidth can
     // be wrong while the emulation took --- so it's reported, not thrown.
-    if (mobile && !/width\s*=\s*device-width/.test(m.viewportMeta ?? "")) {
+    if (mobile && !/width\s*=\s*device-width/.test(w.viewportMeta ?? "")) {
       problems.push(
-        `no <meta name="viewport" content="width=device-width">, so a phone lays it out at ${m.clientWidth}px ` +
-          `(viewport meta: ${m.viewportMeta === null ? "missing" : JSON.stringify(m.viewportMeta)})`,
+        `no <meta name="viewport" content="width=device-width">, so a phone lays it out at ${w.clientWidth}px ` +
+          `(viewport meta: ${w.viewportMeta === null ? "missing" : JSON.stringify(w.viewportMeta)})`,
       );
-      return { m, problems };
+      return { m: { ...w, count: 0, offenders: [] }, problems, fits: false };
     }
     throw new ProbeError(
-      `${where}: documentElement.clientWidth is ${m.clientWidth}px, not the ${width}px asked for. ` +
+      `${where}: documentElement.clientWidth is ${w.clientWidth}px, not the ${width}px asked for. ` +
         "The emulation didn't take (or a classic scrollbar is eating width), so every number in this run " +
         "would describe a viewport nobody asked for.",
     );
   }
-  if (m.innerWidth !== width) {
-    problems.push(`innerWidth is ${m.innerWidth}px: the viewport grew to fit content wider than ${width}px`);
+  // 2. innerWidth: did the page fit? Judged before anything else is read.
+  const fits = w.innerWidth === width;
+  if (!fits) {
+    problems.push(`innerWidth is ${w.innerWidth}px: the viewport grew to fit content wider than ${width}px`);
   }
+  // 3. Only now the walk, which names what pushed the page out.
+  const m: Measurement = { ...w, ...(await page.evaluate<{ count: number; offenders: string[] }>(MEASURE)) };
   // Under mobile emulation scrollWidth is no verdict (it grows with the
   // viewport, see CLAUDE.md), but at a desktop width it is the plain fact of
   // a horizontal scrollbar --- and it sees ::before/::after boxes, which the
@@ -502,7 +550,7 @@ async function measure(page: Page, where: string): Promise<{ m: Measurement; pro
   if (m.count > 0) {
     problems.push(`${m.count} element(s) cross the ${width}px edge`);
   }
-  return { m, problems };
+  return { m, problems, fits };
 }
 
 /**
@@ -565,19 +613,38 @@ async function selfTest(page: Page): Promise<string[]> {
  *  overflows the day someone types their full gamer tag. */
 const longName = (n: number): string => "W".repeat(22) + String(n).padStart(2, "0");
 
-/** A battle with a full table in it, so the rail is measured with tokens on
- *  it. An empty page fits no matter what the stylesheet says, and a sensor
- *  that measured the easy version reports exactly what a clean page reports. */
+/** A battle with three of the four seats taken via the API, by three different
+ *  roles (the lancer's sheet is the widest), so the form's herald makes a
+ *  full table of four distinct sprites. An empty page fits no matter what the
+ *  stylesheet says, and a sensor that measured the easy version reports
+ *  exactly what a clean page reports. */
 export async function seededBattle(): Promise<string> {
   const battleId = await newBattle(APP_URL);
   for (const [i, role] of (["bulwark", "lancer", "mender"] as const).entries()) {
     const seat = await joinBattle(APP_URL, battleId, longName(i + 1), role);
     if (seat.status !== 200) {
-      throw new Error(`could not seat ${role} via the API (POST join answered ${seat.status}); the rail would be measured near-empty`);
+      throw new Error(`could not seat ${role} via the API (POST join answered ${seat.status}); the table would be measured near-empty`);
     }
   }
   return battleId;
 }
+
+/** How much of the table the page has drawn: portraits on the turn strip,
+ *  and sprites and visible name plates in the party. */
+export interface Drawn {
+  portraits: number;
+  sprites: number;
+  plates: number;
+}
+
+export const DRAWN = `(() => {
+  const shown = (el) => el.getClientRects().length > 0 && getComputedStyle(el).visibility !== "hidden";
+  return {
+    portraits: document.querySelectorAll("[data-rail] [data-token-id]").length,
+    sprites: [...document.querySelectorAll("[data-party] [data-sprite]")].filter(shown).length,
+    plates: [...document.querySelectorAll("[data-party] [data-plate]")].filter(shown).length,
+  };
+})()`;
 
 /** Chrome renders its own error page for a 404 or a refused connection, and
  *  that page fits a phone perfectly. Ask the server before measuring it. */
@@ -598,8 +665,36 @@ export async function joinByForm(page: Page): Promise<string> {
   await page.until(`document.querySelector('input[type="radio"][name="role"][value="herald"]').checked`, "the herald radio to be checked", 2_000);
   await page.activate(`form[data-join] button[type="submit"]`);
   const me = await page.until<string>(`document.body.dataset.me`, "document.body.dataset.me after joining", 10_000);
-  await page.until(`!!document.querySelector('[data-token-id="${me}"]')`, `my token [data-token-id="${me}"] on the rail`, 5_000);
+  const id = JSON.stringify(me);
+  await page.until(
+    `!!document.querySelector('[data-rail] [data-token-id="' + CSS.escape(${id}) + '"]')`,
+    `my portrait [data-token-id="${me}"] on the turn strip`,
+    5_000,
+  );
+  await page.until(
+    `!!document.querySelector('[data-party] [data-sprite="' + CSS.escape(${id}) + '"]')`,
+    `my sprite [data-sprite="${me}"] in the party ([data-party])`,
+    5_000,
+  );
   return me;
+}
+
+/** Waits until the whole table of four is drawn, and says what's missing if it never is. */
+export async function tableDrawn(page: Page, seats = 4): Promise<Drawn> {
+  try {
+    return await page.until<Drawn>(
+      `(() => { const d = ${DRAWN}; return d.portraits >= ${seats + 1} && d.sprites >= ${seats} && d.plates >= ${seats} ? d : null; })()`,
+      "the table",
+      5_000,
+    );
+  } catch {
+    const d = await page.evaluate<Drawn>(DRAWN);
+    throw new Error(
+      `the table of ${seats} was never drawn: ${d.portraits} portrait(s) [data-token-id] on [data-rail] (want ${seats + 1}, ` +
+        `the Orrery included), ${d.sprites} sprite(s) [data-sprite] and ${d.plates} visible plate(s) [data-plate] in [data-party] ` +
+        `(want ${seats} of each). An undrawn table fits whatever the stylesheet says, so it isn't measured.`,
+    );
+  }
 }
 
 async function main(): Promise<void> {
@@ -654,14 +749,13 @@ async function main(): Promise<void> {
             },
           },
           {
-            label: "/ after joining (four at the table)",
+            label: "/ after joining through the form (four at the table)",
             slug: "joined",
             open: async () => {
               const battleId = await seededBattle();
               await page.goto(new URL(`/?battle=${encodeURIComponent(battleId)}`, APP_URL).href);
               await joinByForm(page);
-              const tokens = await page.evaluate<number>(`document.querySelectorAll("[data-token-id]").length`);
-              if (tokens < 5) throw new Error(`only ${tokens} token(s) on the rail; expected four characters and the Orrery`);
+              await tableDrawn(page);
             },
           },
         ];
@@ -670,9 +764,11 @@ async function main(): Promise<void> {
           const label = `${route.label} at ${size}`;
           try {
             await route.open();
-            await sleep(400); // let a token's slide land
-            const { m, problems } = await measure(page, label);
-            const shot = join(shots, `${viewport.name}-${route.slug}.png`);
+            await sleep(400); // let an entrance land
+            const { m, problems, fits } = await measure(page, label);
+            // A screenshot is believed only after innerWidth was: one taken
+            // when the viewport grew is a picture of a different page.
+            const shot = join(shots, `${viewport.name}-${route.slug}${fits ? "" : `.UNTRUSTED-innerWidth-${m.innerWidth}`}.png`);
             await page.screenshot(shot);
             saved.push(shot);
             if (problems.length) fail(label, problems, m.offenders);
@@ -697,7 +793,7 @@ async function main(): Promise<void> {
   }
 
   if (saved.length) {
-    console.log(`\nscreenshots (taken after the numbers, never instead of them):`);
+    console.log(`\nscreenshots (taken after the numbers, never instead of them; UNTRUSTED ones are of a page that grew):`);
     for (const shot of saved) console.log(`  ${shot}`);
   }
   if (failures > 0) {
