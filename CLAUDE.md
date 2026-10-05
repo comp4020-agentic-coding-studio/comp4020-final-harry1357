@@ -260,6 +260,10 @@ around it.
    player, never removes someone who has acted since their last hold, and
    never lets a timeout decide *order*: it only decides that a turn passes.
    *Spec: `spec/pacing.test.ts`. Why: `docs/adr/002`.*
+9. **Before any pass with more than three parallel agents, the weekly budget
+   is read at /api/me, and passes expected to cost more than half of what
+   remains start on the day the allocation resets.** *Judged: no test can see
+   a launch. Why: `docs/adr/004`.*
 
 ## How to work in here
 
