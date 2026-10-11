@@ -82,14 +82,18 @@ export async function act(
   cookie: string,
   action: string,
   targetId?: string,
-): Promise<{ status: number; tick: number | null }> {
+): Promise<{ status: number; tick: number | null; error: string | null }> {
   const res = await fetch(new URL(`/api/battles/${battleId}/actions`, base), {
     method: "POST",
     headers: { "content-type": "application/json", cookie },
     body: JSON.stringify(targetId ? { action, targetId } : { action }),
   });
-  const { tick } = await body(res);
-  return { status: res.status, tick: typeof tick === "number" ? tick : null };
+  const { tick, error } = await body(res);
+  return {
+    status: res.status,
+    tick: typeof tick === "number" ? tick : null,
+    error: typeof error === "string" ? error : null,
+  };
 }
 
 export async function battle(base: string, battleId: string): Promise<BattleState> {

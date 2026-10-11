@@ -266,7 +266,7 @@ around it.
    a launch. Why: `docs/adr/004`.*
 10. **When two actions arrive for one turn, the server's clock decides; the
     second is refused with the name of whose turn it is, never queued.**
-    *Why: `docs/adr/005`.*
+    *Spec: `spec/two-at-once.test.ts`. Why: `docs/adr/005`.*
 
 ## How to work in here
 
