@@ -264,6 +264,9 @@ around it.
    is read at /api/me, and passes expected to cost more than half of what
    remains start on the day the allocation resets.** *Judged: no test can see
    a launch. Why: `docs/adr/004`.*
+10. **When two actions arrive for one turn, the server's clock decides; the
+    second is refused with the name of whose turn it is, never queued.**
+    *Why: `docs/adr/005`.*
 
 ## How to work in here
 
