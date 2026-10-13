@@ -29,6 +29,10 @@
   flex-direction: column;
   gap: 0.35rem;
   padding: 0.5rem 0.3rem 0.4rem;
+
+  /* The strip never sets the stage's height: it takes the row it is given and
+     its lanes scroll inside it. */
+  overflow: hidden;
 }
 
 #battle .strip-title {
@@ -51,7 +55,7 @@
 #battle .strip-fallen {
   display: flex;
   flex-direction: var(--strip-flow, column);
-  gap: 0.65rem;
+  gap: 0.9rem;
   margin: 0;
   padding: 0;
   list-style: none;
@@ -89,7 +93,9 @@
   --face: var(--strip-face, 64px);
 
   position: relative;
-  flex: 1 1 0;
+
+  /* never shrinks into its neighbour; --strip-grow: 1 lets a row share its width out */
+  flex: var(--strip-grow, 0) 0 auto;
 }
 
 #battle .strip-token[data-active="true"] {
@@ -390,8 +396,15 @@
   line-height: 1;
   color: var(--card-quiet);
   text-align: center;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+
+  /* two lines, broken anywhere: a 24-character name reads in full-ish; the
+     full text is also the title attribute */
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow-wrap: anywhere;
+  white-space: normal;
   contain: inline-size;
 }
 

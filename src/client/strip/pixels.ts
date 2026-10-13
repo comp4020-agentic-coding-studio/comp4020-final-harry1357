@@ -1,13 +1,13 @@
 // The strip's pixel icons, drawn here as text and built as crisp SVG. Each
 // grid is original: one character per pixel, and a one-pixel dark outline is
 // added around every lit pixel, the way a 16-bit status icon sits on any
-// ground. Shown at 2× (a whole number), never smoothed.
+// ground. Shown at 3× (a whole number), never smoothed.
 //
 //   .  nothing        # brass        = lit brass
 //   +  card           * ember        (o, the outline, is added, not drawn)
 
 const SVG_NS = "http://www.w3.org/2000/svg";
-const SCALE = 2;
+const SCALE = 3;
 const INK: Readonly<Record<string, string>> = { o: "o", "#": "f", "=": "l", "+": "h", "*": "e" };
 
 /** Haste: a double chevron pointing up the strip, toward the plate. */
