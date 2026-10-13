@@ -5,7 +5,7 @@
   "scripts": {
     "prepare": "git rev-parse --git-dir >/dev/null 2>&1 && git config core.hooksPath .githooks || true",
     "start": "node src/server/main.ts",
-    "build": "esbuild src/client/main.ts --bundle --format=esm --target=es2022 --sourcemap --outfile=dist/client/app.js",
+    "build": "esbuild src/client/main.ts --bundle --format=esm --target=es2022 --sourcemap --loader:.svg=text --outfile=dist/client/app.js && esbuild src/client/styles.css --bundle --sourcemap --outfile=dist/client/styles.css",
     "typecheck": "tsc --noEmit",
     "lint": "stylelint \"**/*.css\" --ignore-path .gitignore --allow-empty-input",
     "check": "pnpm typecheck && pnpm lint && pnpm test",
@@ -15,6 +15,7 @@
     "check:tags": "node scripts/check-tags.ts",
     "probe": "node scripts/probe-propagation.ts",
     "db:generate": "drizzle-kit generate",
+    "assets": "node scripts/assets/derive-down.ts && node scripts/assets/sprites.ts && node scripts/assets/orrery.ts",
     "test": "vitest run"
   },
   "devDependencies": {

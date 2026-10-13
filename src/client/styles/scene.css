@@ -1,0 +1,791 @@
+/* The scene: the observatory field, the party on its floor, the Orrery, the
+   numbers and every motion primitive. All motion lives under
+   prefers-reduced-motion: no-preference; reduced shows the static end state.
+   Desktop placement is in the width > 46rem block; the phone's placement is
+   mobile.css's, so sizes here are custom properties it can lean on. */
+
+#battle .scene {
+  --px: 2; /* whole-number sprite scale */
+  --boss-size: min(70vw, 16rem);
+
+  overflow: hidden;
+  isolation: isolate;
+  background: var(--void);
+  border: 3px solid var(--brass-dim);
+  border-radius: 4px;
+}
+
+/* ---- the field ------------------------------------------------------------ */
+
+#battle .field {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  background: var(--void);
+}
+
+#battle .field-sky {
+  position: absolute;
+  inset: 0 0 46%;
+  background:
+    radial-gradient(ellipse 70% 90% at 72% 100%, color-mix(in srgb, var(--brass) 22%, var(--void)), transparent 70%),
+    linear-gradient(180deg, var(--void) 0%, color-mix(in srgb, var(--brass) 10%, var(--void)) 100%);
+}
+
+#battle .field-stars {
+  position: absolute;
+  inset: 0 0 46%;
+  opacity: 0.55;
+  background-image:
+    radial-gradient(circle, var(--card) 0 1px, transparent 1.5px),
+    radial-gradient(circle, var(--brass-lit) 0 1px, transparent 1.5px);
+  background-size: 96px 96px, 61px 61px;
+  background-position: 12px 20px, 40px 7px;
+  mask-image: linear-gradient(180deg, #000, transparent 95%);
+}
+
+#battle .field-floor {
+  position: absolute;
+  inset: 54% 0 0;
+  overflow: hidden;
+  perspective: 420px;
+  perspective-origin: 72% 0;
+  background: color-mix(in srgb, var(--ink) 80%, var(--void));
+}
+
+#battle .field-grid {
+  position: absolute;
+  top: 0;
+  left: -60%;
+  width: 220%;
+  height: 300%;
+  transform-origin: 50% 0;
+  transform: rotateX(62deg);
+  background-image:
+    repeating-linear-gradient(90deg, color-mix(in srgb, var(--brass) 45%, transparent) 0 2px, transparent 2px 110px),
+    repeating-linear-gradient(180deg, color-mix(in srgb, var(--brass) 45%, transparent) 0 2px, transparent 2px 110px);
+}
+
+#battle .field-floor::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, var(--void) 0%, color-mix(in srgb, var(--void) 30%, transparent) 45%, transparent 100%);
+}
+
+#battle .field-horizon {
+  position: absolute;
+  inset: 54% 0 auto;
+  height: 3px;
+  background: linear-gradient(90deg, transparent, var(--brass-dim) 20%, var(--brass-lit) 72%, var(--brass-dim) 90%, transparent);
+  box-shadow: 0 0 18px 2px color-mix(in srgb, var(--brass) 55%, transparent);
+}
+
+/* ---- the party ------------------------------------------------------------ */
+
+#battle .party {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 1rem;
+}
+
+#battle .actor {
+  --s: var(--px);
+
+  position: relative;
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: max(calc(var(--foot-w, 60) * var(--s) * 1px), 9.5rem);
+  min-width: 0;
+}
+
+#battle .actor[data-rank="back"] {
+  margin-bottom: 3.2rem;
+}
+
+#battle .actor-body {
+  position: relative;
+  width: calc(var(--foot-w, 60) * var(--s) * 1px);
+  height: calc(var(--ay, 100) * var(--s) * 1px);
+  transform: scaleX(-1); /* the art faces left; the party faces right */
+  transform-origin: 50% 100%;
+}
+
+#battle .actor[data-rank="back"] .actor-body {
+  transform: scale(-0.9, 0.9);
+}
+
+#battle .actor-cel {
+  position: absolute;
+  left: calc((var(--foot-x, 0) - var(--ax, 0)) * var(--s) * 1px);
+  top: 0;
+  width: calc(var(--cell-w, 0) * var(--s) * 1px);
+  height: calc(var(--cell-h, 0) * var(--s) * 1px);
+  background-image: var(--sheet, none);
+  background-repeat: no-repeat;
+  background-size: calc(var(--cols, 1) * var(--cell-w, 0) * var(--s) * 1px) auto;
+  background-position: calc(var(--col, 0) * var(--cell-w, 0) * var(--s) * -1px) calc(var(--row, 0) * var(--cell-h, 0) * var(--s) * -1px);
+  image-rendering: pixelated;
+  transform-origin: 50% 100%;
+}
+
+#battle .actor-flash {
+  opacity: 0;
+  pointer-events: none;
+  filter: brightness(0) invert(1);
+}
+
+#battle .actor-ring {
+  position: absolute;
+  left: 50%;
+  bottom: -0.5rem;
+  width: 80%;
+  height: 1.1rem;
+  transform: translateX(-50%);
+  border: 2px solid color-mix(in srgb, var(--card) 30%, transparent);
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--void) 55%, transparent);
+}
+
+#battle .actor[data-mine] .actor-ring {
+  border-color: var(--brass-lit);
+  box-shadow: 0 0 12px color-mix(in srgb, var(--brass) 70%, transparent);
+}
+
+#battle .actor-ward,
+#battle .actor-haste {
+  position: absolute;
+  inset: 8% 8% -0.4rem;
+  display: none;
+  pointer-events: none;
+  border-radius: 50% 50% 40% 40%;
+}
+
+#battle .actor-ward {
+  border: 3px solid var(--brass-lit);
+  background: color-mix(in srgb, var(--brass) 14%, transparent);
+  box-shadow: 0 0 14px color-mix(in srgb, var(--brass) 60%, transparent);
+}
+
+#battle .actor[data-guard] .actor-ward {
+  display: block;
+}
+
+#battle .actor-haste {
+  border: 2px dashed var(--card);
+  opacity: 0.7;
+}
+
+#battle .actor[data-haste] .actor-haste {
+  display: block;
+}
+
+#battle .actor-cursor {
+  position: absolute;
+  left: 50%;
+  top: -1.8rem;
+  display: none;
+  width: 0;
+  height: 0;
+  transform: translateX(-50%);
+  border-inline: 0.8rem solid transparent;
+  border-top: 1.3rem solid var(--brass-lit);
+  filter: drop-shadow(0 0 6px var(--brass));
+}
+
+#battle .boss .actor-cursor {
+  top: -2rem;
+}
+
+#battle .actor[data-targeted] .actor-cursor,
+#battle .boss[data-targeted] > .actor-cursor {
+  display: block;
+}
+
+#battle .actor[data-down] .actor-art,
+#battle .actor[data-down] .actor-flash {
+  filter: grayscale(1) brightness(0.6);
+}
+
+#battle .actor[data-down] .actor-flash {
+  display: none;
+}
+
+#battle .actor[data-summoning] .actor-art {
+  opacity: 0;
+}
+
+#battle .actor[data-leaving] {
+  opacity: 0;
+}
+
+/* ---- plates and HP ---------------------------------------------------------- */
+
+#battle .plate {
+  position: relative;
+  width: 100%;
+  margin-top: 0.7rem;
+  padding: 0.25rem 0.4rem 0.35rem;
+  text-align: center;
+  color: var(--card);
+  background: color-mix(in srgb, var(--ink) 88%, transparent);
+  border: 2px solid var(--brass-dim);
+  border-radius: 3px;
+}
+
+#battle .plate-line {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.5rem;
+  margin: 0 0 0.2rem;
+  min-width: 0;
+}
+
+#battle .plate-name {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-family: var(--font-display);
+  font-size: 0.6rem;
+  line-height: 1.3;
+  text-align: left;
+}
+
+#battle .actor[data-down] .plate-name {
+  color: var(--ember);
+}
+
+#battle .plate-hp {
+  flex: none;
+  font-family: var(--font-body);
+  font-size: 1.15rem;
+}
+
+#battle .hp {
+  position: relative;
+  height: 0.65rem;
+  overflow: hidden;
+  background: var(--void);
+  border: 2px solid var(--brass-dim);
+  border-radius: 3px;
+}
+
+#battle .hp-lag,
+#battle .hp-fill {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  transform-origin: 0 50%;
+}
+
+#battle .hp-fill {
+  background: var(--card);
+  transform: scaleX(var(--hp, 1));
+}
+
+#battle .hp-lag {
+  background: var(--ember);
+  transform: scaleX(var(--hp-lag, 1));
+}
+
+#battle .hp[data-low] .hp-fill {
+  background: var(--ember);
+}
+
+#battle .boss-plate {
+  width: min(100%, 20rem);
+  margin-inline: auto;
+}
+
+/* ---- the Orrery ------------------------------------------------------------- */
+
+#battle .boss {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+#battle .boss-art {
+  position: relative;
+  width: var(--boss-size);
+  height: var(--boss-size);
+  filter: drop-shadow(0 0 22px color-mix(in srgb, var(--brass) 45%, transparent));
+}
+
+#battle .boss-art svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+#battle .orrery-ring {
+  transform-box: view-box;
+  transform-origin: 50% 50%;
+}
+
+#battle .orrery-segment {
+  transition: none;
+}
+
+#battle .orrery-segment[data-shed] {
+  opacity: 0;
+  visibility: hidden;
+  transform: translate(calc(var(--dx, 0) * 1px), calc(var(--dy, -14) * 1px));
+}
+
+#battle .boss[data-halted] .boss-art {
+  filter: grayscale(0.8) brightness(0.65);
+}
+
+#battle .boss[data-haste] .boss-art {
+  filter: drop-shadow(0 0 26px var(--ember));
+}
+
+#battle .boss[data-hit] .boss-art {
+  filter: brightness(2.3) drop-shadow(0 0 26px var(--card));
+}
+
+/* ---- the overlay: numbers, projectiles, the banner -------------------------- */
+
+#battle .fx {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+#battle .fx-number {
+  position: absolute;
+  z-index: 2;
+  transform: translate(-50%, calc(-50% - var(--stack, 0) * 1.6rem));
+  font-family: var(--font-display);
+  font-size: 1.6rem;
+  line-height: 1;
+  white-space: nowrap;
+  color: var(--card);
+  text-shadow: 3px 3px 0 var(--void), -2px -2px 0 var(--void), 2px -2px 0 var(--void), -2px 2px 0 var(--void);
+}
+
+#battle .fx-number[data-tone="harm"] {
+  color: var(--ember);
+}
+
+#battle .fx-number[data-tone="heal"] {
+  color: var(--card);
+  -webkit-text-stroke: 2px var(--brass);
+  paint-order: stroke fill;
+}
+
+#battle .fx-projectile {
+  position: absolute;
+  width: 2.2rem;
+  height: 0.6rem;
+  background: var(--card);
+  border-radius: 3px;
+  box-shadow: 0 0 12px var(--brass-lit);
+}
+
+#battle .fx-projectile[data-kind="bolt"],
+#battle .fx-projectile[data-kind="spark"] {
+  width: 1.4rem;
+  height: 1.4rem;
+  border-radius: 50%;
+  background: var(--brass-lit);
+  box-shadow: 0 0 18px var(--brass);
+}
+
+#battle .fx-projectile[data-kind="thrust"] {
+  width: 3rem;
+  height: 0.4rem;
+  background: var(--brass-lit);
+}
+
+#battle .fx-slash {
+  position: absolute;
+  width: 7rem;
+  height: 0.5rem;
+  background: var(--card);
+  box-shadow: 0 0 14px var(--card);
+}
+
+#battle .fx-pulse {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  border: 4px solid var(--brass-lit);
+  border-radius: 50%;
+  box-shadow: 0 0 22px var(--brass), inset 0 0 22px var(--brass);
+}
+
+#battle .banner {
+  position: absolute;
+  z-index: 6;
+  left: 50%;
+  top: 18%;
+  translate: -50% 0;
+  max-width: 90%;
+  padding: 0.6rem 1.2rem;
+  text-align: center;
+  font-family: var(--font-display);
+  font-size: 1rem;
+  line-height: 1.5;
+  color: var(--card);
+  background: color-mix(in srgb, var(--ink) 90%, transparent);
+  border: 3px solid var(--brass);
+  border-radius: 4px;
+  pointer-events: none;
+}
+
+#battle .banner[hidden] {
+  display: none;
+}
+
+/* ---- desktop placement -------------------------------------------------------- */
+
+@media (width > 46rem) {
+  #battle .scene {
+    --boss-size: min(26vw, 46vh);
+  }
+
+  #battle .boss {
+    position: absolute;
+    right: 5%;
+    bottom: 5%;
+  }
+
+  #battle .party {
+    position: absolute;
+    left: 3%;
+    bottom: 4%;
+    width: 52%;
+  }
+}
+
+@media (width > 46rem) and (height < 900px) {
+  #battle .scene {
+    --px: 1;
+  }
+}
+
+/* ---- motion: only when the visitor hasn't asked for less --------------------- */
+
+@media (prefers-reduced-motion: no-preference) {
+  @keyframes orrery-turn {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+
+  @keyframes scene-float {
+    50% {
+      transform: translateY(-0.6rem);
+    }
+  }
+
+  @keyframes scene-breathe {
+    50% {
+      transform: scaleY(1.025);
+    }
+  }
+
+  @keyframes core-pulse {
+    50% {
+      opacity: 0.45;
+    }
+  }
+
+  @keyframes stars-drift {
+    to {
+      background-position: 12px 116px, 40px 68px;
+    }
+  }
+
+  @keyframes number-pop {
+    0% {
+      opacity: 0;
+      transform: translate(-50%, calc(-50% - var(--stack, 0) * 1.6rem)) scale(0.4);
+    }
+
+    15% {
+      opacity: 1;
+      transform: translate(-50%, calc(-50% - var(--stack, 0) * 1.6rem - 0.6rem)) scale(1.35);
+    }
+
+    30% {
+      transform: translate(-50%, calc(-50% - var(--stack, 0) * 1.6rem - 1rem)) scale(1);
+    }
+
+    100% {
+      opacity: 0;
+      transform: translate(-50%, calc(-50% - var(--stack, 0) * 1.6rem - 4rem)) scale(1);
+    }
+  }
+
+  @keyframes flash-hit {
+    0% {
+      opacity: 0.95;
+    }
+
+    100% {
+      opacity: 0;
+    }
+  }
+
+  @keyframes push-in {
+    40% {
+      transform: scale(1.04);
+    }
+  }
+
+  @keyframes shake-light {
+    20% { translate: -4px 2px; }
+    40% { translate: 4px -2px; }
+    60% { translate: -3px -1px; }
+    80% { translate: 2px 2px; }
+  }
+
+  @keyframes shake-heavy {
+    10% { translate: -10px 4px; }
+    25% { translate: 9px -5px; }
+    40% { translate: -8px -3px; }
+    55% { translate: 7px 4px; }
+    70% { translate: -4px 2px; }
+    85% { translate: 3px -1px; }
+  }
+
+  @keyframes enter {
+    from {
+      opacity: 0;
+      translate: -3rem 0;
+    }
+  }
+
+  @keyframes banner-in {
+    from {
+      opacity: 0;
+      translate: -50% -0.8rem;
+    }
+  }
+
+  @keyframes lunge {
+    40% {
+      translate: 1.5rem 0;
+    }
+  }
+
+  @keyframes boss-lean {
+    40% {
+      transform: scale(1.06) translateX(-1rem);
+    }
+  }
+
+  #battle .field-stars {
+    animation: stars-drift 90s linear infinite;
+  }
+
+  #battle .orrery-ring {
+    animation: orrery-turn calc(var(--period, 40s) * var(--orrery-drag, 1)) linear infinite;
+  }
+
+  #battle .orrery-ring[data-ring="1"] { --period: 52s; }
+
+  #battle .orrery-ring[data-ring="2"] {
+    --period: 38s;
+
+    animation-direction: reverse;
+  }
+  #battle .orrery-ring[data-ring="3"] { --period: 27s; }
+
+  #battle .orrery-ring[data-ring="4"] {
+    --period: 19s;
+
+    animation-direction: reverse;
+  }
+
+  #battle .boss[data-halted] .orrery-ring {
+    animation-play-state: paused;
+  }
+
+  #battle .boss-art svg {
+    animation: scene-float 5s ease-in-out infinite;
+  }
+
+  #battle .boss-art .orr-eye,
+  #battle .boss-art .orr-core {
+    animation: core-pulse 2.4s ease-in-out infinite;
+  }
+
+  #battle .boss[data-halted] .boss-art svg,
+  #battle .boss[data-halted] .boss-art .orr-eye {
+    animation: none;
+  }
+
+  #battle .boss-art {
+    transition: filter 160ms ease-out;
+  }
+
+  #battle .boss[data-anim="attack"] .boss-art {
+    animation: boss-lean 720ms ease-in-out;
+  }
+
+  #battle .orrery-segment {
+    transition:
+      opacity 500ms ease-out,
+      transform 500ms ease-out,
+      visibility 0s linear 500ms;
+  }
+
+  #battle .actor-body .actor-art {
+    animation: scene-breathe 3.2s ease-in-out infinite;
+  }
+
+  #battle .actor[data-down] .actor-art {
+    animation: none;
+  }
+
+  #battle .actor[data-hit] .actor-flash {
+    animation: flash-hit 320ms steps(4, end);
+  }
+
+  #battle .actor[data-anim="attack"],
+  #battle .actor[data-anim="cast"],
+  #battle .actor[data-anim="special"] {
+    animation: lunge 720ms ease-in-out;
+  }
+
+  #battle .actor[data-entering] {
+    animation: enter 700ms ease-out;
+  }
+
+  #battle .actor[data-leaving] {
+    transition: opacity 650ms ease-in;
+  }
+
+  #battle .actor[data-targeted] .actor-cursor,
+  #battle .boss[data-targeted] > .actor-cursor {
+    animation: scene-float 0.8s ease-in-out infinite;
+  }
+
+  #battle .fx-number {
+    animation: number-pop 1s ease-out forwards;
+  }
+
+  #battle .banner:not([hidden]) {
+    animation: banner-in 260ms ease-out;
+  }
+
+  #battle .actor-ring {
+    transition: box-shadow 200ms;
+  }
+
+  #battle .scene[data-push] .field,
+  #battle .scene[data-push] .party,
+  #battle .scene[data-push] .boss {
+    transform-origin: var(--push-x, 50%) var(--push-y, 50%);
+    animation: push-in 420ms ease-out;
+  }
+
+  #battle .scene[data-shake="light"] {
+    animation: shake-light 260ms linear;
+  }
+
+  #battle .scene[data-shake="heavy"] {
+    animation: shake-heavy 460ms linear;
+  }
+
+  #battle [data-afterimage] {
+    filter: drop-shadow(-1.2rem 0 0 color-mix(in srgb, var(--card) 35%, transparent));
+  }
+}
+
+/* reduced: the flash is one static frame, shed segments are simply gone */
+@media (prefers-reduced-motion: reduce) {
+  #battle .actor[data-hit] .actor-flash {
+    opacity: 0.9;
+  }
+
+  #battle [data-afterimage] {
+    outline: 2px solid var(--card);
+  }
+}
+
+/* phone: sprites at 1x so the party of four stands in one row, the Orrery's
+   128-unit art at exactly 1x, and plates narrow enough for a quarter of the
+   screen. Where things sit is mobile.css's; this is how big they are. */
+@media (width <= 46rem) {
+  #battle .scene {
+    --px: 1;
+    --boss-size: 8rem;
+  }
+
+  #battle .actor {
+    width: 100%;
+  }
+
+  #battle .actor[data-rank="back"] {
+    margin-bottom: 0;
+  }
+
+  /* The footprint is the art's drawn height, not its cell's: the empty rows
+     above the art (--ay less --foot-y, up to 20px at 1x) would make the
+     party's band that much taller for nothing. The cel keeps its size and
+     rises by the headroom it lost, so the art lands on the same feet. */
+  #battle .actor-body {
+    height: calc(var(--foot-y, 90) * var(--s) * 1px);
+  }
+
+  #battle .actor-cel {
+    top: calc((var(--foot-y, 90) - var(--ay, 100)) * var(--s) * 1px);
+  }
+
+  /* The pointer pokes up into the room above the party (mobile.css) rather
+     than 1.8rem above the art, where the turn strip would cover it. */
+  #battle .actor-cursor {
+    top: -0.4rem;
+  }
+
+  #battle .boss .actor-cursor {
+    top: 0;
+  }
+
+  /* A party plate a quarter of the screen wide: the name on its own lines at
+     the display face's native 8px (nine characters a line, so a 24-character
+     name takes three), the bar and the number beneath it. */
+  #battle .party .plate {
+    display: grid;
+    grid-template:
+      "name name" auto
+      "bar num" auto
+      / minmax(0, 1fr) auto;
+    gap: 0.2rem 0.3rem;
+    align-items: center;
+    margin-top: 0.45rem;
+    padding: 0.2rem 0.3rem 0.25rem;
+  }
+
+  #battle .party .plate-line {
+    display: contents;
+  }
+
+  #battle .party .plate-name {
+    grid-area: name;
+    font-size: 0.5rem;
+    line-height: 1.25;
+  }
+
+  #battle .party .plate-hp {
+    grid-area: num;
+    font-size: 1rem;
+    line-height: 1;
+  }
+
+  #battle .party .hp {
+    grid-area: bar;
+  }
+}

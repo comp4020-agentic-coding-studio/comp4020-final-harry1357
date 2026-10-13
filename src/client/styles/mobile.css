@@ -1,0 +1,387 @@
+/* The phone, 390×844 (CLAUDE.md, "Design: the battle screen", composition at
+   390×844): the Orrery at the top, the turn strip as a row beneath it, then
+   the party, then the command window, then a short log. The join screen takes
+   the screen as a character select. Nothing scrolls the page sideways; the
+   strip may scroll sideways inside itself. Last in the cascade (styles.css),
+   so at equal specificity it wins. pnpm check:viewports and pnpm check:tags
+   are how this file is believed; a screenshot isn't, until innerWidth is.
+
+   How the field survives the move. The strip isn't inside the scene, but it
+   has to sit between the Orrery and the party, which are. Rather than
+   dissolve the scene (display: contents takes its box away: no rect for
+   anything that measures it, no transform for the camera's shake and
+   push-in, no containing block for the overlays), the scene stays a box
+   spanning the stage's first three rows, and its rows ARE the stage's rows
+   (grid-template-rows: subgrid). The Orrery takes the first, the party the
+   third, and the strip, a sibling in the stage, takes the middle one, drawn
+   over the field. The field and the effects overlay stay absolute inside the
+   scene, so together they cover Orrery, strip and party: the fight still
+   sits on the observatory field, and numbers and projectiles still land on
+   whoever they're about.
+
+   ASSUMPTIONS about the others' markup. Every selector here that isn't this
+   file's own leans on one of these; if one stops being true, the phone
+   breaks there first.
+
+   shared (index.html, main.ts):
+   - #battle > .stage holds .scene[data-scene], aside.strip[data-rail],
+     section.command[data-command] and section.log-window; the join screen,
+     section.join[data-join-screen], is the stage's sibling inside #battle.
+   - #battle[data-phase] is "fight" exactly while this page has a character
+     standing in the battle, and "join" or "ended" while the join screen is
+     up (main.ts sets it on every state).
+
+   the scene:
+   - [data-field] (sky and floor), [data-boss], [data-party] and [data-fx]
+     are DIRECT children of [data-scene], and are placed by CSS rather than
+     by inline geometry set from script (so they can be re-placed here).
+   - The field and the effects overlay draw themselves to fill whatever box
+     they're given; numbers and projectiles are positioned against [data-fx]
+     or [data-scene] (both still boxes here), not against the viewport.
+   - [data-party]'s direct children are one element per party member, each
+     holding that member's [data-sprite] with its [data-plate] beneath it.
+   - A plate wraps its name rather than clipping it.
+
+   the turn strip, the command window, the join screen: see the notes by
+   their rules below. */
+
+@media (width <= 46rem) {
+  /* ---- the bar: one line, tighter --------------------------------------- */
+
+  #battle .battle-bar {
+    gap: 0.5rem;
+    padding-block: 0.3rem;
+    padding-inline: 0.75rem;
+  }
+
+  /* ---- the stage: one column, top to bottom ------------------------------
+     Budgeted so the fight, Orrery to the foot of the command window, stands
+     inside 844px under the site header and the bar; the log may run below. */
+
+  #battle .stage {
+    grid-template:
+      "boss" auto
+      "strip" auto
+      "party" auto
+      "command" auto
+      "log" auto
+      / minmax(0, 1fr);
+    gap: 0.4rem;
+    padding: 0.4rem;
+  }
+
+  #battle [data-scene] {
+    display: grid;
+    grid-row: boss-start / party-end;
+    grid-column: 1;
+    grid-template-rows: subgrid;
+    grid-template-columns: minmax(0, 1fr);
+    min-height: 0;
+  }
+
+  /* the sky and floor, and the overlay numbers fly in: the whole scene */
+  #battle [data-scene] > [data-field],
+  #battle [data-scene] > [data-fx] {
+    position: absolute;
+    inset: 0;
+    grid-area: auto;
+    width: auto;
+    height: auto;
+  }
+
+  #battle [data-scene] > [data-fx] {
+    pointer-events: none;
+  }
+
+  /* ---- the Orrery: first row, its plate to the left ---------------------
+     The art (scene.css's phone --boss-size: 128px, the SVG's own units at
+     1x) stands at the right, where the enemy stands on the desktop, and its
+     plate takes the rest of the row beside it, so the row is only as tall as
+     the art. The pointer, when it's the target, sits on the art's top edge
+     (scene.css's phone block), centred over the art. */
+
+  #battle [data-scene] > [data-boss] {
+    position: relative;
+    inset: auto;
+    grid-row: 1;
+    grid-column: 1;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) var(--boss-size);
+    grid-template-areas: "plate art";
+    align-items: center;
+    gap: 0.75rem;
+
+    /* room above for the art's idle float (scene-float, 0.6rem) */
+    padding: 0.6rem 0.75rem 0;
+  }
+
+  #battle [data-boss] > .boss-art {
+    grid-area: art;
+  }
+
+  #battle [data-boss] > [data-plate] {
+    grid-area: plate;
+    width: auto;
+    margin: 0;
+  }
+
+  #battle [data-boss] > .actor-cursor {
+    left: auto;
+    right: calc(0.75rem + var(--boss-size) / 2 - 0.8rem);
+    transform: none;
+  }
+
+  /* ---- the turn strip: second row, a row of portraits --------------------
+     strip.css's own switches (its header comment): a row, small faces, and
+     the row's spare width shared out. Two things it leaves to whoever lays
+     it out, done here: a portrait's basis is zero, so a row of five squeezes
+     each card down to its face and drops the wait beneath it (an auto basis
+     would keep every card face-plus-wait wide, three across a phone); and the
+     fallen sit at the end of the same row, so a fall doesn't make the strip,
+     and everything under it, taller. 48 and 64px faces keep a table of four
+     and the Orrery in view at 390px with no scroll; more than that, and the
+     lanes scroll along the row, inside the strip. */
+
+  #battle .stage > [data-rail] {
+    --strip-flow: row;
+    --strip-face: 48px;
+    --strip-face-lit: 64px;
+    --strip-grow: 1;
+
+    position: relative;
+    z-index: 1;
+    grid-area: strip;
+    gap: 0.15rem;
+    min-width: 0;
+    min-height: 0;
+    padding: 0.3rem 0.25rem 0.15rem;
+  }
+
+  /* The title is a picture of a label (aria-hidden; the aside is labelled
+     "Turn order" for anyone listening), and a row of portraits marked Now
+     and Wait says what it is. Its line goes to the command window. */
+  #battle [data-rail] .strip-title {
+    display: none;
+  }
+
+  #battle [data-rail] .strip-lanes {
+    display: flex;
+    align-items: flex-start;
+    padding: 0.45rem 0.15rem 0.2rem;
+  }
+
+  /* A squeezed card, compact: the wait on one line beneath the face (the word
+     and the server's number side by side), and the name on one line beneath
+     that, cut with an ellipsis (the full name is the party plate's, just
+     below, and the portrait's title). */
+  #battle [data-rail] .strip-card {
+    gap: 0.2rem 0.4rem;
+    padding: 0.2rem;
+  }
+
+  #battle [data-rail] .strip-wait {
+    flex-direction: row;
+    align-items: baseline;
+    justify-content: center;
+    gap: 0.25rem;
+  }
+
+  #battle [data-rail] .strip-count {
+    font-size: 0.75rem;
+  }
+
+  #battle [data-rail] [data-active="true"] .strip-label {
+    font-size: 0.6rem;
+  }
+
+  #battle [data-rail] .strip-name {
+    font-size: 1rem;
+    -webkit-line-clamp: 1;
+    line-clamp: 1;
+  }
+
+  /* Five across 358px with two-digit waits: 76 + 4 × 66 + 4 × 4 = 356. */
+  #battle [data-rail] .strip-queue,
+  #battle [data-rail] .strip-fallen {
+    gap: 0.25rem;
+  }
+
+  #battle [data-rail] .strip-queue {
+    flex: 1 0 0%;
+    min-width: min-content;
+  }
+
+  #battle [data-rail] .strip-token {
+    flex-basis: 0%;
+    min-width: min-content;
+  }
+
+  /* the fallen: after the standing, past a dashed upright, "Out" on it */
+  #battle [data-rail] .strip-fallen {
+    flex: none;
+    align-self: stretch;
+    margin: 0 0 0 0.6rem;
+    padding: 0 0 0 0.6rem;
+    border-top: 0;
+    border-left: 2px dashed var(--brass-dim);
+  }
+
+  /* nothing to share out past the rule, so each card is as narrow as it
+     can be, its word beneath its face like the standing cards' */
+  #battle [data-rail] .strip-fallen .strip-token {
+    flex-grow: 0;
+    width: min-content;
+  }
+
+  #battle [data-rail] .strip-fallen::before {
+    top: 50%;
+    left: -1px;
+    translate: -50% -50%;
+    padding: 0.3rem 0;
+    writing-mode: vertical-rl;
+  }
+
+  /* ---- the party: third row, four abreast ---------------------------------
+     A column each, sprites in one band and plates in the band beneath
+     (each member is a two-row subgrid of the party), so every plate starts
+     on the same line whatever the names do, and no sprite stands on anybody's
+     plate. At 1x a footprint can still be wider than its quarter (the
+     Lancer's is 130px); it overlaps its neighbour's art, never a plate, and
+     the outer two stand flush to the field's edges rather than past them.
+     More than four, and the next four start a new pair of bands. */
+
+  #battle [data-scene] > [data-party] {
+    position: relative;
+    inset: auto;
+    grid-row: 3;
+    grid-column: 1;
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-auto-rows: auto;
+    gap: 0 0.25rem;
+    align-items: end;
+    width: auto;
+    min-width: 0;
+
+    /* room above for the target pointer (scene.css's phone block) to clear
+       the strip */
+    padding: 0.5rem 0.25rem 0.3rem;
+    overflow-x: clip;
+  }
+
+  /* fewer than four: their quarters, centred */
+  #battle [data-party][data-count="1"] {
+    grid-template-columns: calc((100% - 0.75rem) / 4);
+    justify-content: center;
+  }
+
+  #battle [data-party][data-count="2"] {
+    grid-template-columns: repeat(2, calc((100% - 0.75rem) / 4));
+    justify-content: center;
+  }
+
+  #battle [data-party][data-count="3"] {
+    grid-template-columns: repeat(3, calc((100% - 0.75rem) / 4));
+    justify-content: center;
+  }
+
+  #battle [data-party] > * {
+    position: relative;
+    inset: auto;
+    display: grid;
+    grid-row: span 2;
+    grid-template-rows: subgrid;
+    grid-template-columns: minmax(0, 1fr);
+    justify-items: center;
+    width: auto;
+    min-width: 0;
+  }
+
+  #battle [data-party] > * > .actor-body {
+    align-self: end;
+  }
+
+  /* Depth, as on the desktop's staggered row: the front rank stands in front
+     where a wide sprite meets its neighbour, and the back rank a step up the
+     floor. A translate, so the band is no taller for it. */
+  #battle [data-party] > [data-rank="front"] {
+    z-index: 1;
+  }
+
+  #battle [data-party] > [data-rank="back"] > .actor-body {
+    translate: 0 -0.4rem;
+  }
+
+  #battle [data-party] > * > [data-plate] {
+    place-self: stretch;
+    max-width: 100%;
+    overflow-wrap: anywhere;
+  }
+
+  /* four or more: the outer two flush to the field's edges */
+  #battle [data-party]:not([data-count="1"], [data-count="2"], [data-count="3"]) > :nth-child(4n + 1) {
+    justify-items: start;
+  }
+
+  #battle [data-party]:not([data-count="1"], [data-count="2"], [data-count="3"]) > :nth-child(4n) {
+    justify-items: end;
+  }
+
+  /* ---- the command window and the log ------------------------------------
+     Tightened, so the target step (two more rows: the name, then the keys)
+     still ends above the fold. Every control stays 44px or more (command.css
+     sets the floors; nothing here goes under them). */
+
+  #battle .stage > .command {
+    gap: 0.3rem;
+    padding-top: 0.9rem;
+    padding-bottom: 0.55rem;
+  }
+
+  #battle .command .command-title {
+    margin-bottom: 0.2rem;
+  }
+
+  #battle .command .command-option {
+    padding-block: 0.25rem 0.3rem;
+  }
+
+  #battle .command .command-foot {
+    padding-top: 0.3rem;
+  }
+
+  #battle .command .command-aim {
+    gap: 0.3rem 0.5rem;
+  }
+
+  #battle .command .command-aim-name {
+    font-size: 1.15rem;
+  }
+
+  #battle .stage > .log-window {
+    max-height: 7.5rem;
+  }
+
+  /* ---- the join screen: the character select takes the screen ------------
+     While no character of this page's is standing, the stage steps out of
+     the flow and out of sight, and the select takes its row, filling the
+     screen beneath the bar. The stage is hidden but still laid out (not
+     display: none), so whatever the scene and strip run while someone picks
+     (animations, their end events, measurements) runs the same as ever. */
+
+  #battle:not([data-phase="fight"]) > .stage {
+    position: absolute;
+    inset: 0;
+    overflow: clip;
+    visibility: hidden;
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  #battle > .join {
+    position: relative;
+    inset: auto;
+    z-index: 1;
+    overflow: visible;
+  }
+}

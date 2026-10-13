@@ -1,0 +1,63 @@
+/* /readme/: outside #battle, so the gates stand. The rulebook: a card page,
+   ink text, the rulebook faces, square corners, no glow. */
+.readme-page {
+  display: block;
+  background: var(--card);
+  color: var(--ink);
+}
+
+.readme-page .site-header {
+  justify-content: flex-start;
+  border-bottom: 2px solid var(--brass);
+}
+
+.readme {
+  max-width: 44rem;
+  margin-inline: auto;
+  padding-block: 1.5rem 3rem;
+  padding-inline: 1rem;
+  font-family: var(--font-rule-body);
+  font-size: 1.1rem;
+  line-height: 1.55;
+}
+
+.readme h1,
+.readme h2,
+.readme h3 {
+  font-family: var(--font-rule-display);
+  line-height: 1.2;
+}
+
+.readme img {
+  max-width: 100%;
+}
+
+.readme pre,
+.readme code {
+  font-family: ui-monospace, "SF Mono", menlo, monospace;
+  font-size: 0.92em;
+}
+
+.readme pre {
+  overflow-x: auto;
+  padding: 0.75rem;
+  border: 1px solid var(--ink);
+}
+
+.readme table {
+  border-collapse: collapse;
+}
+
+.readme th,
+.readme td {
+  padding-block: 0.3rem;
+  padding-inline: 0.6rem;
+  border: 1px solid var(--ink);
+  text-align: left;
+}
+
+.readme blockquote {
+  margin-inline: 0;
+  padding-inline-start: 1rem;
+  border-inline-start: 4px solid var(--brass);
+}

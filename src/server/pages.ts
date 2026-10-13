@@ -27,8 +27,19 @@ const FALLBACK_PAGE = `<!doctype html>
 const ASSETS: Readonly<Record<string, readonly [file: string, type: string]>> = {
   "/assets/app.js": ["dist/client/app.js", "text/javascript; charset=utf-8"],
   "/assets/app.js.map": ["dist/client/app.js.map", "application/json; charset=utf-8"],
-  "/assets/styles.css": ["src/client/styles.css", "text/css; charset=utf-8"],
+  "/assets/styles.css": ["dist/client/styles.css", "text/css; charset=utf-8"],
+  "/assets/styles.css.map": ["dist/client/styles.css.map", "application/json; charset=utf-8"],
 };
+
+/** What may be served out of src/assets/: the art and its manifest, nothing else. */
+const ART_TYPES: Readonly<Record<string, string>> = {
+  png: "image/png",
+  svg: "image/svg+xml",
+  json: "application/json; charset=utf-8",
+};
+
+/** A path under src/assets/: plain segments only (no dots up front, no traversal), and an art extension. */
+const ART_PATH = /^(?:[A-Za-z0-9_][A-Za-z0-9_-]*\/)*[A-Za-z0-9_][A-Za-z0-9_.-]*\.(png|svg|json)$/;
 
 const IMAGE_TYPES: Readonly<Record<string, string>> = {
   png: "image/png",
@@ -81,6 +92,26 @@ export function mountPages(app: Hono, root: string): void {
       return c.body(new Uint8Array(body), 200, { "Content-Type": type, "Cache-Control": "no-cache" });
     });
   }
+
+  // The party's sheets, the Orrery and the sprite manifest (CREDITS.md says
+  // where each came from). Registered after the fixed /assets/* routes above.
+  app.get("/assets/*", async (c) => {
+    let path = "";
+    try {
+      path = decodeURIComponent(c.req.path.slice("/assets/".length));
+    } catch {
+      // a malformed escape is just a path that isn't there
+    }
+    const match = ART_PATH.exec(path);
+    const body = match ? await readOrNull(join(root, "src/assets", path)) : null;
+    if (!match || !body) return c.json({ error: "No such asset." }, 404);
+    return c.body(new Uint8Array(body), 200, {
+      "Content-Type": ART_TYPES[match[1]],
+      "Cache-Control": "public, max-age=300",
+      "X-Content-Type-Options": "nosniff",
+      ...(match[1] === "svg" ? { "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'" } : {}),
+    });
+  });
 
   app.get("/readme", (c) => c.redirect("/readme/", 301));
 

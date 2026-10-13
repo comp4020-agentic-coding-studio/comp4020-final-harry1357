@@ -24,7 +24,8 @@ import type { BattleState, NewBattleResponse } from "../src/shared/protocol.ts";
 //
 // The timing. Both browsers run on this machine, so `performance.timeOrigin +
 // performance.now()` in each is a sub-millisecond reading of the same wall
-// clock. The actor side reads it just before the click is dispatched; the
+// clock. The actor side reads it just before the confirming click (Strike
+// aims on its first press and fires on its second) is dispatched; the
 // observer side reads it inside a MutationObserver callback, which runs the
 // moment the client's render has changed the DOM. Observer minus actor is the
 // propagation. "Same clock" is an assumption, so it is measured, not trusted:
@@ -737,11 +738,21 @@ async function run(): Promise<number> {
     const at = await actor.evaluate<Point>(lib(`P.point(${j(STRIKE_READY)})`));
     if ("error" in at) throw new Error(`${actor.label}: ${at.error}`);
     await actor.send("Input.dispatchMouseEvent", { type: "mouseMoved", x: at.x, y: at.y });
+    // Strike is two presses: the first aims it (the Orrery lights) and sends
+    // nothing; the second confirms. The clock starts at the confirm, the click
+    // that actually leaves the page.
+    await press(actor, at.x, at.y);
+    await until(`${actor.label} to aim Strike at the Orrery`, TIMEOUT_MS, () =>
+      actor.evaluate<boolean>(`!!document.querySelector("[data-boss][data-targeted]")`),
+    );
+    // Aiming opens the target row, which can move Strike; find it again.
+    const confirmAt = await actor.evaluate<Point>(lib(`P.point(${j(STRIKE_READY)})`));
+    if ("error" in confirmAt) throw new Error(`${actor.label}: ${confirmAt.error}`);
     const clickAt = await actor.evaluate<number | null>(
       lib(`document.querySelector(${j(STRIKE_READY)}) ? (P.resetClicks(), P.now()) : null`),
     );
     if (clickAt === null) throw new Error(`${actor.label}'s Strike disabled itself before it was clicked`);
-    await press(actor, at.x, at.y);
+    await press(actor, confirmAt.x, confirmAt.y);
 
     const [remote, local] = await Promise.all([
       other.evaluate<Watch>(lib(`P.wait('remote', ${TIMEOUT_MS})`), TIMEOUT_MS + 5_000),

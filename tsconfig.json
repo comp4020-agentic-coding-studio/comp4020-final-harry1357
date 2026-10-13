@@ -12,6 +12,8 @@
     // Node strips types; it doesn't transform. No enum, namespace or
     // parameter property, so the compiler refuses them before node does.
     "erasableSyntaxOnly": true,
+    // the client imports src/assets/sprites.json; esbuild inlines it
+    "resolveJsonModule": true,
     "lib": ["ES2023", "DOM", "DOM.Iterable"],
     "types": ["node"],
     "strict": true,

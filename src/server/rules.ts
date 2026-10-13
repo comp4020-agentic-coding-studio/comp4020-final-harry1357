@@ -11,8 +11,10 @@ import {
   ROLE_IDS,
   ROLES,
   type ActionId,
+  type BattleEvent,
   type BattleState,
   type BattleStatus,
+  type Hit,
   type LogEntry,
   type RoleId,
   type Token,
@@ -99,6 +101,8 @@ export interface StatDelta {
 /** What a step changed that has to outlive the process. */
 export interface Effects {
   log: LogEntry[];
+  /** What happened, in order, for the battle screen; each carries its log line's seq. */
+  events: BattleEvent[];
   stats: Record<string, StatDelta>;
   /** The battle's new status, when this step changed it. */
   status: BattleStatus | null;
@@ -285,6 +289,7 @@ export function join(b: Battle, who: { id: string; name: string; role: RoleId },
     first
       ? `${who.name} the ${ROLES[who.role].label} takes a seat at the table.`
       : `${who.name} returns to the table.`,
+    { kind: "join", actorId: who.id, returning: !first },
   );
   return finish(next, fx, clock);
 }
@@ -304,18 +309,28 @@ export function act(b: Battle, actorId: string, action: ActionId, targetId: stri
     case "strike": {
       const dealt = wound(orrery, ROLE_STATS[actor.role as RoleId].strike);
       stats.damage += dealt;
-      say(next, fx, "action", actorId, `${actor.name} strikes the Orrery for ${dealt}.`);
+      say(next, fx, "action", actorId, `${actor.name} strikes the Orrery for ${dealt}.`, {
+        kind: "strike",
+        actorId,
+        targetId: BOSS_ID,
+        amount: dealt,
+      });
       break;
     }
     case "lunge": {
       const dealt = wound(orrery, LUNGE_DAMAGE);
       stats.damage += dealt;
-      say(next, fx, "action", actorId, `${actor.name} lunges at the Orrery for ${dealt}.`);
+      say(next, fx, "action", actorId, `${actor.name} lunges at the Orrery for ${dealt}.`, {
+        kind: "lunge",
+        actorId,
+        targetId: BOSS_ID,
+        amount: dealt,
+      });
       break;
     }
     case "brace":
       actor.braced = true;
-      say(next, fx, "action", actorId, `${actor.name} braces for the next blow.`);
+      say(next, fx, "action", actorId, `${actor.name} braces for the next blow.`, { kind: "brace", actorId });
       break;
     case "mend": {
       const target = fighter(next, targetId ?? actorId);
@@ -331,6 +346,7 @@ export function act(b: Battle, actorId: string, action: ActionId, targetId: stri
         healed > 0
           ? `${actor.name} mends ${whom} for ${healed}.`
           : `${actor.name} tends to ${whom}, but there is nothing to mend.`,
+        { kind: "mend", actorId, targetId: target.id, amount: healed },
       );
       break;
     }
@@ -345,6 +361,7 @@ export function act(b: Battle, actorId: string, action: ActionId, targetId: stri
         target === actor
           ? `${actor.name} quickens their own step: their next three waits are halved.`
           : `${actor.name} hastens ${target.name}: ${target.name}'s next three waits are halved.`,
+        { kind: "hasten", actorId, targetId: target.id },
       );
       break;
     }
@@ -375,7 +392,7 @@ export function advance(b: Battle, clock: Clock): Step | null {
 }
 
 /** What every client is sent. */
-export function view(b: Battle): BattleState {
+export function view(b: Battle, timing: { tickMs: number; turnMs: number }): BattleState {
   const token = (f: Fighter): Token => ({
     id: f.id,
     kind: f.kind,
@@ -392,6 +409,8 @@ export function view(b: Battle): BattleState {
     battleId: b.id,
     version: b.version,
     tick: b.tick,
+    tickMs: timing.tickMs,
+    turnMs: timing.turnMs,
     status: b.status,
     activeId: b.activeId,
     turnDeadline: b.turnDeadline,
@@ -417,12 +436,23 @@ function orreryTurn(b: Battle, clock: Clock): Step {
   if (low) {
     const braced = low.braced;
     const taken = harm(low, ORRERY.eclipse);
-    say(next, fx, "boss", BOSS_ID, `The Orrery turns: Eclipse — ${taken} to ${low.name}${braced ? ", braced" : ""}.`);
+    say(next, fx, "boss", BOSS_ID, `The Orrery turns: Eclipse — ${taken} to ${low.name}${braced ? ", braced" : ""}.`, {
+      kind: "eclipse",
+      actorId: BOSS_ID,
+      targetId: low.id,
+      amount: taken,
+    });
   } else if (orrery.hp * 2 <= orrery.maxHp && !next.enraged) {
     next.enraged = true;
-    say(next, fx, "boss", BOSS_ID, `The Orrery turns: Perihelion — it quickens, and ${sweep(party, ORRERY.perihelion)}`);
+    const { text, hits } = sweep(party, ORRERY.perihelion);
+    say(next, fx, "boss", BOSS_ID, `The Orrery turns: Perihelion — it quickens, and ${text}`, {
+      kind: "perihelion",
+      actorId: BOSS_ID,
+      hits,
+    });
   } else {
-    say(next, fx, "boss", BOSS_ID, `The Orrery turns: Revolution — ${sweep(party, ORRERY.revolution)}`);
+    const { text, hits } = sweep(party, ORRERY.revolution);
+    say(next, fx, "boss", BOSS_ID, `The Orrery turns: Revolution — ${text}`, { kind: "revolution", actorId: BOSS_ID, hits });
   }
 
   for (const f of party) {
@@ -433,21 +463,21 @@ function orreryTurn(b: Battle, clock: Clock): Step {
     f.hasteLeft = 0;
     next.fallen.push(f);
     next.someoneFell = true;
-    say(next, fx, "down", f.id, `${f.name} falls.`);
+    say(next, fx, "down", f.id, `${f.name} falls.`, { kind: "down", actorId: f.id });
   }
 
   reset(next, orrery, ATTACK_RANK);
   return finish(next, fx, clock);
 }
 
-/** Hit everyone standing; the narration of it. */
-function sweep(party: Fighter[], amount: number): string {
+/** Hit everyone standing: the narration of it, and what each one took. */
+function sweep(party: Fighter[], amount: number): { text: string; hits: Hit[] } {
   const braced = party.filter((f) => f.braced);
-  for (const f of party) harm(f, amount);
+  const hits = party.map((f) => ({ targetId: f.id, amount: harm(f, amount) }));
   const note = braced.length
     ? ` ${listNames(braced)} ${braced.length === 1 ? "was" : "were"} braced and took ${Math.floor(amount / 2)}.`
     : "";
-  return `${amount} to everyone standing.${note}`;
+  return { text: `${amount} to everyone standing.${note}`, hits };
 }
 
 function heldTurn(b: Battle, id: string, clock: Clock): Step {
@@ -457,13 +487,13 @@ function heldTurn(b: Battle, id: string, clock: Clock): Step {
   f.braced = false;
   f.timeouts += 1;
   reset(next, f, ATTACK_RANK);
-  say(next, fx, "timeout", id, `${f.name} hesitates, and the turn passes.`);
+  say(next, fx, "timeout", id, `${f.name} hesitates, and the turn passes.`, { kind: "hold", actorId: id });
   if (f.timeouts >= TIMEOUTS_TO_LEAVE) {
     next.standing = next.standing.filter((s) => s !== f);
     f.out = "left";
     f.hasteLeft = 0;
     next.fallen.push(f);
-    say(next, fx, "leave", id, `${f.name} has stepped away from the table.`);
+    say(next, fx, "leave", id, `${f.name} has stepped away from the table.`, { kind: "leave", actorId: id });
   }
   return finish(next, fx, clock);
 }
@@ -476,12 +506,12 @@ function finish(b: Battle, fx: Effects, clock: Clock): Step {
     const outcome: BattleStatus | null =
       orreryOf(b).hp <= 0 ? "won" : party.length === 0 ? (b.someoneFell ? "lost" : "abandoned") : null;
     if (outcome) end(b, fx, outcome, clock.now);
-    else settle(b, clock);
+    else settle(b, fx, clock);
   }
   return { battle: b, effects: fx, durable: fx.log.length > 0 || fx.status !== null || fx.member !== null };
 }
 
-function settle(b: Battle, clock: Clock): void {
+function settle(b: Battle, fx: Effects, clock: Clock): void {
   const up = b.standing.find((f) => f.counter === 0);
   if (!up) {
     b.activeId = null;
@@ -489,6 +519,7 @@ function settle(b: Battle, clock: Clock): void {
   } else if (b.activeId !== up.id) {
     b.activeId = up.id;
     b.turnDeadline = up.kind === "character" ? clock.now + clock.turnMs : null;
+    fx.events.push({ kind: "plate", actorId: up.id, tick: b.tick });
   }
 }
 
@@ -512,7 +543,7 @@ function end(b: Battle, fx: Effects, outcome: BattleStatus, now: number): void {
       : outcome === "lost"
         ? "The last of the table has fallen. The Orrery keeps turning."
         : "Nobody is left at the table. The fight is abandoned.";
-  say(b, fx, "end", null, text);
+  say(b, fx, "end", null, text, { kind: "end", outcome: outcome as "won" | "lost" | "abandoned" });
 }
 
 /** A counter resets to tickSpeed × rank × haste. The only place haste is read. */
@@ -536,11 +567,16 @@ function harm(f: Fighter, amount: number): number {
   return taken;
 }
 
-function say(b: Battle, fx: Effects, kind: LogEntry["kind"], actorId: string | null, text: string): void {
+/** An event as the rules raise it; say() stamps it with its log line's seq and the tick. */
+type Raised = BattleEvent extends infer E ? (E extends BattleEvent ? Omit<E, "seq" | "tick"> : never) : never;
+
+/** One log line, and the event it narrates: the screen shows the event, the log reads the line. */
+function say(b: Battle, fx: Effects, kind: LogEntry["kind"], actorId: string | null, text: string, event: Raised): void {
   const entry: LogEntry = { seq: b.nextSeq++, tick: b.tick, kind, actorId, text };
   b.log.push(entry);
   if (b.log.length > LOG_TAIL) b.log.splice(0, b.log.length - LOG_TAIL);
   fx.log.push(entry);
+  fx.events.push({ ...event, seq: entry.seq, tick: b.tick } as BattleEvent);
 }
 
 function listNames(fs: Fighter[]): string {
@@ -549,7 +585,7 @@ function listNames(fs: Fighter[]): string {
 }
 
 function noEffects(): Effects {
-  return { log: [], stats: {}, status: null, member: null };
+  return { log: [], events: [], stats: {}, status: null, member: null };
 }
 
 function stat(fx: Effects, id: string): StatDelta {

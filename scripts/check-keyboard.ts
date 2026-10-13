@@ -10,11 +10,11 @@ import { APP_URL, DESKTOP, launch, type Page, ProbeError, type Rect, SHIFT, sett
 //
 //   1. From page load, Tab through the page. Every stop must show a focus
 //      indicator and be on screen once scrolling settles.
-//   2. Join by keyboard only: Tab to the name, type it, Tab into the role
-//      radios and choose with the arrow keys, Tab to submit, press Enter.
+//   2. Join by keyboard only: Tab into the role radios and choose with the
+//      arrow keys, Tab to the name, type it, Tab to submit, press Enter.
 //   3. Wait for the server to put you on the plate, Tab to Strike, check Tab
 //      can carry focus back OUT of the action panel (no trap), come back, and
-//      press Enter. The strike has to land: your token's data-counter leaves 0
+//      press Enter to aim (the Orrery lights) and Enter to confirm. The strike has to land: your token's data-counter leaves 0
 //      and the Orrery's HP drops, read from the server rather than the page.
 //   4. Tab through the joined page too, so the rail and log are held to the
 //      same indicator and on-screen rules as the form.
@@ -221,14 +221,18 @@ async function selfTest(page: Page): Promise<void> {
     style.textContent = "#kb-ringed:focus-visible { outline: 3px solid #000 !important; outline-offset: 2px !important; }";
     const box = document.createElement("div");
     box.id = "kb-canaries";
+    // A focusable start point ahead of the canaries: blur() alone leaves the
+    // browser's focus starting point wherever the page last put focus (the
+    // join screen focuses its name field), and Tab would go on from there.
     box.innerHTML =
+      '<span id="kb-start" tabindex="-1"></span>' +
       '<button id="kb-ringless" style="outline:none !important;box-shadow:none !important">ringless</button>' +
       '<button id="kb-shadowed" style="outline:none !important;box-shadow:2px 2px 0 #000 !important">shadowed</button>' +
       '<button id="kb-above" style="position:fixed !important;top:-200px !important;left:0 !important">above</button>' +
       '<button id="kb-ringed" style="outline:none">ringed</button>';
     box.prepend(style);
     document.body.prepend(box);
-    document.activeElement?.blur?.();
+    document.getElementById("kb-start").focus();
   })()`);
   const verdicts: string[] = [];
   const expect = async (id: string, ok: (f: Focus) => boolean, what: string): Promise<void> => {
@@ -264,14 +268,8 @@ async function run(page: Page): Promise<void> {
     throw new Error("the first Tab from page load focused nothing: no control on the page takes focus");
   }
 
-  // 2. Join by keyboard only.
-  await tabUntil(page, "join", (f) => f.isName, 'form[data-join] input[name="name"]', 30);
-  const name = `Keys ${suffix()}`;
-  await page.type(name);
-  const typed = (await current(page)).value;
-  if (typed !== name) throw new Error(`typed "${name}" into the name field and it holds "${typed}"`);
-
-  let focus = await tabUntil(page, "join", (f) => f.isRole, 'a role radio, input[type="radio"][name="role"]', 10);
+  // 2. Join by keyboard only: the role first, then the name (the form's order).
+  let focus = await tabUntil(page, "join", (f) => f.isRole, 'a role radio, input[type="radio"][name="role"]', 30);
   const checkedRole = (): Promise<string | null> =>
     page.evaluate<string | null>(`document.querySelector('input[type="radio"][name="role"]:checked')?.value ?? null`);
   let picked = await checkedRole();
@@ -289,6 +287,12 @@ async function run(page: Page): Promise<void> {
   }
   if (picked !== "herald") throw new Error(`the arrow keys cycled the roles without reaching herald (stuck on ${picked})`);
   console.log(`✓ the arrow keys move through the role radios (${moved} press(es) to reach herald)`);
+
+  await tabUntil(page, "join", (f) => f.isName, 'form[data-join] input[name="name"]', 10);
+  const name = `Keys ${suffix()}`;
+  await page.type(name);
+  const typed = (await current(page)).value;
+  if (typed !== name) throw new Error(`typed "${name}" into the name field and it holds "${typed}"`);
 
   await tabUntil(page, "join", (f) => f.isSubmit, "the join form's submit button", 10);
   await step(page, "join", "Enter");
@@ -322,6 +326,18 @@ async function run(page: Page): Promise<void> {
     throw new Error(`my turn ended (${((Date.now() - turnStart) / 1000).toFixed(1)}s in) before Enter was pressed on Strike`);
   }
   const before = boss(await battle(APP_URL, battleId));
+  // Strike is two presses (CLAUDE.md, "Design: the battle screen"): the first
+  // aims it and lights the Orrery, the second confirms. Aiming alone must not
+  // fire: the server's Orrery is unhurt until the confirm.
+  await step(page, "turn", "Enter");
+  try {
+    await page.until(`!!document.querySelector("[data-boss][data-targeted]")`, "the Orrery to be highlighted as Strike's target", 2_000);
+    console.log("✓ Enter on Strike aims it: the Orrery is highlighted before anything fires");
+  } catch (error) {
+    failures.push(`Enter on Strike didn't highlight the Orrery: ${(error as Error).message}`);
+  }
+  const aimed = boss(await battle(APP_URL, battleId));
+  if (before && aimed && aimed.hp < before.hp) failures.push("aiming Strike already hurt the Orrery: it fired without a confirm");
   await step(page, "turn", "Enter");
   const pressed = Date.now();
 
