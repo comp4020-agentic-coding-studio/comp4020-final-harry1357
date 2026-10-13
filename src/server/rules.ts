@@ -184,8 +184,27 @@ export function checkAction(
     target = targetId === undefined || targetId === null ? actorId : typeof targetId === "string" ? targetId : "";
     if (!isStanding(b, target)) return { status: 400, error: "That ally isn't standing at this table." };
   }
-  if (b.activeId !== actorId || actor.counter !== 0) return { status: 409, error: "not your turn" };
+  if (b.activeId !== actorId || actor.counter !== 0) return { status: 409, error: whoseTurn(b, actorId) };
   return { action: info.id, targetId: target };
+}
+
+/** Ticks after an action during which a refused one is told who just took the turn. */
+const JUST_ACTED_TICKS = 2;
+
+/**
+ * What a refused action is told (ADR-005). Two actions for one turn are ordered
+ * by the server: whoever it processes first is applied, and the second gets
+ * this. The plate may already be empty by then, because the first action reset
+ * its actor, so a character who acted in the last couple of ticks is named too.
+ */
+function whoseTurn(b: Battle, actorId: string): string {
+  const up = b.standing.find((f) => f.id === b.activeId);
+  if (up && up.id !== actorId) return `It's ${up.name}'s turn.`;
+  const last = b.log.findLast((e) => e.kind === "action");
+  if (last?.actorId && b.tick - last.tick <= JUST_ACTED_TICKS) {
+    return `${b.joined[last.actorId] ?? "Someone"} has just taken this turn.`;
+  }
+  return "It isn't your turn.";
 }
 
 // --- steps ------------------------------------------------------------------

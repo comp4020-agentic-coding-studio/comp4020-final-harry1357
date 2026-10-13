@@ -135,3 +135,21 @@ What that means in practice:
 
 If the single process stops being enough, the next ADR supersedes this one. It
 won't be quietly edited.
+
+## Status note, 2026-10-12: transport
+
+The decision above stands as shipped. State reaches every browser over the
+WebSocket, pushed after every tick and every action (`/ws`, `src/server/app.ts`;
+`watchBattle` in `src/client/net.ts`). The 500 ms polling fallback named under
+Real-time was never needed and was never built, so there is no polling in the
+app and no switch to make.
+
+Measured on 2026-10-12 against the live app with the two-browser probe
+(`pnpm probe`, two Chrome processes with separate profiles, 8 strikes): the
+other browser saw a strike in **41.1 ms median** (min 32.9 ms, max 170.6 ms,
+the max being the first strike). Every sample was inside the probe's 1000 ms
+budget.
+
+At that figure the transport is not what limits the room, so changing it would
+be an architecture choice, not a requirement. None is planned. The
+battle-screen branch (`battle-screen`, frozen) keeps the same socket.

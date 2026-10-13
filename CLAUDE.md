@@ -97,7 +97,7 @@ bordered command window with a cursor, damage numbers that pop and rise, and a
 turn-order strip. **The genre's conventions are ours to use. Its assets are
 not.** Nothing comes from an existing game: no sprites, portraits, window
 styles, logos, enemy designs, fonts made to imitate one, or music. Every file
-is original or openly licensed under rule 10 below. The Orrery and all the UI
+is original or openly licensed under rule 12 below. The Orrery and all the UI
 chrome are original regardless of what the party art is.
 
 **Scope: inside `#battle`, the game's rules; outside it, the web's.** `#battle`
@@ -151,10 +151,10 @@ pairs, and `spec/design.test.ts` holds this table to the served CSS.
 - body: `VT323, ui-monospace, "SF Mono", Menlo, monospace` for everything
   else on the stage, numbers included (VT323 is monospaced already)
 
-The faces are SIL OFL 1.1. They are served by Google, not shipped, so rule 10
+The faces are SIL OFL 1.1. They are served by Google, not shipped, so rule 12
 (which covers files under `src/assets/`) doesn't reach them. CREDITS.md lists
 them anyway, under "served, not shipped". **Never self-host them under
-`src/assets/`**: OFL isn't CC0 or CC-BY, so that would break rule 10. Outside
+`src/assets/`**: OFL isn't CC0 or CC-BY, so that would break rule 12. Outside
 `#battle` (the header link, `/readme/`) the gates stand, and the rulebook faces
 carry on: `Copperplate, "Copperplate Gothic Light", "Engravers MT", "Iowan Old
 Style", serif` for display and `"Iowan Old Style", "Palatino Linotype",
@@ -253,14 +253,21 @@ around it.
    player, never removes someone who has acted since their last hold, and
    never lets a timeout decide *order*: it only decides that a turn passes.
    *Spec: `spec/pacing.test.ts`. Why: `docs/adr/002`.*
-9. **Every state change is shown on the battle screen before it reaches the
-   log. The log is derivative; an event with no renderer doesn't ship.** Every
-   event kind the server can broadcast has a renderer in the client's
-   registry, and the client writes an event's log line only once its renderer
-   has shown it. *Spec: `spec/shown.test.ts`. Every broadcast event type has a
-   renderer, and on B's screen the strike shows within one tick and before its
-   log line.*
-10. **No asset ships without a licence. Every file under `src/assets/` has an
+9. **Before any pass with more than three parallel agents, the weekly budget
+   is read at /api/me, and passes expected to cost more than half of what
+   remains start on the day the allocation resets.** *Judged: no test can see
+   a launch. Why: `docs/adr/004`.*
+10. **When two actions arrive for one turn, the server's clock decides; the
+    second is refused with the name of whose turn it is, never queued.**
+    *Spec: `spec/two-at-once.test.ts`. Why: `docs/adr/005`.*
+11. **Every state change is shown on the battle screen before it reaches the
+    log. The log is derivative; an event with no renderer doesn't ship.** Every
+    event kind the server can broadcast has a renderer in the client's
+    registry, and the client writes an event's log line only once its renderer
+    has shown it. *Spec: `spec/shown.test.ts`. Every broadcast event type has a
+    renderer, and on B's screen the strike shows within one tick and before its
+    log line.*
+12. **No asset ships without a licence. Every file under `src/assets/` has an
     entry in `CREDITS.md` with source URL, author and licence, and the licence
     is CC0 or CC-BY only. Nothing from a commercial game, nothing share-alike,
     nothing marked personal use.** CREDITS.md is written *before* a file is
@@ -321,7 +328,7 @@ around it.
   every reduced variant against a recording stand-in. A new visual idea
   becomes a method there (state or motion, and say which) before it becomes
   code anywhere else.
-- **Assets go in through CREDITS.md, not past it** (rule 10). Write the row,
+- **Assets go in through CREDITS.md, not past it** (rule 12). Write the row,
   then copy the file. `pnpm assets` rebuilds everything derived (the down
   frames, `sprites.json`, the Orrery) from `scripts/assets/`, and the source
   sheets are pinned to an upstream commit. Never edit a derived file by hand;

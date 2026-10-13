@@ -135,7 +135,7 @@ export interface BattleState {
 // What happened, as well as what is. Every step the server broadcasts carries
 // the events that produced it, in order. An event that wrote a log line
 // carries that line's `seq`, and the client writes the line only after the
-// event's renderer has shown it (CLAUDE.md rule 9). `plate` (someone reached
+// event's renderer has shown it (CLAUDE.md rule 11). `plate` (someone reached
 // the strike plate) writes no line. Every kind here must have a renderer in
 // src/client/battle/registry.ts; spec/shown.test.ts holds both sides.
 

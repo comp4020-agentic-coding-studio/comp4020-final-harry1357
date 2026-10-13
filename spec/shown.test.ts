@@ -4,7 +4,7 @@ import { boot, cleanScratch, scratchDatabase } from "./boot.ts";
 import { launchChrome } from "./browser.ts";
 import { act, battle, join, newBattle, sleep, suffix, watch, type Event, type Watcher } from "./raid.ts";
 
-// The fight is shown, not read (CLAUDE.md rule 9). Every event the server can
+// The fight is shown, not read (CLAUDE.md rule 11). Every event the server can
 // broadcast has a battle-screen renderer, and on another person's screen a
 // strike is drawn first and written down second.
 const base = inject("baseUrl");

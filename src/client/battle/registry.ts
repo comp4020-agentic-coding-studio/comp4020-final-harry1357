@@ -1,6 +1,6 @@
 // Every event kind the server can broadcast, and how the battle screen shows it:
 // `full` with motion, `reduced` with the same state change and none (CLAUDE.md
-// rule 9 and "Design: the battle screen"). The effects live in ./effects/ and
+// rule 11 and "Design: the battle screen"). The effects live in ./effects/ and
 // only ever draw through ctx.scene, ctx.strip and ctx.audio, so this module
 // imports cleanly in Node. spec/shown.test.ts holds that every kind is here;
 // spec/effects.test.ts holds that no reduced variant moves anything.

@@ -1,5 +1,5 @@
 // The conductor: every message from the server comes through here, and here is
-// where CLAUDE.md rule 9 is kept. The turn strip is drawn at once, on every
+// where CLAUDE.md rule 11 is kept. The turn strip is drawn at once, on every
 // message, because it is the legibility claim and must never lag. The events
 // that came with the message play in order, each through its renderer, and an
 // event's log line is written only after its renderer has shown it. The log is
@@ -65,7 +65,7 @@ export function createConductor(opts: ConductorOptions): Conductor {
           console.error(`the ${event.kind} renderer failed`, err);
         }
       } else if (!renderer) {
-        console.error(`no renderer for "${event.kind}": rule 9 says this event shouldn't have shipped`);
+        console.error(`no renderer for "${event.kind}": rule 11 says this event shouldn't have shipped`);
       }
       // Shown; now it may be written down.
       if (event.seq !== undefined) {

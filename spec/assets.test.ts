@@ -4,7 +4,7 @@ import { describe, expect, inject, it } from "vitest";
 import { contentBox, crop, decodePng, type Image } from "../scripts/png.ts";
 import { ROLE_IDS } from "../src/shared/protocol.ts";
 
-// The party's art is complete and licensed (CLAUDE.md rule 10, and the Design
+// The party's art is complete and licensed (CLAUDE.md rule 12, and the Design
 // block). Read off the files themselves and the app that serves them, not off
 // what the manifest claims.
 const base = inject("baseUrl");

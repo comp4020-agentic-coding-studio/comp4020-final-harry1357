@@ -1,7 +1,7 @@
 # Credits
 
 Every file under `src/assets/` has a row here: where it came from, who made it,
-and its licence. CLAUDE.md rule 10 is the policy: **CC0 or CC-BY only**. Nothing
+and its licence. CLAUDE.md rule 12 is the policy: **CC0 or CC-BY only**. Nothing
 from a commercial game, nothing share-alike, nothing marked personal use. A row
 is written *before* its file is copied in. `spec/assets.test.ts` fails on any
 file under `src/assets/` without a row here, and on any row whose licence isn't
@@ -54,7 +54,7 @@ author.
 ## Served, not shipped
 
 These are loaded from Google Fonts at runtime, so they are not files in this
-repo and rule 10 doesn't reach them. They are listed so nobody mistakes them
+repo and rule 12 doesn't reach them. They are listed so nobody mistakes them
 for something we may copy in. Both are SIL Open Font License 1.1, which is
 **not** CC0 or CC-BY, so **never self-host them under `src/assets/`**.
 
