@@ -9,10 +9,10 @@
 // can fire when it comes back on. The rank word on each option is a label from
 // the display catalogue, never a predicted counter.
 //
-// Focus model: the list is one tab stop, role="menu" with aria-activedescendant,
-// so focus stays on the list while the cursor moves and stays there when every
-// option is disabled. The option buttons are tabindex -1; a click on one hands
-// focus back to the list, so a keyboard user never loses their place.
+// Focus model: roving tabindex. While live, the option under the cursor is the
+// one tab stop and focus follows the cursor; while dark, the list itself is the
+// stop, so a keyboard user can still find the window and its state. A click on
+// an option keeps focus there; going dark hands focus back to the list.
 import { ACTIONS, BOSS_ID, type ActionId, type ActionInfo } from "../../shared/protocol.ts";
 
 export interface CommandWindow {
@@ -220,10 +220,13 @@ export function mountCommandWindow(root: HTMLElement, opts: CommandOptions): Com
   function moveCursor(to: number): void {
     if (options.length === 0) return;
     const i = ((to % options.length) + options.length) % options.length;
+    const hadFocus = options.includes(document.activeElement as HTMLButtonElement);
     options[cursor]?.removeAttribute("data-cursor");
+    options[cursor].tabIndex = -1;
     cursor = i;
     options[cursor].setAttribute("data-cursor", "");
-    menu.setAttribute("aria-activedescendant", options[cursor].id);
+    options[cursor].tabIndex = 0;
+    if (hadFocus) options[cursor].focus({ preventScroll: true });
   }
 
   function showAim(first: boolean): void {
@@ -255,19 +258,23 @@ export function mountCommandWindow(root: HTMLElement, opts: CommandOptions): Com
     root.dataset.enabled = String(enabled);
     menu.setAttribute("aria-disabled", String(!enabled));
     for (const option of options) option.disabled = !enabled;
+    // Live: the cursor's option is the one tab stop. Dark: the list itself is, so the window stays findable.
+    menu.tabIndex = enabled ? -1 : 0;
+    options[cursor].tabIndex = enabled ? 0 : -1;
     for (const button of [prev, next, confirmKey, backKey]) button.disabled = !enabled;
     hint.textContent = enabled ? "Your turn. Choose a command." : "Wait for your turn.";
   }
 
   /** Focus to the list, wherever in the window it was (a clicked option, the Confirm key). */
   function focusMenu(): void {
-    if (document.activeElement !== menu) menu.focus({ preventScroll: true });
+    const to = enabled ? options[cursor] : menu;
+    if (document.activeElement !== to) to.focus({ preventScroll: true });
   }
 
   /** Only if focus is already inside the window: never pull it in from elsewhere. */
   function keepFocus(): void {
     const active = document.activeElement;
-    if (active && active !== menu && root.contains(active)) menu.focus({ preventScroll: true });
+    if (active && root.contains(active)) focusMenu();
   }
 
   // --- the two steps --------------------------------------------------------
@@ -333,7 +340,7 @@ export function mountCommandWindow(root: HTMLElement, opts: CommandOptions): Com
   // --- input ---------------------------------------------------------------
   function onKey(e: KeyboardEvent): void {
     if (e.altKey || e.ctrlKey || e.metaKey) return;
-    const onMenu = e.target === menu;
+    const onMenu = e.target === menu || options.includes(e.target as HTMLButtonElement);
     switch (e.key) {
       case "ArrowDown":
       case "ArrowUp":
@@ -371,6 +378,11 @@ export function mountCommandWindow(root: HTMLElement, opts: CommandOptions): Com
     }
   }
 
+  /** Space clicks on key-up; the key-down already did the work. */
+  function onKeyUp(e: KeyboardEvent): void {
+    if ((e.key === " " || e.key === "Spacebar") && options.includes(e.target as HTMLButtonElement)) e.preventDefault();
+  }
+
   /** A press anywhere outside the window backs out of the target step. */
   function onOutside(e: PointerEvent): void {
     if (aim && e.target instanceof Node && !root.contains(e.target)) cancel();
@@ -382,6 +394,7 @@ export function mountCommandWindow(root: HTMLElement, opts: CommandOptions): Com
   }
 
   root.addEventListener("keydown", onKey);
+  root.addEventListener("keyup", onKeyUp);
   root.addEventListener("focusout", onFocusOut);
   document.addEventListener("pointerdown", onOutside, true);
   prev.addEventListener("click", () => cycle(-1));
@@ -400,12 +413,12 @@ export function mountCommandWindow(root: HTMLElement, opts: CommandOptions): Com
   return {
     setEnabled(on) {
       if (on === enabled) return;
-      if (!on) {
-        keepFocus();
-        cancel();
-      }
+      const inside = !!document.activeElement && root.contains(document.activeElement);
+      if (!on) cancel();
+      const hadFocus = document.activeElement === menu;
       enabled = on;
       paintEnabled();
+      if (on ? hadFocus : inside) focusMenu();
     },
 
     setCountdown(fraction) {
@@ -435,6 +448,7 @@ export function mountCommandWindow(root: HTMLElement, opts: CommandOptions): Com
 
     destroy() {
       root.removeEventListener("keydown", onKey);
+      root.removeEventListener("keyup", onKeyUp);
       root.removeEventListener("focusout", onFocusOut);
       document.removeEventListener("pointerdown", onOutside, true);
       if (aim) {
