@@ -220,6 +220,11 @@ export async function launch(): Promise<Browser> {
       "--no-first-run",
       "--no-default-browser-check",
       "--disable-gpu",
+      // Headless Chrome draws classic 15px scrollbars, so any page taller than
+      // the screen (the /readme/ document) reads clientWidth 1905 at 1920 and
+      // trips the emulation check. Overlay scrollbars take no width, as on a
+      // Mac or a phone; sideways overflow still shows in scrollWidth and the walk.
+      "--hide-scrollbars",
       "about:blank",
     ],
     { stdio: "ignore" },
@@ -504,7 +509,16 @@ const MEASURE = `(() => {
  * measured or photographed after that describes a wider page than the one
  * asked for, so the caller must not believe it.
  */
-async function measure(page: Page, where: string): Promise<{ m: Measurement; problems: string[]; fits: boolean }> {
+async function measure(
+  page: Page,
+  where: string,
+  /** Inside the self-test, after a canary is planted: the emulation was proven
+   *  on the clean page, and a desktop canary's own horizontal scrollbar can
+   *  push a page that is exactly the viewport's height into a vertical one,
+   *  which takes clientWidth with it. That is the canary's doing, not the
+   *  emulation's, so clientWidth isn't re-judged there. */
+  planted = false,
+): Promise<{ m: Measurement; problems: string[]; fits: boolean }> {
   const { width, mobile, scale } = page.viewport;
   const w = await page.evaluate<Widths>(WIDTHS);
   // The setup is part of what's being trusted. A canary can pass in conditions
@@ -516,7 +530,7 @@ async function measure(page: Page, where: string): Promise<{ m: Measurement; pro
   }
   const problems: string[] = [];
   // 1. clientWidth: did the emulation take?
-  if (w.clientWidth !== width) {
+  if (w.clientWidth !== width && !planted) {
     // A phone with no `width=device-width` lays the page out at 980px. That is
     // the page's doing, not the probe's, and it is the one way clientWidth can
     // be wrong while the emulation took --- so it's reported, not thrown.
@@ -573,7 +587,7 @@ async function selfTest(page: Page): Promise<string[]> {
     `document.body.insertAdjacentHTML("beforeend", '<div id="probe-allowed" style="position:absolute;left:0;top:0;width:48px;height:8px;overflow-x:auto"><div style="width:${width * 3}px;height:4px"></div></div>')`,
   );
   await sleep(100);
-  const allowed = (await measure(page, where)).m;
+  const allowed = (await measure(page, where, true)).m;
   if (allowed.count !== before.count || allowed.innerWidth !== before.innerWidth) {
     throw new ProbeError(
       `${where}: content inside an overflow-x:auto box was counted as overflow (${before.count} → ${allowed.count} offenders, ` +
@@ -585,7 +599,7 @@ async function selfTest(page: Page): Promise<string[]> {
     `document.body.insertAdjacentHTML("beforeend", '<div id="probe-canary" style="display:block;flex:none;width:${width + 96}px;min-width:${width + 96}px;max-width:none;height:8px"></div>')`,
   );
   await sleep(100);
-  const after = (await measure(page, where)).m;
+  const after = (await measure(page, where, true)).m;
   if (after.count <= before.count) {
     throw new ProbeError(`${where}: a planted ${width + 96}px element was NOT detected per element. The probe is blind.`);
   }
