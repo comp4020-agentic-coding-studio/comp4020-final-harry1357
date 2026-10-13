@@ -412,6 +412,12 @@
   color: var(--card);
 }
 
+/* The lit card's tint over the window's brass top leaves --card-quiet at about
+   4.4:1, under the line, so its name is --card (its label is already lit). */
+#battle [data-active="true"] .strip-name {
+  color: var(--card);
+}
+
 #battle [data-kind="boss"] .strip-name {
   color: var(--ember);
 }

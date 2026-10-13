@@ -105,9 +105,31 @@ describe("the battle screen's palette, checked as arithmetic", () => {
 // not assumed: headless Chrome walks every visible element whose computed
 // colour is --card-quiet, in every stage state at 1920×1080 and 390×844, and
 // finds the ground under each. Re-measure when a rule here moves.
+// Measured 2026-10-14 in headless Chrome, join, join with the seat button
+// disabled, and fight, at both viewports. "ink" is a window: base.css paints it
+// as a gradient from 14% brass into --ink, and --card-quiet clears it at 5.55:1
+// at its lightest. The cursor's option adds 15% brass, but only behind the
+// blurb, mid-window. The lit strip card adds 16% at the window's top, which
+// would be 4.37:1, so the lit card's name is --card instead (strip.css).
+// "void" is the observatory itself: the bar above the stage, the join
+// overlay, and the name field's well.
 const QUIET = "card-quiet";
 const QUIET_GROUNDS: Readonly<Record<string, string>> = {
-  // filled from the measurement once the battle screen exists
+  "#battle .window-title": "ink",
+  "#battle .battle-link": "void",
+  "#battle .strip-fallen::before": "ink",
+  "#battle .strip-label": "ink",
+  "#battle .strip-name": "ink",
+  "#battle .strip-stamp[data-flag=held]": "ink",
+  "#battle .command-blurb": "ink",
+  "#battle .command-hint": "ink",
+  "#battle .join-title-the": "void",
+  "#battle .join-label": "ink",
+  "#battle .join-greeting": "ink",
+  "#battle .join-name::placeholder": "void",
+  "#battle .join-blurb": "ink",
+  "#battle .join-move": "ink",
+  "#battle .join-submit:disabled": "ink",
 };
 
 describe(`--${QUIET} on its grounds`, () => {
