@@ -715,10 +715,13 @@
   }
 }
 
-/* phone: sprites at 1x so a two-by-two party stays inside the column */
+/* phone: sprites at 1x so the party of four stands in one row, the Orrery's
+   128-unit art at exactly 1x, and plates narrow enough for a quarter of the
+   screen. Where things sit is mobile.css's; this is how big they are. */
 @media (width <= 46rem) {
   #battle .scene {
     --px: 1;
+    --boss-size: 8rem;
   }
 
   #battle .actor {
@@ -727,5 +730,62 @@
 
   #battle .actor[data-rank="back"] {
     margin-bottom: 0;
+  }
+
+  /* The footprint is the art's drawn height, not its cell's: the empty rows
+     above the art (--ay less --foot-y, up to 20px at 1x) would make the
+     party's band that much taller for nothing. The cel keeps its size and
+     rises by the headroom it lost, so the art lands on the same feet. */
+  #battle .actor-body {
+    height: calc(var(--foot-y, 90) * var(--s) * 1px);
+  }
+
+  #battle .actor-cel {
+    top: calc((var(--foot-y, 90) - var(--ay, 100)) * var(--s) * 1px);
+  }
+
+  /* The pointer pokes up into the room above the party (mobile.css) rather
+     than 1.8rem above the art, where the turn strip would cover it. */
+  #battle .actor-cursor {
+    top: -0.4rem;
+  }
+
+  #battle .boss .actor-cursor {
+    top: 0;
+  }
+
+  /* A party plate a quarter of the screen wide: the name on its own lines at
+     the display face's native 8px (nine characters a line, so a 24-character
+     name takes three), the bar and the number beneath it. */
+  #battle .party .plate {
+    display: grid;
+    grid-template:
+      "name name" auto
+      "bar num" auto
+      / minmax(0, 1fr) auto;
+    gap: 0.2rem 0.3rem;
+    align-items: center;
+    margin-top: 0.45rem;
+    padding: 0.2rem 0.3rem 0.25rem;
+  }
+
+  #battle .party .plate-line {
+    display: contents;
+  }
+
+  #battle .party .plate-name {
+    grid-area: name;
+    font-size: 0.5rem;
+    line-height: 1.25;
+  }
+
+  #battle .party .plate-hp {
+    grid-area: num;
+    font-size: 1rem;
+    line-height: 1;
+  }
+
+  #battle .party .hp {
+    grid-area: bar;
   }
 }

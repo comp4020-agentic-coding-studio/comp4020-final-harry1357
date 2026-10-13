@@ -50,10 +50,13 @@
 
   #battle .battle-bar {
     gap: 0.5rem;
+    padding-block: 0.3rem;
     padding-inline: 0.75rem;
   }
 
-  /* ---- the stage: one column, top to bottom ------------------------------ */
+  /* ---- the stage: one column, top to bottom ------------------------------
+     Budgeted so the fight, Orrery to the foot of the command window, stands
+     inside 844px under the site header and the bar; the log may run below. */
 
   #battle .stage {
     grid-template:
@@ -63,8 +66,8 @@
       "command" auto
       "log" auto
       / minmax(0, 1fr);
-    gap: 0.5rem;
-    padding: 0.5rem;
+    gap: 0.4rem;
+    padding: 0.4rem;
   }
 
   #battle [data-scene] {
@@ -90,31 +93,162 @@
     pointer-events: none;
   }
 
-  /* ---- the Orrery: first row, centred ------------------------------------ */
+  /* ---- the Orrery: first row, its plate to the left ---------------------
+     The art (scene.css's phone --boss-size: 128px, the SVG's own units at
+     1x) stands at the right, where the enemy stands on the desktop, and its
+     plate takes the rest of the row beside it, so the row is only as tall as
+     the art. The pointer, when it's the target, sits on the art's top edge
+     (scene.css's phone block), centred over the art. */
 
   #battle [data-scene] > [data-boss] {
     position: relative;
     inset: auto;
     grid-row: 1;
     grid-column: 1;
-    place-self: center;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) var(--boss-size);
+    grid-template-areas: "plate art";
+    align-items: center;
+    gap: 0.75rem;
+
+    /* room above for the art's idle float (scene-float, 0.6rem) */
+    padding: 0.6rem 0.75rem 0;
   }
 
-  /* ---- the turn strip: second row, a row of portraits -------------------- */
+  #battle [data-boss] > .boss-art {
+    grid-area: art;
+  }
+
+  #battle [data-boss] > [data-plate] {
+    grid-area: plate;
+    width: auto;
+    margin: 0;
+  }
+
+  #battle [data-boss] > .actor-cursor {
+    left: auto;
+    right: calc(0.75rem + var(--boss-size) / 2 - 0.8rem);
+    transform: none;
+  }
+
+  /* ---- the turn strip: second row, a row of portraits --------------------
+     strip.css's own switches (its header comment): a row, small faces, and
+     the row's spare width shared out. Two things it leaves to whoever lays
+     it out, done here: a portrait's basis is zero, so a row of five squeezes
+     each card down to its face and drops the wait beneath it (an auto basis
+     would keep every card face-plus-wait wide, three across a phone); and the
+     fallen sit at the end of the same row, so a fall doesn't make the strip,
+     and everything under it, taller. 48 and 64px faces keep a table of four
+     and the Orrery in view at 390px with no scroll; more than that, and the
+     lanes scroll along the row, inside the strip. */
 
   #battle .stage > [data-rail] {
     --strip-flow: row;
-    --strip-face: 56px;
-    --strip-face-lit: 72px;
+    --strip-face: 48px;
+    --strip-face-lit: 64px;
+    --strip-grow: 1;
 
     position: relative;
     z-index: 1;
     grid-area: strip;
+    gap: 0.15rem;
     min-width: 0;
     min-height: 0;
+    padding: 0.3rem 0.25rem 0.15rem;
   }
 
-  /* ---- the party: third row, two by two ---------------------------------- */
+  /* The title is a picture of a label (aria-hidden; the aside is labelled
+     "Turn order" for anyone listening), and a row of portraits marked Now
+     and Wait says what it is. Its line goes to the command window. */
+  #battle [data-rail] .strip-title {
+    display: none;
+  }
+
+  #battle [data-rail] .strip-lanes {
+    display: flex;
+    align-items: flex-start;
+    padding: 0.45rem 0.15rem 0.2rem;
+  }
+
+  /* A squeezed card, compact: the wait on one line beneath the face (the word
+     and the server's number side by side), and the name on one line beneath
+     that, cut with an ellipsis (the full name is the party plate's, just
+     below, and the portrait's title). */
+  #battle [data-rail] .strip-card {
+    gap: 0.2rem 0.4rem;
+    padding: 0.2rem;
+  }
+
+  #battle [data-rail] .strip-wait {
+    flex-direction: row;
+    align-items: baseline;
+    justify-content: center;
+    gap: 0.25rem;
+  }
+
+  #battle [data-rail] .strip-count {
+    font-size: 0.75rem;
+  }
+
+  #battle [data-rail] [data-active="true"] .strip-label {
+    font-size: 0.6rem;
+  }
+
+  #battle [data-rail] .strip-name {
+    font-size: 1rem;
+    -webkit-line-clamp: 1;
+    line-clamp: 1;
+  }
+
+  /* Five across 358px with two-digit waits: 76 + 4 × 66 + 4 × 4 = 356. */
+  #battle [data-rail] .strip-queue,
+  #battle [data-rail] .strip-fallen {
+    gap: 0.25rem;
+  }
+
+  #battle [data-rail] .strip-queue {
+    flex: 1 0 0%;
+    min-width: min-content;
+  }
+
+  #battle [data-rail] .strip-token {
+    flex-basis: 0%;
+    min-width: min-content;
+  }
+
+  /* the fallen: after the standing, past a dashed upright, "Out" on it */
+  #battle [data-rail] .strip-fallen {
+    flex: none;
+    align-self: stretch;
+    margin: 0 0 0 0.6rem;
+    padding: 0 0 0 0.6rem;
+    border-top: 0;
+    border-left: 2px dashed var(--brass-dim);
+  }
+
+  /* nothing to share out past the rule, so each card is as narrow as it
+     can be, its word beneath its face like the standing cards' */
+  #battle [data-rail] .strip-fallen .strip-token {
+    flex-grow: 0;
+    width: min-content;
+  }
+
+  #battle [data-rail] .strip-fallen::before {
+    top: 50%;
+    left: -1px;
+    translate: -50% -50%;
+    padding: 0.3rem 0;
+    writing-mode: vertical-rl;
+  }
+
+  /* ---- the party: third row, four abreast ---------------------------------
+     A column each, sprites in one band and plates in the band beneath
+     (each member is a two-row subgrid of the party), so every plate starts
+     on the same line whatever the names do, and no sprite stands on anybody's
+     plate. At 1x a footprint can still be wider than its quarter (the
+     Lancer's is 130px); it overlaps its neighbour's art, never a plate, and
+     the outer two stand flush to the field's edges rather than past them.
+     More than four, and the next four start a new pair of bands. */
 
   #battle [data-scene] > [data-party] {
     position: relative;
@@ -122,25 +256,107 @@
     grid-row: 3;
     grid-column: 1;
     display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 0.5rem;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-auto-rows: auto;
+    gap: 0 0.25rem;
     align-items: end;
+    width: auto;
     min-width: 0;
+
+    /* room above for the target pointer (scene.css's phone block) to clear
+       the strip */
+    padding: 0.5rem 0.25rem 0.3rem;
     overflow-x: clip;
+  }
+
+  /* fewer than four: their quarters, centred */
+  #battle [data-party][data-count="1"] {
+    grid-template-columns: calc((100% - 0.75rem) / 4);
+    justify-content: center;
+  }
+
+  #battle [data-party][data-count="2"] {
+    grid-template-columns: repeat(2, calc((100% - 0.75rem) / 4));
+    justify-content: center;
+  }
+
+  #battle [data-party][data-count="3"] {
+    grid-template-columns: repeat(3, calc((100% - 0.75rem) / 4));
+    justify-content: center;
   }
 
   #battle [data-party] > * {
     position: relative;
     inset: auto;
+    display: grid;
+    grid-row: span 2;
+    grid-template-rows: subgrid;
+    grid-template-columns: minmax(0, 1fr);
+    justify-items: center;
+    width: auto;
     min-width: 0;
   }
 
-  #battle [data-party] [data-plate] {
+  #battle [data-party] > * > .actor-body {
+    align-self: end;
+  }
+
+  /* Depth, as on the desktop's staggered row: the front rank stands in front
+     where a wide sprite meets its neighbour, and the back rank a step up the
+     floor. A translate, so the band is no taller for it. */
+  #battle [data-party] > [data-rank="front"] {
+    z-index: 1;
+  }
+
+  #battle [data-party] > [data-rank="back"] > .actor-body {
+    translate: 0 -0.4rem;
+  }
+
+  #battle [data-party] > * > [data-plate] {
+    place-self: stretch;
     max-width: 100%;
     overflow-wrap: anywhere;
   }
 
-  /* ---- the command window and the log ------------------------------------ */
+  /* four or more: the outer two flush to the field's edges */
+  #battle [data-party]:not([data-count="1"], [data-count="2"], [data-count="3"]) > :nth-child(4n + 1) {
+    justify-items: start;
+  }
+
+  #battle [data-party]:not([data-count="1"], [data-count="2"], [data-count="3"]) > :nth-child(4n) {
+    justify-items: end;
+  }
+
+  /* ---- the command window and the log ------------------------------------
+     Tightened, so the target step (two more rows: the name, then the keys)
+     still ends above the fold. Every control stays 44px or more (command.css
+     sets the floors; nothing here goes under them). */
+
+  #battle .stage > .command {
+    gap: 0.3rem;
+    padding-top: 0.9rem;
+    padding-bottom: 0.55rem;
+  }
+
+  #battle .command .command-title {
+    margin-bottom: 0.2rem;
+  }
+
+  #battle .command .command-option {
+    padding-block: 0.25rem 0.3rem;
+  }
+
+  #battle .command .command-foot {
+    padding-top: 0.3rem;
+  }
+
+  #battle .command .command-aim {
+    gap: 0.3rem 0.5rem;
+  }
+
+  #battle .command .command-aim-name {
+    font-size: 1.15rem;
+  }
 
   #battle .stage > .log-window {
     max-height: 7.5rem;
