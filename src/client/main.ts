@@ -2,7 +2,7 @@
 // one server. It never decides whose turn it is (CLAUDE.md rules 1 and 2): the
 // command window is live only while the server says it's your turn, and an
 // action is one POST that is shown if refused and never retried. Every message
-// goes through the conductor, which shows events before it logs them (rule 9).
+// goes through the conductor, which shows events before it logs them (rule 11).
 import manifestJson from "../assets/sprites.json";
 import orrerySvg from "../assets/orrery/orrery.svg";
 import {
@@ -149,6 +149,9 @@ async function onJoin(name: string, role: RoleId): Promise<JoinResult> {
   app.role = role;
   conductor.setMe(app.myId);
   say(`You take your seat as ${ROLES[role].label}.`);
+  // The broadcast that seated us usually lands before this POST answers, while
+  // myId was still unknown, and the next one may be a whole turn away.
+  if (app.state) onState(app.state);
   void loadMe();
   return { ok: true };
 }
