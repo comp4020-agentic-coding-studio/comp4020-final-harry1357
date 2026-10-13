@@ -257,8 +257,17 @@
   border: 0;
 }
 
+/* A legend straddles its fieldset's top edge and ignores the grid gap;
+   floated, it is an ordinary line above the cards. */
+#battle .join-cast > legend {
+  float: left;
+  width: 100%;
+  margin-block-end: 0.6rem;
+}
+
 #battle .join-deck {
   container: join-deck / inline-size;
+  clear: both;
 }
 
 #battle .join-cards {

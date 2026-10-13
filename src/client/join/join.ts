@@ -9,8 +9,9 @@
 // [value=<roleId>] and button[type="submit"]. The form is built on the first
 // show(), so it exists only once it can be seen and clicked.
 //
-// DOM order is name, then role, then submit, which is also the reading order
-// and the Tab order: Tab, type, Tab, arrows, Tab, Enter.
+// DOM order is role, then name, then submit, which is also the reading order
+// and the Tab order: arrows, Tab, type, Tab, Enter. You choose who you are at
+// the table before you say what it calls you.
 import { ACTIONS, NAME_MAX, ROLE_IDS, ROLES, type CharacterInfo, type MeResponse, type RoleId } from "../../shared/protocol.ts";
 import type { Join, JoinOptions, JoinResult, SpriteManifest, SpriteRole } from "../battle/api.ts";
 
@@ -86,7 +87,7 @@ function welcome(c: CharacterInfo): string {
   return `Welcome back, ${c.name}: ${count(c.turns, "turn")}, ${count(c.wins, "win")}`;
 }
 
-const TAGLINE = "A raid for whoever is at the table. Give a name, choose a role, take a seat.";
+const TAGLINE = "A raid for whoever is at the table. Choose a role, give a name, take a seat.";
 
 export function mountJoin(root: HTMLElement, opts: JoinOptions): Join {
   const manifest: SpriteManifest = opts.manifest;
@@ -263,7 +264,7 @@ export function mountJoin(root: HTMLElement, opts: JoinOptions): Join {
     submit.append(submitCursor, submitText);
     actions.append(submit);
 
-    form.append(greeting, plate, cast, actions);
+    form.append(greeting, cast, plate, actions);
     host.append(form);
 
     name.addEventListener("input", () => {
@@ -393,7 +394,7 @@ export function mountJoin(root: HTMLElement, opts: JoinOptions): Join {
       reveal();
       if (reduce.matches) still();
       else play();
-      (known ? f.submit : f.name).focus({ preventScroll: true });
+      (known ? f.submit : (f.radios.get(chosen() ?? ROLE_IDS[0]) ?? f.name)).focus({ preventScroll: true });
     },
 
     hide() {

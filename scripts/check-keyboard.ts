@@ -10,8 +10,8 @@ import { APP_URL, DESKTOP, launch, type Page, ProbeError, type Rect, SHIFT, sett
 //
 //   1. From page load, Tab through the page. Every stop must show a focus
 //      indicator and be on screen once scrolling settles.
-//   2. Join by keyboard only: Tab to the name, type it, Tab into the role
-//      radios and choose with the arrow keys, Tab to submit, press Enter.
+//   2. Join by keyboard only: Tab into the role radios and choose with the
+//      arrow keys, Tab to the name, type it, Tab to submit, press Enter.
 //   3. Wait for the server to put you on the plate, Tab to Strike, check Tab
 //      can carry focus back OUT of the action panel (no trap), come back, and
 //      press Enter to aim (the Orrery lights) and Enter to confirm. The strike has to land: your token's data-counter leaves 0
@@ -268,14 +268,8 @@ async function run(page: Page): Promise<void> {
     throw new Error("the first Tab from page load focused nothing: no control on the page takes focus");
   }
 
-  // 2. Join by keyboard only.
-  await tabUntil(page, "join", (f) => f.isName, 'form[data-join] input[name="name"]', 30);
-  const name = `Keys ${suffix()}`;
-  await page.type(name);
-  const typed = (await current(page)).value;
-  if (typed !== name) throw new Error(`typed "${name}" into the name field and it holds "${typed}"`);
-
-  let focus = await tabUntil(page, "join", (f) => f.isRole, 'a role radio, input[type="radio"][name="role"]', 10);
+  // 2. Join by keyboard only: the role first, then the name (the form's order).
+  let focus = await tabUntil(page, "join", (f) => f.isRole, 'a role radio, input[type="radio"][name="role"]', 30);
   const checkedRole = (): Promise<string | null> =>
     page.evaluate<string | null>(`document.querySelector('input[type="radio"][name="role"]:checked')?.value ?? null`);
   let picked = await checkedRole();
@@ -293,6 +287,12 @@ async function run(page: Page): Promise<void> {
   }
   if (picked !== "herald") throw new Error(`the arrow keys cycled the roles without reaching herald (stuck on ${picked})`);
   console.log(`✓ the arrow keys move through the role radios (${moved} press(es) to reach herald)`);
+
+  await tabUntil(page, "join", (f) => f.isName, 'form[data-join] input[name="name"]', 10);
+  const name = `Keys ${suffix()}`;
+  await page.type(name);
+  const typed = (await current(page)).value;
+  if (typed !== name) throw new Error(`typed "${name}" into the name field and it holds "${typed}"`);
 
   await tabUntil(page, "join", (f) => f.isSubmit, "the join form's submit button", 10);
   await step(page, "join", "Enter");
