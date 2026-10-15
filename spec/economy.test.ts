@@ -15,23 +15,23 @@ describe("the action economy", () => {
     b = turn(e, b, "breaker-1", "scan", "outer").battle;
     expect(ring(b, "outer").weakness, "Scan reveals the ring's weakness to the room").toBe(ring(b, "outer").element);
 
-    const striker = fighter(b, "striker-1");
-    const step = turn(e, b, "striker-1", "cleave", "outer");
-    const after = fighter(step.battle, "striker-1");
+    const striker = fighter(b, "striker-2");
+    const step = turn(e, b, "striker-2", "cleave", "outer");
+    const after = fighter(step.battle, "striker-2");
     // Cleave is rank 3; a Resonance resets it as rank 2 (A1's model, rule 13).
     expect(after.counter, "the counter resets one rank lower than the action's").toBe(counterReset(striker.agility, "normal", 2));
     const jump = events(step, "resonance");
     expect(jump, "a Resonance is an event, so the portrait can visibly jump").toHaveLength(1);
-    expect(jump[0], "it says the rank it came from and went to").toMatchObject({ actorId: "striker-1", from: 3, to: 2 });
+    expect(jump[0], "it says the rank it came from and went to").toMatchObject({ actorId: "striker-2", from: 3, to: 2 });
   });
 
   it("never refunds below rank 1, and a refund of nothing isn't a jump", async () => {
     const e = await engine();
     let b = table(e, ["breaker", "striker"]);
     b = turn(e, b, "breaker-1", "scan", "outer").battle;
-    const striker = fighter(b, "striker-1");
-    const step = turn(e, b, "striker-1", "jab", "outer");
-    expect(fighter(step.battle, "striker-1").counter, "a rank-1 Jab on a weakness still resets as rank 1").toBe(
+    const striker = fighter(b, "striker-2");
+    const step = turn(e, b, "striker-2", "jab", "outer");
+    expect(fighter(step.battle, "striker-2").counter, "a rank-1 Jab on a weakness still resets as rank 1").toBe(
       counterReset(striker.agility, "normal", 1),
     );
     expect(events(step, "resonance"), "nothing was refunded, so the portrait doesn't jump").toEqual([]);
@@ -73,16 +73,16 @@ describe("the action economy", () => {
       spentBy: null,
     });
 
-    const feint = turn(e, b, "striker-1", "feint", "outer");
+    const feint = turn(e, b, "striker-2", "feint", "outer");
     expect(ring(feint.battle, "outer").exposed, "Feint spends one, and the other is still Breaker's").toEqual([
       { appliedBy: "breaker-1" },
     ]);
     expect(feint.battle.spentExposed, "the spent stack records who set it and who spent it").toContainEqual({
       ringId: "outer",
       appliedBy: "breaker-1",
-      spentBy: "striker-1",
+      spentBy: "striker-2",
     });
-    expect(events(feint, "exposed").find((x) => x.spentBy === "striker-1"), "and the spend is an event naming both").toMatchObject({
+    expect(events(feint, "exposed").find((x) => x.spentBy === "striker-2"), "and the spend is an event naming both").toMatchObject({
       appliedBy: "breaker-1",
     });
   });
