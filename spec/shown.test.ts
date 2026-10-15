@@ -57,14 +57,14 @@ describe("the fight is shown", () => {
       const w = watch(server.base, battleId);
       await w.opened;
       const s = suffix();
-      const plan = { bulwark: ["strike", "brace"], lancer: ["strike", "lunge"], mender: ["strike", "mend"], herald: ["strike", "hasten"] };
+      const plan = { warden: ["counterweight", "brace"], striker: ["jab", "cleave"], mender: ["mend", "brace"], breaker: ["scan", "mark"], chronist: ["relay", "brace"] };
       const seats = [];
       for (const [role, actions] of Object.entries(plan)) {
         const seat = await join(server.base, battleId, `${role}-${s}`, role);
         expect(seat.status).toBe(200);
         seats.push({ ...seat, actions, turn: 0 });
       }
-      expect((await join(server.base, battleId, `idler-${s}`, "herald")).status).toBe(200);
+      expect((await join(server.base, battleId, `idler-${s}`, "chronist")).status).toBe(200);
 
       for (const deadline = Date.now() + 60_000; ; ) {
         const st = await battle(server.base, battleId);
@@ -83,7 +83,8 @@ describe("the fight is shown", () => {
 
       const seen = [...new Set(w.events.map((e) => e.kind))];
       expect(seen.filter((k) => !kinds.includes(k)), "the server broadcast event kinds the protocol doesn't declare").toEqual([]);
-      for (const kind of ["join", "strike", "hold", "leave", "end"]) {
+      // Nobody leaves on a timeout any more (rule 8: an idler is Braced for, then an Echo).
+      for (const kind of ["join", "jab", "hold", "end"]) {
         expect(seen, `a whole fight never broadcast a "${kind}" event`).toContain(kind);
       }
       expect(
@@ -97,7 +98,7 @@ describe("the fight is shown", () => {
 
   it("after A strikes, B's screen mutates within one tick, and B's log line arrives after the screen mutation", async () => {
     const battleId = await newBattle(base);
-    const a = await join(base, battleId, `striker-${suffix()}`, "herald");
+    const a = await join(base, battleId, `striker-${suffix()}`, "striker");
     expect(a.status).toBe(200);
     const A = a.characterId as string;
 
@@ -135,8 +136,8 @@ describe("the fight is shown", () => {
       await w.waitFor((st) => st.activeId === A, "A's turn", 20_000);
       const from = w.events.length;
       const struck = Date.now();
-      expect((await act(base, battleId, a.cookie, "strike")).status).toBe(200);
-      const strike = await nextEvent(w, from, (e) => e.kind === "strike" && e.actorId === A, "A's strike event");
+      expect((await act(base, battleId, a.cookie, "jab")).status).toBe(200);
+      const strike = await nextEvent(w, from, (e) => e.kind === "jab" && e.actorId === A, "A's strike event");
       expect(typeof strike.seq, "the strike event carries no seq to find its log line by").toBe("number");
 
       const seen = await b.until<{ attack: number; number: number; log: Record<string, number> }>(
