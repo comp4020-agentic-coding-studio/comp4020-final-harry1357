@@ -3,82 +3,113 @@
 // turn order, counters, damage and the Orrery's script all live on the server.
 // `rank` is here so the client can *label* an action ("a long wait"); the
 // client never multiplies it into a counter.
+//
+// The roles and actions are the design record's (docs/design/overhaul.md,
+// Priority 2; CLAUDE.md rules 13-21). Ranks run 1-5 (rule 13); `reaction`
+// actions are taken out of turn against a boss card (rule 18).
 
-export type RoleId = "bulwark" | "lancer" | "mender" | "herald";
-export type ActionId = "strike" | "brace" | "lunge" | "mend" | "hasten";
+export type RoleId = "warden" | "mender" | "striker" | "breaker" | "chronist";
+export type ActionId =
+  // shared by everyone
+  | "brace"
+  // Warden
+  | "intercept"
+  | "anchor"
+  | "bastion"
+  | "counterweight"
+  // Mender
+  | "mend"
+  | "ward"
+  | "quicken"
+  | "restore"
+  // Striker
+  | "jab"
+  | "cleave"
+  | "finisher"
+  | "feint"
+  // Breaker
+  | "scan"
+  | "pry"
+  | "mark"
+  | "shatter"
+  // Chronist
+  | "delay"
+  | "haste"
+  | "relay"
+  | "stillpoint";
 export type BattleStatus = "waiting" | "fighting" | "won" | "lost" | "abandoned";
+
+/** The Orrery's three rings, outermost first. */
+export type RingId = "outer" | "middle" | "inner";
+/** What a ring is weak to. Hidden until a Breaker Scans it. */
+export type Element = "ember" | "frost" | "aether";
 
 export interface ActionInfo {
   id: ActionId;
   label: string;
-  /** The rank term in tickSpeed × rank × hasteMultiplier. Display only on the client. */
+  /** The rank term in tickSpeed × rank × hasteMultiplier, 1-5. Display only on the client. 0 for a Reaction, which takes no turn. */
   rank: number;
-  /** "boss" needs no target; "ally" needs a standing character's id (yourself included). */
-  target: "boss" | "ally" | "self";
+  /** "boss" aims at a ring (or the Orrery); "ally" needs a standing character's id; "card" needs a boss card's id; "self" needs nothing. */
+  target: "boss" | "ally" | "card" | "self";
+  /** A Reaction is taken out of turn, once per boss turn, against a telegraphed card (rule 18). */
+  reaction?: true;
+  /** Which resource it spends, and how much, if any. */
+  spends?: { resource: Resource; amount: number | "all" };
   blurb: string;
 }
+
+/** Each role's own resource (docs/design/overhaul.md, Priority 2). Charge is everyone's (rule 17). */
+export type Resource = "charge" | "resolve" | "grace" | "momentum" | "insight" | "flux";
 
 export interface RoleInfo {
   id: RoleId;
   label: string;
   blurb: string;
+  resource: Exclude<Resource, "charge">;
+  /** Brace first: every role has it (rule 17). */
   actions: readonly ActionId[];
 }
 
+const a = (info: ActionInfo): ActionInfo => info;
+
 export const ACTIONS: Readonly<Record<ActionId, ActionInfo>> = {
-  strike: { id: "strike", label: "Strike", rank: 3, target: "boss", blurb: "Hit the Orrery." },
-  brace: {
-    id: "brace",
-    label: "Brace",
-    rank: 2,
-    target: "self",
-    blurb: "Take half damage until your next turn. A short wait.",
-  },
-  lunge: {
-    id: "lunge",
-    label: "Lunge",
-    rank: 5,
-    target: "boss",
-    blurb: "A heavy blow. A long wait before you act again.",
-  },
-  mend: { id: "mend", label: "Mend", rank: 3, target: "ally", blurb: "Restore an ally's strength." },
-  hasten: {
-    id: "hasten",
-    label: "Hasten",
-    rank: 2,
-    target: "ally",
-    blurb: "An ally's next three waits are halved. Their current wait is not.",
-  },
+  brace: a({ id: "brace", label: "Brace", rank: 2, target: "self", blurb: "Halve the next blow and bank a Charge (up to 3)." }),
+
+  intercept: a({ id: "intercept", label: "Intercept", rank: 0, target: "card", reaction: true, blurb: "Take a single-target blow meant for an ally." }),
+  anchor: a({ id: "anchor", label: "Anchor", rank: 2, target: "card", blurb: "Pull the next targeted boss card onto yourself." }),
+  bastion: a({ id: "bastion", label: "Bastion", rank: 4, target: "self", spends: { resource: "resolve", amount: "all" }, blurb: "Blunt the next raid-wide card by 40%." }),
+  counterweight: a({ id: "counterweight", label: "Counterweight", rank: 3, target: "boss", blurb: "Strike, and leave Exposed scaled by Resolve." }),
+
+  mend: a({ id: "mend", label: "Mend", rank: 2, target: "ally", blurb: "Heal an ally." }),
+  ward: a({ id: "ward", label: "Ward", rank: 3, target: "ally", blurb: "Shield an ally a boss card is aimed at. Grace if it holds." }),
+  quicken: a({ id: "quicken", label: "Quicken", rank: 3, target: "ally", blurb: "Cut an ally's wait by 30%: they move up the strip." }),
+  restore: a({ id: "restore", label: "Restore", rank: 5, target: "ally", spends: { resource: "grace", amount: 3 }, blurb: "Bring a fallen ally back to the table." }),
+
+  jab: a({ id: "jab", label: "Jab", rank: 1, target: "boss", blurb: "A quick blow. +1 Momentum." }),
+  cleave: a({ id: "cleave", label: "Cleave", rank: 3, target: "boss", blurb: "+2 Momentum on a weakness." }),
+  finisher: a({ id: "finisher", label: "Finisher", rank: 4, target: "boss", spends: { resource: "momentum", amount: "all" }, blurb: "Spend all Momentum. Double against a Broken ring." }),
+  feint: a({ id: "feint", label: "Feint", rank: 2, target: "boss", blurb: "Spend an Exposed stack for a sure Resonance." }),
+
+  scan: a({ id: "scan", label: "Scan", rank: 2, target: "boss", blurb: "Reveal a ring's weakness to the room." }),
+  pry: a({ id: "pry", label: "Pry", rank: 3, target: "boss", blurb: "Strip 2 shield pips if the element matches." }),
+  mark: a({ id: "mark", label: "Mark", rank: 2, target: "boss", blurb: "Leave 2 Exposed stacks on a ring." }),
+  shatter: a({ id: "shatter", label: "Shatter", rank: 4, target: "boss", spends: { resource: "insight", amount: 3 }, blurb: "Break a ring down to 2 pips or fewer." }),
+
+  delay: a({ id: "delay", label: "Delay", rank: 3, target: "card", blurb: "Push the next boss card back one slot." }),
+  haste: a({ id: "haste", label: "Haste", rank: 3, target: "ally", blurb: "Halve an ally's next 2 waits." }),
+  relay: a({ id: "relay", label: "Relay", rank: 1, target: "self", blurb: "End your turn and hand +25% to the next player." }),
+  stillpoint: a({ id: "stillpoint", label: "Stillpoint", rank: 5, target: "card", spends: { resource: "flux", amount: "all" }, blurb: "Freeze a boss card for a whole cycle." }),
 };
 
 export const ROLES: Readonly<Record<RoleId, RoleInfo>> = {
-  bulwark: {
-    id: "bulwark",
-    label: "Bulwark",
-    blurb: "Slow and hard to fell.",
-    actions: ["strike", "brace"],
-  },
-  lancer: {
-    id: "lancer",
-    label: "Lancer",
-    blurb: "Hits hardest, waits longest.",
-    actions: ["strike", "lunge"],
-  },
-  mender: {
-    id: "mender",
-    label: "Mender",
-    blurb: "Keeps the table standing.",
-    actions: ["strike", "mend"],
-  },
-  herald: {
-    id: "herald",
-    label: "Herald",
-    blurb: "Quickest to the plate; quickens others.",
-    actions: ["strike", "hasten"],
-  },
+  warden: { id: "warden", label: "Warden", blurb: "Takes the blows meant for others.", resource: "resolve", actions: ["brace", "intercept", "anchor", "bastion", "counterweight"] },
+  mender: { id: "mender", label: "Mender", blurb: "Reads the strip and heals before the hit.", resource: "grace", actions: ["brace", "mend", "ward", "quicken", "restore"] },
+  striker: { id: "striker", label: "Striker", blurb: "Builds Momentum and cashes in a Break.", resource: "momentum", actions: ["brace", "jab", "cleave", "finisher", "feint"] },
+  breaker: { id: "breaker", label: "Breaker", blurb: "Finds the weakness and cracks the shields.", resource: "insight", actions: ["brace", "scan", "pry", "mark", "shatter"] },
+  chronist: { id: "chronist", label: "Chronist", blurb: "Bends the turn order itself.", resource: "flux", actions: ["brace", "delay", "haste", "relay", "stillpoint"] },
 };
 
-export const ROLE_IDS: readonly RoleId[] = ["bulwark", "lancer", "mender", "herald"];
+export const ROLE_IDS: readonly RoleId[] = ["warden", "mender", "striker", "breaker", "chronist"];
 
 export const BOSS_ID = "orrery";
 export const NAME_MAX = 24;
@@ -99,6 +130,65 @@ export interface Token {
   braced: boolean;
   /** Order of arrival at the table; breaks ties on the same notch. */
   seat: number;
+  /** Banked by Brace, max 3 (rule 17). Characters only; 0 for the Orrery. */
+  charge: number;
+  /** The role's own resource, by name (resolve, grace, momentum, insight, flux). */
+  resource: number;
+  /** Gravity stacks from the Orrery's Lunge: lethal at 3 unless a second Warden Anchors. */
+  gravity: number;
+  /** Timed out on their last turn: the portrait dims (rule 8). */
+  drifting: boolean;
+  /** Three timeouts in a row: the server acts for them, at low output, until they act (rule 8). */
+  echo: boolean;
+  /** Their one Reaction since the last boss turn is still unspent (rule 18). */
+  reactionReady: boolean;
+}
+
+/** An Exposed stack on a ring, and who set it (rule 16). */
+export interface ExposedStack {
+  appliedBy: string;
+}
+
+export interface Ring {
+  id: RingId;
+  /** Shield pips left. At 0 the ring is Broken. */
+  pips: number;
+  maxPips: number;
+  /** The element it's weak to, once a Breaker has Scanned it; null while hidden. */
+  weakness: Element | null;
+  broken: boolean;
+  /** Stacks waiting to be spent, oldest first, each with who set it. */
+  exposed: ExposedStack[];
+}
+
+/** What a boss card will do when it resolves. The intent icon on the strip. */
+export type Intent =
+  | "revolution" // raid-wide damage
+  | "eclipse" // single-target damage
+  | "lunge" // single-target, adds Gravity
+  | "perihelion" // raid-wide, a Break check four slots out
+  | "retrograde" // flips the next five slots
+  | "alignment"; // the Grand Alignment countdown: a wipe at 0
+
+/** A boss attack, announced on the strip before it resolves (rule 19). */
+export interface BossCard {
+  id: string;
+  intent: Intent;
+  /** Who it will land on: a character id, "party" for raid-wide, or null for a card that touches the strip. */
+  targetId: string | "party" | null;
+  /** The number it will deal before mitigation, if it deals one. */
+  amount: number | null;
+  /** Slots until it resolves; 0 means it resolves on the Orrery's next turn. */
+  countdown: number;
+  /** Frozen by Stillpoint: it doesn't count down for a cycle. */
+  frozen: boolean;
+}
+
+/** Consecutive player turns with no boss card between them (rule 15). */
+export interface Chain {
+  links: number;
+  /** +10% per link, capped at +50%: what the next player turn deals, as a multiplier. */
+  potency: number;
 }
 
 export interface LogEntry {
@@ -127,6 +217,15 @@ export interface BattleState {
   queue: Token[];
   /** Characters who have fallen or left, off the rail. */
   fallen: Token[];
+  /** The Orrery's phase: 1 Outer Ring, 2 Conjunction (below 70%), 3 Grand Alignment (below 35%). */
+  phase: 1 | 2 | 3;
+  /** The Orrery's rings, outermost first. */
+  rings: Ring[];
+  /** Boss attacks announced and waiting, soonest first. */
+  cards: BossCard[];
+  chain: Chain;
+  /** Seats counted when the Orrery's HP was set at the pull (an Echo is half a seat). */
+  pullSeats: number;
   /** The most recent log lines, oldest first. */
   log: LogEntry[];
 }
@@ -140,26 +239,59 @@ export interface BattleState {
 // src/client/battle/registry.ts; spec/shown.test.ts holds both sides.
 
 export const EVENT_KINDS = [
+  // the table
   "join",
-  "strike",
-  "lunge",
-  "brace",
-  "mend",
-  "hasten",
-  "hold",
   "leave",
   "down",
-  "eclipse",
-  "perihelion",
-  "revolution",
   "plate",
   "end",
+  // the action economy (rules 8, 14-18)
+  "brace", // a Brace: Charge banked
+  "hold", // a timeout: the server Braced for them, and the portrait dims
+  "echo", // three timeouts: the character is now an Echo (or no longer one)
+  "resonance", // a weakness hit refunded a rank: the portrait jumps
+  "chain", // the Chain grew, or a boss action broke it
+  "exposed", // an Exposed stack applied, or spent, with who did each
+  "reaction", // a Reaction taken out of turn against a card
+  // the five roles (docs/design/overhaul.md, Priority 2)
+  "intercept",
+  "anchor",
+  "bastion",
+  "counterweight",
+  "mend",
+  "ward",
+  "quicken",
+  "restore",
+  "jab",
+  "cleave",
+  "finisher",
+  "feint",
+  "scan",
+  "pry",
+  "mark",
+  "shatter",
+  "delay",
+  "haste",
+  "relay",
+  "stillpoint",
+  // the Orrery (rule 19-20)
+  "card", // a boss card is announced on the strip, with intent, target and countdown
+  "pull", // the fight begins and the Orrery's HP is set from the seats present
+  "phase", // the Orrery crosses 70% or 35%
+  "break", // a ring's shield pips reach 0
+  "revolution",
+  "eclipse",
+  "lunge", // the Orrery's Lunge: damage plus a Gravity stack
+  "gravity", // three stacks: a lethal Lunge, or an Anchor that took it
+  "perihelion",
+  "retrograde", // the next five slots flip, or a Chronist cancelled it
+  "alignment", // the Grand Alignment ticks down, or reaches 0
 ] as const;
 
 export type EventKind = (typeof EVENT_KINDS)[number];
 
 interface EventBase {
-  /** The log line this event wrote; absent for `plate`. */
+  /** The log line this event wrote; absent for `plate`, `card` and `chain`. */
   seq?: number;
   tick: number;
 }
@@ -169,21 +301,53 @@ export interface Hit {
   amount: number;
 }
 
+type Act<K extends string, X = object> = EventBase & { kind: K; actorId: string } & X;
+type Boss<K extends string, X = object> = EventBase & { kind: K; actorId: typeof BOSS_ID } & X;
+
 export type BattleEvent =
-  | (EventBase & { kind: "join"; actorId: string; returning: boolean })
-  | (EventBase & { kind: "strike"; actorId: string; targetId: typeof BOSS_ID; amount: number })
-  | (EventBase & { kind: "lunge"; actorId: string; targetId: typeof BOSS_ID; amount: number })
-  | (EventBase & { kind: "brace"; actorId: string })
-  | (EventBase & { kind: "mend"; actorId: string; targetId: string; amount: number })
-  | (EventBase & { kind: "hasten"; actorId: string; targetId: string })
-  | (EventBase & { kind: "hold"; actorId: string })
-  | (EventBase & { kind: "leave"; actorId: string })
-  | (EventBase & { kind: "down"; actorId: string })
-  | (EventBase & { kind: "eclipse"; actorId: typeof BOSS_ID; targetId: string; amount: number })
-  | (EventBase & { kind: "perihelion"; actorId: typeof BOSS_ID; hits: Hit[] })
-  | (EventBase & { kind: "revolution"; actorId: typeof BOSS_ID; hits: Hit[] })
-  | (EventBase & { kind: "plate"; actorId: string })
-  | (EventBase & { kind: "end"; outcome: "won" | "lost" | "abandoned" });
+  | Act<"join", { returning: boolean }>
+  | Act<"leave">
+  | Act<"down">
+  | Act<"plate">
+  | (EventBase & { kind: "end"; outcome: "won" | "lost" | "abandoned" })
+  | Act<"brace", { charge: number }>
+  | Act<"hold", { charge: number; timeouts: number }>
+  | Act<"echo", { on: boolean }>
+  | Act<"resonance", { from: number; to: number }>
+  | (EventBase & { kind: "chain"; links: number; potency: number; broken: boolean })
+  | (EventBase & { kind: "exposed"; ringId: RingId; appliedBy: string; spentBy: string | null; stacks: number })
+  | Act<"reaction", { action: ActionId; cardId: string }>
+  | Act<"intercept", { cardId: string; protectedId: string }>
+  | Act<"anchor", { cardId: string }>
+  | Act<"bastion", { spent: number }>
+  | Act<"counterweight", { ringId: RingId; amount: number; exposed: number }>
+  | Act<"mend", { targetId: string; amount: number }>
+  | Act<"ward", { targetId: string }>
+  | Act<"quicken", { targetId: string; from: number; to: number }>
+  | Act<"restore", { targetId: string }>
+  | Act<"jab", { ringId: RingId; amount: number }>
+  | Act<"cleave", { ringId: RingId; amount: number; weakness: boolean }>
+  | Act<"finisher", { ringId: RingId; amount: number; spent: number; broken: boolean }>
+  | Act<"feint", { ringId: RingId; amount: number }>
+  | Act<"scan", { ringId: RingId; weakness: Element }>
+  | Act<"pry", { ringId: RingId; pips: number }>
+  | Act<"mark", { ringId: RingId; stacks: number }>
+  | Act<"shatter", { ringId: RingId }>
+  | Act<"delay", { cardId: string; countdown: number }>
+  | Act<"haste", { targetId: string }>
+  | Act<"relay", { toId: string | null; potency: number }>
+  | Act<"stillpoint", { cardId: string }>
+  | Boss<"card", { card: BossCard }>
+  | Boss<"pull", { seats: number; maxHp: number }>
+  | Boss<"phase", { phase: 2 | 3 }>
+  | Boss<"break", { ringId: RingId; by: string }>
+  | Boss<"revolution", { hits: Hit[] }>
+  | Boss<"eclipse", { targetId: string; amount: number }>
+  | Boss<"lunge", { targetId: string; amount: number; gravity: number }>
+  | Boss<"gravity", { targetId: string; anchoredBy: string | null; lethal: boolean }>
+  | Boss<"perihelion", { hits: Hit[]; broken: boolean }>
+  | Boss<"retrograde", { flipped: boolean; cancelledBy: string | null }>
+  | Boss<"alignment", { countdown: number; wipe: boolean }>;
 
 /** One member per kind, so this never collapses to `never` (a member whose kind was a pair did). */
 export type EventOf<K extends EventKind> = Extract<BattleEvent, { kind: K }>;

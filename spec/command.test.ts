@@ -39,7 +39,7 @@ it("the command window is operable by arrow keys and Enter alone", async () => {
     { id: "ally", name: "Ally" },
   ];
   const win = (mountCommandWindow as Mount)(root, {
-    actions: ["strike", "hasten"],
+    actions: ["jab", "haste"],
     allies: () => allies,
     onTarget: (t) => targets.push(t),
     onChoose: (a, t) => chosen.push([a, t]),
@@ -56,25 +56,25 @@ it("the command window is operable by arrow keys and Enter alone", async () => {
   };
   const cursor = () => root.querySelector<HTMLElement>("[data-cursor]")?.dataset.action;
 
-  expect(root.querySelector('button[data-action="strike"]'), "each action is a button[data-action]").toBeTruthy();
-  expect(cursor(), "the cursor starts on the first action").toBe("strike");
+  expect(root.querySelector('button[data-action="jab"]'), "each action is a button[data-action]").toBeTruthy();
+  expect(cursor(), "the cursor starts on the first action").toBe("jab");
   key("ArrowDown");
-  expect(cursor()).toBe("hasten");
+  expect(cursor()).toBe("haste");
   key("ArrowDown");
-  expect(cursor(), "the cursor wraps").toBe("strike");
+  expect(cursor(), "the cursor wraps").toBe("jab");
   key("ArrowUp");
-  expect(cursor()).toBe("hasten");
+  expect(cursor()).toBe("haste");
   key("ArrowDown");
 
   key("Enter");
-  expect(targets.at(-1), "choosing Strike highlights the Orrery first").toBe("orrery");
+  expect(targets.at(-1), "choosing Jab highlights the Orrery first").toBe("orrery");
   expect(chosen, "and doesn't act yet").toEqual([]);
   key("Escape");
   expect(targets.at(-1), "Escape backs out and clears the highlight").toBe(null);
   expect(chosen).toEqual([]);
   key("Enter");
   key("Enter");
-  expect(chosen, "Enter, Enter strikes the Orrery").toEqual([["strike", "orrery"]]);
+  expect(chosen, "Enter, Enter jabs the Orrery").toEqual([["jab", "orrery"]]);
 
   key("ArrowDown");
   key("Enter");
@@ -82,7 +82,7 @@ it("the command window is operable by arrow keys and Enter alone", async () => {
   key("ArrowDown");
   expect(targets.at(-1), "arrows move between allies").toBe("ally");
   key("Enter");
-  expect(chosen.at(-1)).toEqual(["hasten", "ally"]);
+  expect(chosen.at(-1)).toEqual(["haste", "ally"]);
 
   win.setEnabled(false);
   const before = chosen.length;

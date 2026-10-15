@@ -14,6 +14,7 @@
 // the table before you say what it calls you.
 import { ACTIONS, NAME_MAX, ROLE_IDS, ROLES, type CharacterInfo, type MeResponse, type RoleId } from "../../shared/protocol.ts";
 import type { Join, JoinOptions, JoinResult, SpriteManifest, SpriteRole } from "../battle/api.ts";
+import { spriteFor } from "../sprites.ts";
 
 type Outcome = "won" | "lost" | "abandoned";
 
@@ -185,7 +186,7 @@ export function mountJoin(root: HTMLElement, opts: JoinOptions): Join {
 
     const plinth = make("span", "join-plinth");
     plinth.setAttribute("aria-hidden", "true");
-    const sprite = manifest.roles[role];
+    const sprite = manifest.roles[spriteFor(role) ?? ""];
     if (sprite) plinth.append(puppet(sprite, index));
 
     const heading = make("span", "join-role");
@@ -243,7 +244,7 @@ export function mountJoin(root: HTMLElement, opts: JoinOptions): Join {
     const cast = make("fieldset", "join-cast");
     const legend = make("legend", "join-label", "Choose your role");
     const deck = make("div", "join-deck");
-    const tallest = Math.max(...ROLE_IDS.map((r) => manifest.roles[r]?.box[3] ?? 0), 1);
+    const tallest = Math.max(...ROLE_IDS.map((r) => manifest.roles[spriteFor(r) ?? ""]?.box[3] ?? 0), 1);
     deck.style.setProperty("--tallest", String(tallest));
     const cards = make("div", "join-cards");
     const radios = new Map<RoleId, HTMLInputElement>();

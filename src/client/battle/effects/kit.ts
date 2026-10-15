@@ -5,6 +5,7 @@
 import type { BattleState, EventKind, EventOf, RoleId, Token } from "../../../shared/protocol.ts";
 import type { Anim, EffectContext } from "../api.ts";
 import { BOSS_ID } from "../../../shared/protocol.ts";
+import { spriteFor } from "../../sprites.ts";
 
 /** The event a renderer for kind K receives. */
 export type Ev<K extends EventKind> = EventOf<K>;
@@ -94,9 +95,9 @@ export function rest(ctx: EffectContext, id: string): void {
 
 // --- role to picture ----------------------------------------------------------
 
-/** What crosses the field when this role strikes. */
+/** What crosses the field when this role strikes. By the sprite it borrows (src/client/sprites.ts, a phase-one shim). */
 export function projectileFor(role: RoleId | "orrery" | undefined): "slash" | "thrust" | "bolt" | "spark" {
-  switch (role) {
+  switch (spriteFor(role)) {
     case "lancer":
       return "thrust";
     case "bulwark":
@@ -108,7 +109,7 @@ export function projectileFor(role: RoleId | "orrery" | undefined): "slash" | "t
   }
 }
 
-/** The casting pose: the Herald's is its special; everyone else's is cast (the scene falls back to idle). */
+/** The casting pose: the Herald sprite's is its special; everyone else's is cast (the scene falls back to idle). */
 export function castFor(role: RoleId | "orrery" | undefined): Anim {
-  return role === "herald" ? "special" : "cast";
+  return spriteFor(role) === "herald" ? "special" : "cast";
 }

@@ -11,11 +11,10 @@ import * as table from "./effects/table.ts";
 
 export const RENDERERS: Registry = {
   join: { full: table.join, reduced: table.joinReduced },
-  strike: { full: party.strike, reduced: party.strikeReduced },
-  lunge: { full: party.lunge, reduced: party.lungeReduced },
+  jab: { full: party.jab, reduced: party.jabReduced },
   brace: { full: party.brace, reduced: party.braceReduced },
   mend: { full: party.mend, reduced: party.mendReduced },
-  hasten: { full: party.hasten, reduced: party.hastenReduced },
+  haste: { full: party.haste, reduced: party.hasteReduced },
   hold: { full: table.hold, reduced: table.holdReduced },
   leave: { full: table.leave, reduced: table.leaveReduced },
   down: { full: table.down, reduced: table.downReduced },

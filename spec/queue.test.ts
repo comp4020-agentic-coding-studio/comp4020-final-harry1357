@@ -22,8 +22,8 @@ describe("the queue is the truth", () => {
   it("two clients joined to the same battle receive identical queues", async () => {
     const battleId = await newBattle(base);
     const s = suffix();
-    const a = await join(base, battleId, `ada-${s}`, "herald");
-    const b = await join(base, battleId, `bo-${s}`, "lancer");
+    const a = await join(base, battleId, `ada-${s}`, "striker");
+    const b = await join(base, battleId, `bo-${s}`, "warden");
     expect(a.status).toBe(200);
     expect(b.status).toBe(200);
     expect(a.cookie, "two people, so two different sessions").not.toBe(b.cookie);
@@ -59,7 +59,7 @@ describe("the queue is the truth", () => {
 
   it("an action from a character whose counter isn't zero is rejected", async () => {
     const battleId = await newBattle(base);
-    const mine = await join(base, battleId, `early-${suffix()}`, "herald");
+    const mine = await join(base, battleId, `early-${suffix()}`, "striker");
     expect(mine.status).toBe(200);
 
     const w = watching(battleId);
@@ -67,7 +67,7 @@ describe("the queue is the truth", () => {
     const first = await w.waitFor((st) => token(st, mine.characterId) !== undefined, "me on the rail", 5_000);
     expect(token(first, mine.characterId)?.counter, "a fresh character starts with a full counter").toBeGreaterThan(0);
 
-    const early = await act(base, battleId, mine.cookie, "strike");
+    const early = await act(base, battleId, mine.cookie, "cleave");
     expect(early.status, "an action before your turn is refused").toBe(409);
 
     // Rejected, never queued: when the turn does arrive, the strike that was
@@ -82,7 +82,7 @@ describe("the queue is the truth", () => {
 
   it("an action changes the queue within one tick", async () => {
     const battleId = await newBattle(base);
-    const mine = await join(base, battleId, `quick-${suffix()}`, "herald");
+    const mine = await join(base, battleId, `quick-${suffix()}`, "striker");
     expect(mine.status).toBe(200);
 
     const w = watching(battleId);
@@ -91,7 +91,7 @@ describe("the queue is the truth", () => {
     expect(token(ready, mine.characterId)?.counter).toBe(0);
 
     const from = w.states.length;
-    const res = await act(base, battleId, mine.cookie, "strike");
+    const res = await act(base, battleId, mine.cookie, "cleave");
     expect(res.status).toBe(200);
     expect(res.tick, "an accepted action says which tick it landed on").not.toBeNull();
 
@@ -111,7 +111,7 @@ describe("the queue is the truth", () => {
     const battleId = await newBattle(base);
     const name = `dup-${suffix()}`;
 
-    expect((await join(base, battleId, name, "bulwark")).status).toBe(200);
+    expect((await join(base, battleId, name, "warden")).status).toBe(200);
     expect((await join(base, battleId, name, "mender")).status, "same name, another person").toBe(409);
     expect((await join(base, battleId, name.toUpperCase(), "mender")).status, "names compare case-insensitively").toBe(
       409,
@@ -120,6 +120,6 @@ describe("the queue is the truth", () => {
     expect((await join(base, battleId, `other-${suffix()}`, "mender")).status, "a free name still gets in").toBe(200);
 
     const elsewhere = await newBattle(base);
-    expect((await join(base, elsewhere, name, "lancer")).status, "unique within a battle, not across them").toBe(200);
+    expect((await join(base, elsewhere, name, "warden")).status, "unique within a battle, not across them").toBe(200);
   });
 });

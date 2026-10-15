@@ -89,8 +89,9 @@ export interface EffectContext {
 
 export type Effect<K extends EventKind> = (ctx: EffectContext, event: EventOf<K>) => Promise<void> | void;
 
-/** Every event kind, with how it's shown with motion and without. spec/shown.test.ts and spec/effects.test.ts hold it. */
-export type Registry = { readonly [K in EventKind]: { full: Effect<K>; reduced: Effect<K> } };
+/** Every event kind, with how it's shown with motion and without. spec/shown.test.ts and spec/effects.test.ts hold it.
+ *  Partial for the overhaul's phase one: the server's new events have no renderers yet, and those two specs say which. */
+export type Registry = { readonly [K in EventKind]?: { full: Effect<K>; reduced: Effect<K> } };
 
 // --- the parts main.ts assembles; each area implements one ------------------
 
@@ -120,7 +121,8 @@ export interface SpriteManifest {
   /** The art faces this way; the party is mirrored on screen to face the Orrery. */
   facing: "left";
   required: string[];
-  roles: Record<RoleId, SpriteRole>;
+  /** Keyed by sprite name, not role: a role finds its sprite through src/client/sprites.ts (a phase-one shim). */
+  roles: Record<string, SpriteRole>;
 }
 
 export interface PartsOptions {

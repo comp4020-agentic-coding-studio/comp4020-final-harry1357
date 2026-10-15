@@ -3,6 +3,17 @@
 // is never mutated) plus the durable consequences of the step, so the caller
 // can write those through to SQLite before it lets anyone see the new state.
 // The caller supplies the time; ids are minted outside.
+//
+// This file is the shared core of the overhaul (docs/adr/006): the state, the
+// steps, the pull, and the seams. The rules themselves live in three modules,
+// each owned by one area and none touching another's:
+//
+//   economy.ts  ranks, Resonance, Chain, Exposed, Charge, Reactions, timer, Echo
+//   roles.ts    the five roles' actions
+//   orrery.ts   HP at the pull, phases, rings, and the card script
+//
+// They meet only through the Battle and Fighter shapes below and the Ctx this
+// file hands them. spec/engine.ts names the exports the specs drive.
 
 import {
   ACTIONS,
@@ -14,37 +25,23 @@ import {
   type BattleEvent,
   type BattleState,
   type BattleStatus,
-  type Hit,
+  type BossCard,
+  type Chain,
   type LogEntry,
+  type Ring,
+  type RingId,
   type RoleId,
   type Token,
 } from "../shared/protocol.ts";
 import { ATTACK_RANK, counterReset } from "./ctb.ts";
+import * as economy from "./economy.ts";
+import * as orrery from "./orrery.ts";
+import * as roles from "./roles.ts";
 
-// Server-only numbers. The client sees ranks (protocol.ts) and nothing else.
-const ROLE_STATS: Readonly<Record<RoleId, { agility: number; hp: number; strike: number }>> = {
-  bulwark: { agility: 30, hp: 160, strike: 14 },
-  lancer: { agility: 70, hp: 110, strike: 20 },
-  mender: { agility: 50, hp: 100, strike: 10 },
-  herald: { agility: 120, hp: 90, strike: 10 },
-};
-const LUNGE_DAMAGE = 44;
-const MEND_AMOUNT = 36;
-const HASTED_RESETS = 3;
-const ORRERY = {
-  name: "The Orrery",
-  agility: 40,
-  baseHp: 100,
-  hpPerCharacter: 140,
-  eclipse: 34,
-  eclipseBelow: 35, // percent of max hp
-  perihelion: 8,
-  revolution: 12,
-};
-/** Consecutive timed-out turns before a character is taken to have left. */
-const TIMEOUTS_TO_LEAVE = 2;
 /** How many log lines the live state carries; the full log is in SQLite. */
 const LOG_TAIL = 50;
+/** Ticks between the first seat and the pull, so a room can sit down before the Orrery's HP is set (rule 20). */
+export const PULL_TICKS = 20;
 
 export interface Fighter {
   id: string;
@@ -59,10 +56,31 @@ export interface Fighter {
   /** Characters: how many of the next resets are hasted. */
   hasteLeft: number;
   braced: boolean;
-  /** Consecutive turns that timed out. */
+  /** Consecutive turns that timed out (rule 8). */
   timeouts: number;
+  /** Timed out on their last turn: drawn dimmed. */
+  drifting: boolean;
+  /** Three timeouts in a row: the server plays them until they act (rule 8). */
+  echo: boolean;
+  /** Banked by Brace, max 3 (rule 17). */
+  charge: number;
+  /** The role's own resource (resolve, grace, momentum, insight, flux). */
+  resource: number;
+  /** Gravity stacks from the Orrery's Lunge. */
+  gravity: number;
+  /** The one Reaction since the last boss turn is unspent (rule 18). */
+  reactionReady: boolean;
+  /** A Mender's Ward: absorbs the next blow. */
+  warded: boolean;
+  /** Potency handed on by a Relay, spent on this fighter's next action. */
+  relayBonus: number;
   /** Why a fighter is off the rail; null while standing. */
   out: "downed" | "left" | null;
+}
+
+/** A ring as the server holds it: the Ring the client sees, plus the weakness it hasn't been shown. */
+export interface RingState extends Ring {
+  element: NonNullable<Ring["weakness"]>;
 }
 
 export interface Battle {
@@ -80,14 +98,30 @@ export interface Battle {
   log: LogEntry[];
   nextSeq: number;
   nextSeat: number;
-  /** The Orrery's Perihelion: haste on every reset from then on. */
-  enraged: boolean;
   /** Someone has been downed by damage, which turns an empty table into a loss. */
   someoneFell: boolean;
   /** Everyone who has ever joined: character id → name, for the name check. */
   joined: Record<string, string>;
   createdAt: number;
   endedAt: number | null;
+
+  // --- the overhaul's state (docs/adr/006) ---
+  /** Ticks left before the pull while waiting; null once pulled. */
+  pullIn: number | null;
+  /** Seats counted at the pull (an Echo ½); 0 before it (rule 20). */
+  pullSeats: number;
+  phase: 1 | 2 | 3;
+  rings: RingState[];
+  /** Boss cards announced and waiting, soonest first (rule 19). */
+  cards: BossCard[];
+  nextCard: number;
+  /** How many boss cards the Orrery has played, for the Grand Alignment's every-4th. */
+  bossTurns: number;
+  chain: Chain;
+  /** Exposed stacks once spent: who set each and who spent it (rule 16). */
+  spentExposed: { ringId: RingId; appliedBy: string; spentBy: string }[];
+  /** A Bastion stands against the next raid-wide card. */
+  bastion: boolean;
 }
 
 export interface StatDelta {
@@ -125,6 +159,29 @@ export interface Clock {
 export interface Refusal {
   status: 400 | 403 | 409;
   error: string;
+}
+
+/** An event as the rules raise it; say() stamps it with its log line's seq and the tick. */
+export type Raised = BattleEvent extends infer E ? (E extends BattleEvent ? Omit<E, "seq" | "tick"> : never) : never;
+
+/**
+ * What a rule module gets to work with in one step: the battle it may change
+ * (a clone, already), the effects it adds to, and the means to narrate,
+ * reset and hurt. Every module changes the battle only through this.
+ */
+export interface Ctx {
+  b: Battle;
+  fx: Effects;
+  clock: Clock;
+  /** One log line and the event it narrates. */
+  say(kind: LogEntry["kind"], actorId: string | null, text: string, event: Raised): void;
+  /** An event with no log line (card, chain, plate): drawn, not written. */
+  emit(event: Raised): void;
+  stat(id: string): StatDelta;
+  fighter(id: string): Fighter;
+  orrery(): Fighter;
+  ring(id: RingId): RingState;
+  party(): Fighter[];
 }
 
 // --- validation -------------------------------------------------------------
@@ -179,13 +236,16 @@ export function checkAction(
     return { status: 400, error: `A ${ROLES[role].label} can't do that.` };
   }
   const info = ACTIONS[action as ActionId];
-  let target: string | null = null;
-  if (info.target === "ally") {
-    target = targetId === undefined || targetId === null ? actorId : typeof targetId === "string" ? targetId : "";
-    if (!isStanding(b, target)) return { status: 400, error: "That ally isn't standing at this table." };
+  const target = typeof targetId === "string" ? targetId : null;
+
+  // A Reaction is out of turn, against a telegraphed card, once per boss turn (rule 18).
+  if (info.reaction) {
+    const refused = economy.checkReaction(b, actor, info.id, target);
+    return refused ?? { action: info.id, targetId: target };
   }
   if (b.activeId !== actorId || actor.counter !== 0) return { status: 409, error: whoseTurn(b, actorId) };
-  return { action: info.id, targetId: target };
+  const refused = roles.checkAction(b, actor, info.id, target);
+  return refused ?? { action: info.id, targetId: roles.resolveTarget(b, actor, info.id, target) };
 }
 
 /** Ticks after an action during which a refused one is told who just took the turn. */
@@ -210,20 +270,18 @@ function whoseTurn(b: Battle, actorId: string): string {
 // --- steps ------------------------------------------------------------------
 
 export function createBattle(id: string, isPublic: boolean, now: number): Battle {
-  const orrery: Fighter = {
+  const boss: Fighter = {
+    ...blankFighter(),
     id: BOSS_ID,
     kind: "boss",
-    name: ORRERY.name,
+    name: orrery.NAME,
     role: "orrery",
-    agility: ORRERY.agility,
-    counter: counterReset(ORRERY.agility, "normal"),
-    hp: ORRERY.baseHp,
-    maxHp: ORRERY.baseHp,
+    agility: orrery.AGILITY,
+    counter: counterReset(orrery.AGILITY, "normal"),
+    hp: orrery.orreryHp(1),
+    maxHp: orrery.orreryHp(1),
     seat: 0,
-    hasteLeft: 0,
-    braced: false,
-    timeouts: 0,
-    out: null,
+    reactionReady: false,
   };
   return {
     id,
@@ -233,57 +291,55 @@ export function createBattle(id: string, isPublic: boolean, now: number): Battle
     tick: 0,
     activeId: null,
     turnDeadline: null,
-    standing: [orrery],
+    standing: [boss],
     fallen: [],
     log: [],
     nextSeq: 1,
     nextSeat: 1,
-    enraged: false,
     someoneFell: false,
     joined: {},
     createdAt: now,
     endedAt: null,
+    pullIn: null,
+    pullSeats: 0,
+    phase: 1,
+    rings: orrery.rings(),
+    cards: [],
+    nextCard: 1,
+    bossTurns: 0,
+    chain: { links: 0, potency: 1 },
+    spentExposed: [],
+    bastion: false,
   };
 }
 
-/** Seat a character (already checked with checkJoin). A first join grows the Orrery. */
+/** Seat a character (already checked with checkJoin). The first seat starts the pull's countdown. */
 export function join(b: Battle, who: { id: string; name: string; role: RoleId }, clock: Clock): Step {
-  const next = structuredClone(b);
-  const fx = noEffects();
+  const ctx = context(structuredClone(b), clock);
+  const { b: next, fx } = ctx;
   const first = !(who.id in next.joined);
-  const stats = ROLE_STATS[who.role];
+  const stats = roles.STATS[who.role];
   const before = next.fallen.find((f) => f.id === who.id);
   next.fallen = next.fallen.filter((f) => f.id !== who.id);
   next.standing.push({
+    ...blankFighter(),
     id: who.id,
     kind: "character",
     name: who.name,
     role: who.role,
     agility: stats.agility,
-    counter: counterReset(stats.agility, "normal"),
+    // A late joiner enters at the back of the strip, at a rank-3 delay.
+    counter: counterReset(stats.agility, "normal", ATTACK_RANK),
     // Someone who stepped away comes back as hurt as they left.
     hp: before ? Math.min(before.hp, stats.hp) : stats.hp,
     maxHp: stats.hp,
     seat: next.nextSeat++,
-    hasteLeft: 0,
-    braced: false,
-    timeouts: 0,
-    out: null,
   });
   next.joined[who.id] = who.name;
-  if (first) {
-    const orrery = orreryOf(next);
-    orrery.hp += ORRERY.hpPerCharacter;
-    orrery.maxHp += ORRERY.hpPerCharacter;
-  }
-  if (next.status === "waiting") {
-    next.status = "fighting";
-    fx.status = "fighting";
-  }
+  // The pull's countdown starts on the first seat; the HP is set when it ends (rule 20).
+  if (next.status === "waiting" && next.pullIn === null) next.pullIn = PULL_TICKS;
   fx.member = { characterId: who.id, name: who.name, role: who.role };
-  say(
-    next,
-    fx,
+  ctx.say(
     "join",
     who.id,
     first
@@ -291,104 +347,89 @@ export function join(b: Battle, who: { id: string; name: string; role: RoleId },
       : `${who.name} returns to the table.`,
     { kind: "join", actorId: who.id, returning: !first },
   );
-  return finish(next, fx, clock);
+  return finish(ctx);
 }
 
-/** A character's turn (already checked with checkAction). */
+/** A character's action (already checked with checkAction): a turn, or a Reaction out of turn. */
 export function act(b: Battle, actorId: string, action: ActionId, targetId: string | null, clock: Clock): Step {
-  const next = structuredClone(b);
-  const fx = noEffects();
-  const actor = fighter(next, actorId);
-  const orrery = orreryOf(next);
-  const stats = stat(fx, actorId);
-  actor.braced = false; // brace lasts until their next turn, which is now
-  actor.timeouts = 0;
-  stats.turns += 1;
+  const ctx = context(structuredClone(b), clock);
+  const actor = ctx.fighter(actorId);
+  const info = ACTIONS[action];
 
-  switch (action) {
-    case "strike": {
-      const dealt = wound(orrery, ROLE_STATS[actor.role as RoleId].strike);
-      stats.damage += dealt;
-      say(next, fx, "action", actorId, `${actor.name} strikes the Orrery for ${dealt}.`, {
-        kind: "strike",
-        actorId,
-        targetId: BOSS_ID,
-        amount: dealt,
-      });
-      break;
-    }
-    case "lunge": {
-      const dealt = wound(orrery, LUNGE_DAMAGE);
-      stats.damage += dealt;
-      say(next, fx, "action", actorId, `${actor.name} lunges at the Orrery for ${dealt}.`, {
-        kind: "lunge",
-        actorId,
-        targetId: BOSS_ID,
-        amount: dealt,
-      });
-      break;
-    }
-    case "brace":
-      actor.braced = true;
-      say(next, fx, "action", actorId, `${actor.name} braces for the next blow.`, { kind: "brace", actorId });
-      break;
-    case "mend": {
-      const target = fighter(next, targetId ?? actorId);
-      const healed = Math.min(MEND_AMOUNT, target.maxHp - target.hp);
-      target.hp += healed;
-      stats.healing += healed;
-      const whom = target === actor ? "their own wounds" : target.name;
-      say(
-        next,
-        fx,
-        "action",
-        actorId,
-        healed > 0
-          ? `${actor.name} mends ${whom} for ${healed}.`
-          : `${actor.name} tends to ${whom}, but there is nothing to mend.`,
-        { kind: "mend", actorId, targetId: target.id, amount: healed },
-      );
-      break;
-    }
-    case "hasten": {
-      const target = fighter(next, targetId ?? actorId);
-      target.hasteLeft = HASTED_RESETS;
-      say(
-        next,
-        fx,
-        "action",
-        actorId,
-        target === actor
-          ? `${actor.name} quickens their own step: their next three waits are halved.`
-          : `${actor.name} hastens ${target.name}: ${target.name}'s next three waits are halved.`,
-        { kind: "hasten", actorId, targetId: target.id },
-      );
-      break;
-    }
+  if (info.reaction) {
+    economy.react(ctx, actor, action, targetId);
+    return finish(ctx);
   }
 
-  reset(next, actor, ACTIONS[action].rank);
-  return finish(next, fx, clock);
+  economy.beforeTurn(ctx, actor, { byPerson: true });
+  const { rank } = roles.perform(ctx, actor, action, targetId);
+  economy.afterTurn(ctx, actor, action, rank);
+  return finish(ctx);
 }
 
 /**
- * One iteration of the clock. If someone is on the plate the clock is stopped:
- * the Orrery takes its turn, a character whose time is up has their turn held
- * for them, or nothing happens (null). Otherwise every standing counter drops
- * by exactly 1.
+ * One iteration of the clock. Before the pull it counts down to it. Once the
+ * fight is on: if someone is on the plate the clock is stopped, and the
+ * Orrery takes its turn, an Echo is played, a character whose time is up is
+ * Braced for, or nothing happens (null). Otherwise every standing counter
+ * drops by exactly 1.
  */
 export function advance(b: Battle, clock: Clock): Step | null {
+  if (b.status === "waiting") {
+    if (b.pullIn === null) return null;
+    const ctx = context(structuredClone(b), clock);
+    if (ctx.b.pullIn !== null && ctx.b.pullIn > 0) {
+      ctx.b.pullIn -= 1;
+      ctx.b.tick += 1;
+      return finish(ctx);
+    }
+    pull(ctx);
+    return finish(ctx);
+  }
   if (b.status !== "fighting") return null;
   const up = b.standing.find((f) => f.counter === 0);
   if (up) {
-    if (up.kind === "boss") return orreryTurn(b, clock);
-    if (b.turnDeadline !== null && clock.now > b.turnDeadline) return heldTurn(b, up.id, clock);
+    const ctx = context(structuredClone(b), clock);
+    const f = ctx.fighter(up.id);
+    if (f.kind === "boss") {
+      orrery.takeTurn(ctx);
+      economy.afterBossTurn(ctx);
+      reset(ctx.b, ctx.orrery(), ATTACK_RANK);
+      return finish(ctx);
+    }
+    if (f.echo) {
+      economy.echoTurn(ctx, f);
+      return finish(ctx);
+    }
+    if (b.turnDeadline !== null && clock.now > b.turnDeadline) {
+      economy.timeout(ctx, f);
+      return finish(ctx);
+    }
     return null;
   }
   const next = structuredClone(b);
   for (const f of next.standing) f.counter -= 1;
   next.tick += 1;
-  return finish(next, noEffects(), clock);
+  return finish(context(next, clock));
+}
+
+/** The pull: the fight begins, and the Orrery's HP is set from the seats present (rule 20). */
+function pull(ctx: Ctx): void {
+  const { b } = ctx;
+  b.pullIn = null;
+  b.pullSeats = seatsOf(b);
+  const boss = ctx.orrery();
+  boss.maxHp = orrery.orreryHp(b.pullSeats);
+  boss.hp = boss.maxHp;
+  b.status = "fighting";
+  ctx.fx.status = "fighting";
+  orrery.onPull(ctx);
+  ctx.say("system", BOSS_ID, `The Orrery wakes for ${b.pullSeats} at the table.`, {
+    kind: "pull",
+    actorId: BOSS_ID,
+    seats: b.pullSeats,
+    maxHp: boss.maxHp,
+  });
 }
 
 /** What every client is sent. */
@@ -401,9 +442,15 @@ export function view(b: Battle, timing: { tickMs: number; turnMs: number }): Bat
     counter: f.counter,
     hp: f.hp,
     maxHp: f.maxHp,
-    hasted: f.kind === "boss" ? b.enraged : f.hasteLeft > 0,
+    hasted: f.hasteLeft > 0,
     braced: f.braced,
     seat: f.seat,
+    charge: f.charge,
+    resource: f.resource,
+    gravity: f.gravity,
+    drifting: f.drifting,
+    echo: f.echo,
+    reactionReady: f.reactionReady,
   });
   return {
     battleId: b.id,
@@ -417,94 +464,153 @@ export function view(b: Battle, timing: { tickMs: number; turnMs: number }): Bat
     queue: b.standing.map(token),
     fallen: b.fallen.map(token),
     log: b.log.map((entry) => ({ ...entry })),
+    phase: b.phase,
+    // The weakness the room hasn't Scanned stays on the server.
+    rings: b.rings.map(({ element: _hidden, ...ring }) => ({ ...ring, exposed: ring.exposed.map((x) => ({ ...x })) })),
+    cards: b.cards.map((c) => ({ ...c })),
+    chain: { ...b.chain },
+    pullSeats: b.pullSeats,
   };
+}
+
+// --- the engine contract (spec/engine.ts) -----------------------------------
+
+/** Base × seats^0.75 (rule 20). */
+export const orreryHp = (seats: number): number => orrery.orreryHp(seats);
+
+/** The seats a room counts as: a person 1, an Echo ½ (rule 20). */
+export function seatsOf(b: Battle): number {
+  return economy.seatsOf(b.standing.filter((f) => f.kind === "character"));
+}
+
+/** Announce a boss card on the strip, as the Orrery's script would (rule 19). */
+export function announce(b: Battle, card: Omit<BossCard, "id" | "frozen">): Battle {
+  const ctx = context(structuredClone(b), { now: 0, turnMs: 0 });
+  orrery.announce(ctx, card);
+  return ctx.b;
+}
+
+/** Put a fighter on the plate the way the clock would, without running anything there. */
+export function plate(b: Battle, id: string, clock: Clock): Battle {
+  const next = structuredClone(b);
+  const target = next.standing.find((f) => f.id === id);
+  if (!target) throw new Error(`no standing fighter ${id} in battle ${b.id}`);
+  const lead = target.counter;
+  for (const f of next.standing) f.counter = Math.max(f === target ? 0 : 1, f.counter - lead);
+  next.tick += lead;
+  next.standing.sort((x, y) => x.counter - y.counter || x.seat - y.seat);
+  next.activeId = id;
+  next.turnDeadline = target.kind === "character" ? clock.now + clock.turnMs : null;
+  return next;
+}
+
+// --- shared machinery the modules use ---------------------------------------
+
+/** A counter resets to tickSpeed × rank × haste (rule 13). The only place haste is read. */
+export function reset(b: Battle, f: Fighter, rank: number): void {
+  const r = Math.max(1, Math.min(5, rank));
+  f.counter = counterReset(f.agility, f.hasteLeft > 0 ? "haste" : "normal", r);
+  if (f.kind === "character" && f.hasteLeft > 0) f.hasteLeft -= 1;
+  void b;
+}
+
+/** Damage to the Orrery; what actually came off. Crossing a phase line is the Orrery's to say. */
+export function wound(ctx: Ctx, amount: number): number {
+  const boss = ctx.orrery();
+  const dealt = Math.max(0, Math.min(Math.round(amount), boss.hp));
+  boss.hp -= dealt;
+  orrery.onWound(ctx);
+  return dealt;
+}
+
+/** Damage to a character: a Ward absorbs it, a Brace halves it (floor). What they took. */
+export function harm(f: Fighter, amount: number): number {
+  if (f.warded) {
+    f.warded = false;
+    return 0;
+  }
+  const taken = f.braced ? Math.floor(amount / 2) : amount;
+  f.hp = Math.max(0, f.hp - taken);
+  return taken;
+}
+
+/** Anyone at 0 HP leaves the rail, downed. */
+export function downTheFallen(ctx: Ctx): void {
+  for (const f of ctx.party()) {
+    if (f.hp > 0) continue;
+    ctx.b.standing = ctx.b.standing.filter((s) => s !== f);
+    f.out = "downed";
+    f.braced = false;
+    f.hasteLeft = 0;
+    ctx.b.fallen.push(f);
+    ctx.b.someoneFell = true;
+    ctx.say("down", f.id, `${f.name} falls.`, { kind: "down", actorId: f.id });
+  }
+}
+
+export function listNames(fs: Fighter[]): string {
+  const names = fs.map((f) => f.name);
+  return names.length <= 1 ? names.join("") : `${names.slice(0, -1).join(", ")} and ${names.at(-1)}`;
 }
 
 // --- internals --------------------------------------------------------------
 
-function orreryTurn(b: Battle, clock: Clock): Step {
-  const next = structuredClone(b);
-  const fx = noEffects();
-  const orrery = orreryOf(next);
-  const party = next.standing.filter((f) => f.kind === "character");
-
-  const low = party
-    .filter((f) => f.hp * 100 <= f.maxHp * ORRERY.eclipseBelow)
-    .sort((x, y) => x.seat - y.seat)
-    .reduce<Fighter | null>((lowest, f) => (!lowest || f.hp * lowest.maxHp < lowest.hp * f.maxHp ? f : lowest), null);
-
-  if (low) {
-    const braced = low.braced;
-    const taken = harm(low, ORRERY.eclipse);
-    say(next, fx, "boss", BOSS_ID, `The Orrery turns: Eclipse — ${taken} to ${low.name}${braced ? ", braced" : ""}.`, {
-      kind: "eclipse",
-      actorId: BOSS_ID,
-      targetId: low.id,
-      amount: taken,
-    });
-  } else if (orrery.hp * 2 <= orrery.maxHp && !next.enraged) {
-    next.enraged = true;
-    const { text, hits } = sweep(party, ORRERY.perihelion);
-    say(next, fx, "boss", BOSS_ID, `The Orrery turns: Perihelion — it quickens, and ${text}`, {
-      kind: "perihelion",
-      actorId: BOSS_ID,
-      hits,
-    });
-  } else {
-    const { text, hits } = sweep(party, ORRERY.revolution);
-    say(next, fx, "boss", BOSS_ID, `The Orrery turns: Revolution — ${text}`, { kind: "revolution", actorId: BOSS_ID, hits });
-  }
-
-  for (const f of party) {
-    if (f.hp > 0) continue;
-    next.standing = next.standing.filter((s) => s !== f);
-    f.out = "downed";
-    f.braced = false;
-    f.hasteLeft = 0;
-    next.fallen.push(f);
-    next.someoneFell = true;
-    say(next, fx, "down", f.id, `${f.name} falls.`, { kind: "down", actorId: f.id });
-  }
-
-  reset(next, orrery, ATTACK_RANK);
-  return finish(next, fx, clock);
+function blankFighter(): Omit<Fighter, "id" | "kind" | "name" | "role" | "agility" | "counter" | "hp" | "maxHp" | "seat"> {
+  return {
+    hasteLeft: 0,
+    braced: false,
+    timeouts: 0,
+    drifting: false,
+    echo: false,
+    charge: 0,
+    resource: 0,
+    gravity: 0,
+    reactionReady: true,
+    warded: false,
+    relayBonus: 0,
+    out: null,
+  };
 }
 
-/** Hit everyone standing: the narration of it, and what each one took. */
-function sweep(party: Fighter[], amount: number): { text: string; hits: Hit[] } {
-  const braced = party.filter((f) => f.braced);
-  const hits = party.map((f) => ({ targetId: f.id, amount: harm(f, amount) }));
-  const note = braced.length
-    ? ` ${listNames(braced)} ${braced.length === 1 ? "was" : "were"} braced and took ${Math.floor(amount / 2)}.`
-    : "";
-  return { text: `${amount} to everyone standing.${note}`, hits };
-}
-
-function heldTurn(b: Battle, id: string, clock: Clock): Step {
-  const next = structuredClone(b);
+function context(b: Battle, clock: Clock): Ctx {
   const fx = noEffects();
-  const f = fighter(next, id);
-  f.braced = false;
-  f.timeouts += 1;
-  reset(next, f, ATTACK_RANK);
-  say(next, fx, "timeout", id, `${f.name} hesitates, and the turn passes.`, { kind: "hold", actorId: id });
-  if (f.timeouts >= TIMEOUTS_TO_LEAVE) {
-    next.standing = next.standing.filter((s) => s !== f);
-    f.out = "left";
-    f.hasteLeft = 0;
-    next.fallen.push(f);
-    say(next, fx, "leave", id, `${f.name} has stepped away from the table.`, { kind: "leave", actorId: id });
-  }
-  return finish(next, fx, clock);
+  const fighter = (id: string): Fighter => {
+    const f = b.standing.find((s) => s.id === id);
+    if (!f) throw new Error(`no standing fighter ${id} in battle ${b.id}`);
+    return f;
+  };
+  const ctx: Ctx = {
+    b,
+    fx,
+    clock,
+    say: (kind, actorId, text, event) => say(ctx.b, fx, kind, actorId, text, event),
+    emit: (event) => fx.events.push({ ...event, tick: ctx.b.tick } as BattleEvent),
+    stat: (id) => stat(fx, id),
+    fighter: (id) => {
+      const f = ctx.b.standing.find((s) => s.id === id);
+      if (!f) throw new Error(`no standing fighter ${id} in battle ${ctx.b.id}`);
+      return f;
+    },
+    orrery: () => ctx.fighter(BOSS_ID),
+    ring: (id) => {
+      const r = ctx.b.rings.find((x) => x.id === id);
+      if (!r) throw new Error(`no ${id} ring`);
+      return r;
+    },
+    party: () => ctx.b.standing.filter((f) => f.kind === "character"),
+  };
+  void fighter;
+  return ctx;
 }
 
 /** Order the rail, end the fight if it's over, and put whoever is on 0 on the plate. */
-function finish(b: Battle, fx: Effects, clock: Clock): Step {
+function finish(ctx: Ctx): Step {
+  const { b, fx, clock } = ctx;
   b.standing.sort((x, y) => x.counter - y.counter || x.seat - y.seat);
   if (b.status === "fighting") {
     const party = b.standing.filter((f) => f.kind === "character");
     const outcome: BattleStatus | null =
-      orreryOf(b).hp <= 0 ? "won" : party.length === 0 ? (b.someoneFell ? "lost" : "abandoned") : null;
+      ctx.orrery().hp <= 0 ? "won" : party.length === 0 ? (b.someoneFell ? "lost" : "abandoned") : null;
     if (outcome) end(b, fx, outcome, clock.now);
     else settle(b, fx, clock);
   }
@@ -518,7 +624,7 @@ function settle(b: Battle, fx: Effects, clock: Clock): void {
     b.turnDeadline = null;
   } else if (b.activeId !== up.id) {
     b.activeId = up.id;
-    b.turnDeadline = up.kind === "character" ? clock.now + clock.turnMs : null;
+    b.turnDeadline = up.kind === "character" && !up.echo ? clock.now + clock.turnMs : null;
     fx.events.push({ kind: "plate", actorId: up.id, tick: b.tick });
   }
 }
@@ -546,30 +652,6 @@ function end(b: Battle, fx: Effects, outcome: BattleStatus, now: number): void {
   say(b, fx, "end", null, text, { kind: "end", outcome: outcome as "won" | "lost" | "abandoned" });
 }
 
-/** A counter resets to tickSpeed × rank × haste. The only place haste is read. */
-function reset(b: Battle, f: Fighter, rank: number): void {
-  const hasted = f.kind === "boss" ? b.enraged : f.hasteLeft > 0;
-  f.counter = counterReset(f.agility, hasted ? "haste" : "normal", rank);
-  if (f.kind === "character" && f.hasteLeft > 0) f.hasteLeft -= 1;
-}
-
-/** Damage to the Orrery; what actually came off. */
-function wound(orrery: Fighter, amount: number): number {
-  const dealt = Math.min(amount, orrery.hp);
-  orrery.hp -= dealt;
-  return dealt;
-}
-
-/** Damage to a character, halved (floor) if braced; what they took. */
-function harm(f: Fighter, amount: number): number {
-  const taken = f.braced ? Math.floor(amount / 2) : amount;
-  f.hp = Math.max(0, f.hp - taken);
-  return taken;
-}
-
-/** An event as the rules raise it; say() stamps it with its log line's seq and the tick. */
-type Raised = BattleEvent extends infer E ? (E extends BattleEvent ? Omit<E, "seq" | "tick"> : never) : never;
-
 /** One log line, and the event it narrates: the screen shows the event, the log reads the line. */
 function say(b: Battle, fx: Effects, kind: LogEntry["kind"], actorId: string | null, text: string, event: Raised): void {
   const entry: LogEntry = { seq: b.nextSeq++, tick: b.tick, kind, actorId, text };
@@ -579,11 +661,6 @@ function say(b: Battle, fx: Effects, kind: LogEntry["kind"], actorId: string | n
   fx.events.push({ ...event, seq: entry.seq, tick: b.tick } as BattleEvent);
 }
 
-function listNames(fs: Fighter[]): string {
-  const names = fs.map((f) => f.name);
-  return names.length <= 1 ? names.join("") : `${names.slice(0, -1).join(", ")} and ${names.at(-1)}`;
-}
-
 function noEffects(): Effects {
   return { log: [], events: [], stats: {}, status: null, member: null };
 }
@@ -591,14 +668,4 @@ function noEffects(): Effects {
 function stat(fx: Effects, id: string): StatDelta {
   fx.stats[id] ??= { turns: 0, damage: 0, healing: 0, wins: 0, losses: 0 };
   return fx.stats[id];
-}
-
-function fighter(b: Battle, id: string): Fighter {
-  const f = b.standing.find((s) => s.id === id);
-  if (!f) throw new Error(`no standing fighter ${id} in battle ${b.id}`);
-  return f;
-}
-
-function orreryOf(b: Battle): Fighter {
-  return fighter(b, BOSS_ID);
 }

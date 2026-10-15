@@ -24,7 +24,7 @@ function intEnv(name: string, fallback: number): number {
 // which is how the spec's own servers find theirs without racing each other.
 const port = process.env.PORT === "0" ? 0 : intEnv("PORT", 8080);
 const tickMs = intEnv("TICK_MS", 150);
-const turnMs = intEnv("TURN_TIMEOUT_MS", 20_000);
+const turnMs = intEnv("TURN_TIMEOUT_MS", 12_000);
 const databasePath = resolve(process.env.DATABASE_PATH || "/data/raid.db");
 
 const store = openStore(databasePath, join(ROOT, "drizzle"));

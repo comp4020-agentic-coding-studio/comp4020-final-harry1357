@@ -13,6 +13,7 @@
 import type { RoleId, Token } from "../../shared/protocol.ts";
 import type { Anim, SpriteAnimation, SpriteManifest, SpriteRole } from "../battle/api.ts";
 import { createPlate, type Plate } from "./plate.ts";
+import { spriteFor } from "../sprites.ts";
 
 const ASSET_ROOT = "/assets/";
 /** Reduced motion: frame() resolves this soon, showing the key frame... */
@@ -88,7 +89,7 @@ export function createParty(host: HTMLElement, manifest: SpriteManifest, reduced
     for (const sheet of sheets) new Image().src = ASSET_ROOT + sheet;
   }
 
-  const roleOf = (a: Actor): SpriteRole | null => (a.role ? manifest.roles[a.role] : null);
+  const roleOf = (a: Actor): SpriteRole | null => (a.role ? (manifest.roles[spriteFor(a.role) ?? ""] ?? null) : null);
   const animOf = (a: Actor, name: string): SpriteAnimation | null => roleOf(a)?.animations[name] ?? null;
 
   /** Show cell `index` of `name`: only what changed is written. */
@@ -257,7 +258,7 @@ export function createParty(host: HTMLElement, manifest: SpriteManifest, reduced
       if (token.role !== "orrery" && token.role !== a.role) {
         a.role = token.role;
         a.el.dataset.role = token.role;
-        const role = manifest.roles[token.role];
+        const role = manifest.roles[spriteFor(token.role) ?? ""];
         const s = a.el.style;
         s.setProperty("--foot-x", String(role.anchor[0] - role.box[0]));
         s.setProperty("--foot-y", String(role.anchor[1] - role.box[1]));

@@ -41,8 +41,8 @@ describe("two actions for one turn", () => {
   ])("the clock decides, and the second is refused by name (%s)", async (_order, holderFirst) => {
     const battleId = await newBattle(base);
     const s = suffix();
-    const ada = await join(base, battleId, `ada-${s}`, "herald");
-    const bo = await join(base, battleId, `bo-${s}`, "lancer");
+    const ada = await join(base, battleId, `ada-${s}`, "striker");
+    const bo = await join(base, battleId, `bo-${s}`, "warden");
     expect(ada.status).toBe(200);
     expect(bo.status).toBe(200);
 
@@ -66,8 +66,8 @@ describe("two actions for one turn", () => {
     const fromA = wa.states.length;
     const fromB = wb.states.length;
     const sends = holderFirst
-      ? [act(base, battleId, holder.who.cookie, "strike"), act(base, battleId, other.who.cookie, "strike")]
-      : [act(base, battleId, other.who.cookie, "strike"), act(base, battleId, holder.who.cookie, "strike")];
+      ? [act(base, battleId, holder.who.cookie, "brace"), act(base, battleId, other.who.cookie, "brace")]
+      : [act(base, battleId, other.who.cookie, "brace"), act(base, battleId, holder.who.cookie, "brace")];
     const results = await Promise.all(sends);
     const [held, refused] = holderFirst ? results : [results[1], results[0]];
 

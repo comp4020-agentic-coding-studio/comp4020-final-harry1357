@@ -20,12 +20,12 @@ describe("what survives a restart", () => {
     let cookie = "";
     let before;
     try {
-      const joined = await join(first.base, await newBattle(first.base), name, "bulwark");
+      const joined = await join(first.base, await newBattle(first.base), name, "warden");
       expect(joined.status).toBe(200);
       expect(joined.cookie, "joining mints a session cookie").not.toBe("");
       cookie = joined.cookie;
       before = (await me(first.base, cookie)).character;
-      expect(before).toMatchObject({ id: joined.characterId, name, role: "bulwark" });
+      expect(before).toMatchObject({ id: joined.characterId, name, role: "warden" });
     } finally {
       await first.kill();
     }
@@ -53,7 +53,7 @@ describe("what survives a restart", () => {
     let before;
     try {
       battleId = await newBattle(first.base);
-      const mine = await join(first.base, battleId, `finisher-${suffix()}`, "lancer");
+      const mine = await join(first.base, battleId, `finisher-${suffix()}`, "striker");
       expect(mine.status).toBe(200);
 
       for (const deadline = Date.now() + 45_000; ; ) {
@@ -64,7 +64,7 @@ describe("what survives a restart", () => {
         }
         if (Date.now() > deadline) throw new Error(`the battle was still ${st.status} after 45s`);
         if (st.activeId === mine.characterId) {
-          expect((await act(first.base, battleId, mine.cookie, "strike")).status, "it was my turn").toBe(200);
+          expect((await act(first.base, battleId, mine.cookie, "jab")).status, "it was my turn").toBe(200);
         } else {
           await sleep(10);
         }

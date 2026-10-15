@@ -1,4 +1,4 @@
-// The party's actions: strike, lunge, brace, mend, hasten. Each full variant is
+// The party's actions: jab, brace, mend, haste (the rest arrive in phase two). Each full variant is
 // the choreography; each reduced variant shows the same state change with no
 // movement (the key frame, the number in place, the bar set, the mark).
 //
@@ -14,7 +14,14 @@ import { HOLD, bounded, castFor, projectileFor, rest, roleOf, showHp, showRings,
  * A blow on the Orrery. The attack frame is the very first call, before any
  * await: another browser must show it within one tick (spec/shown.test.ts).
  */
-async function blow(raw: EffectContext, e: Ev<"strike"> | Ev<"lunge">, heavy: boolean): Promise<void> {
+/** A blow by a party member on the Orrery. The overhaul's actions reuse this in phase two. */
+interface Blow {
+  actorId: string;
+  amount: number;
+  seq?: number;
+}
+
+async function blow(raw: EffectContext, e: Blow, heavy: boolean): Promise<void> {
   const ctx = stage(raw);
   const attack = ctx.scene.frame(e.actorId, "attack");
   ctx.scene.guard(e.actorId, false);
@@ -34,7 +41,7 @@ async function blow(raw: EffectContext, e: Ev<"strike"> | Ev<"lunge">, heavy: bo
   rest(ctx, e.actorId);
 }
 
-async function blowReduced(raw: EffectContext, e: Ev<"strike"> | Ev<"lunge">): Promise<void> {
+async function blowReduced(raw: EffectContext, e: Blow): Promise<void> {
   const ctx = stage(raw);
   void ctx.scene.frame(e.actorId, "attack");
   ctx.scene.guard(e.actorId, false);
@@ -47,10 +54,11 @@ async function blowReduced(raw: EffectContext, e: Ev<"strike"> | Ev<"lunge">): P
   rest(ctx, e.actorId);
 }
 
-export const strike: Fx<"strike"> = (ctx, e) => blow(ctx, e, false);
-export const strikeReduced: Fx<"strike"> = blowReduced;
-export const lunge: Fx<"lunge"> = (ctx, e) => blow(ctx, e, true);
-export const lungeReduced: Fx<"lunge"> = blowReduced;
+// The old strike and lunge events are gone (the overhaul's phase one). Jab is
+// the nearest blow that still exists; the rest of the new actions get their
+// renderers in phase two.
+export const jab: Fx<"jab"> = (ctx, e) => blow(ctx, e, false);
+export const jabReduced: Fx<"jab"> = blowReduced;
 
 // --- brace ----------------------------------------------------------------------
 
@@ -97,9 +105,9 @@ export const mendReduced: Fx<"mend"> = async (raw, e) => {
   rest(ctx, e.actorId);
 };
 
-// --- hasten ---------------------------------------------------------------------
+// --- haste (the Chronist's; was the Herald's hasten) ------------------------------
 
-export const hasten: Fx<"hasten"> = async (raw, e) => {
+export const haste: Fx<"haste"> = async (raw, e) => {
   const ctx = stage(raw);
   const cast = ctx.scene.frame(e.actorId, castFor(roleOf(ctx, e.actorId)));
   ctx.scene.guard(e.actorId, false);
@@ -109,7 +117,7 @@ export const hasten: Fx<"hasten"> = async (raw, e) => {
   rest(ctx, e.actorId);
 };
 
-export const hastenReduced: Fx<"hasten"> = async (raw, e) => {
+export const hasteReduced: Fx<"haste"> = async (raw, e) => {
   const ctx = stage(raw);
   void ctx.scene.frame(e.actorId, castFor(roleOf(ctx, e.actorId)));
   ctx.scene.guard(e.actorId, false);

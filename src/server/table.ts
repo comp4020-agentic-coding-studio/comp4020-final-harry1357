@@ -102,6 +102,11 @@ export function createTable(store: Store, turnMs: number, tickMs: number) {
       queue: [],
       fallen: [],
       log,
+      phase: 1,
+      rings: [],
+      cards: [],
+      chain: { links: 0, potency: 1 },
+      pullSeats: 0,
     };
   }
 
