@@ -244,15 +244,19 @@ around it.
 7. **The database is only ever on the volume.** In production that is
    `DATABASE_PATH` under `/data`. Never a file baked into the image, and never
    a path that only exists locally.
-8. **The room never waits on one person, and the server never chooses for
-   them.** A character on the strike plate gets `TURN_TIMEOUT_MS` (20 s).
-   Then the server takes a *hold*: the turn passes with a rank-3 reset, and
-   nothing is dealt, healed or chosen in their name. Two holds **in a row**
-   and they leave the battle (they may rejoin from the same session). Acting
-   resets the count. The server never picks a real action for an absent
-   player, never removes someone who has acted since their last hold, and
-   never lets a timeout decide *order*: it only decides that a turn passes.
-   *Spec: `spec/pacing.test.ts`. Why: `docs/adr/002`.*
+8. **The room never waits on one person.** A character on the strike plate
+   has 12 seconds to decide (`TURN_TIMEOUT_MS`, 12000). On a timeout the
+   server Braces for them: the one safe action, at rank 2, which halves the
+   damage they take and banks a Charge. Their portrait dims (drifting). Three
+   timeouts **in a row** and the character becomes an automated *Echo*,
+   acting at low output, until the person acts again, which ends the Echo at
+   once. Acting resets the count. A timeout never decides *order*: the
+   auto-Brace takes a turn the clock already gave them, at Brace's rank.
+   This supersedes the old hold rule (two holds and you leave, nothing chosen
+   in your name), on purpose: the overhaul's design record (ADR-006) chose an
+   auto-Brace and an Echo over removal, so a room keeps its seats.
+   *Spec: `spec/pacing.test.ts`, `spec/economy.test.ts`. Why: `docs/adr/002`,
+   `docs/adr/006`.*
 9. **Before any pass with more than three parallel agents, the weekly budget
    is read at /api/me, and passes expected to cost more than half of what
    remains start on the day the allocation resets.** *Judged: no test can see
@@ -273,6 +277,50 @@ around it.
     nothing marked personal use.** CREDITS.md is written *before* a file is
     copied in, not after. *Spec: `spec/assets.test.ts`.*
 
+### The action economy (ADR-006)
+
+The overhaul's rules, from the design record (`docs/design/overhaul.md`). The
+server holds every one of them; the client draws them and decides none. The
+numbers are starting values for playtesting, but while they stand, they are
+the rules.
+
+13. **Ranks run 1–5, and wait = tickSpeed × rank × haste.** 1 Quick, 2 Light,
+    3 Standard, 4 Heavy, 5 Ultimate. Haste halves the reset, never the rate
+    (A1's model, `src/server/ctb.ts`). *Spec: `spec/economy.test.ts`.*
+14. **A weakness hit refunds one rank (Resonance), and the portrait visibly
+    jumps.** Hitting a ring weakness, or a Broken ring, resets the actor's
+    counter as if the action were one rank lower (never below 1), and the
+    server says so in an event the strip can draw. *Spec:
+    `spec/economy.test.ts`.*
+15. **Consecutive player turns with no boss card between them form a Chain.**
+    +10% potency per link, capped at +50%. Any boss action resets it to zero.
+    *Spec: `spec/economy.test.ts`.*
+16. **Exposed stacks are applied by one player and spent by another, and every
+    stack shows who applied it.** The server records the applier on each stack
+    and the spender when it is consumed, and both are in the state the client
+    is sent. *Spec: `spec/economy.test.ts`.*
+17. **Brace is rank 2, halves incoming damage, and banks one Charge (max 3).**
+    A Brace at three Charge banks nothing more. *Spec:
+    `spec/economy.test.ts`.*
+18. **Each player has one Reaction per boss turn, triggered off a telegraphed
+    card.** A Reaction is taken out of turn, only against a boss card already
+    on the strip, and only once between two boss turns. It is not an action
+    queued for later (rule 2): it answers a card that is already announced.
+    *Spec: `spec/economy.test.ts`.*
+19. **Every boss attack is announced on the strip before it resolves.** Each
+    boss action is first emitted as a card with an intent, a target and a
+    countdown; nothing the Orrery does arrives unannounced. *Spec:
+    `spec/orrery.test.ts`.*
+20. **The Orrery's HP is set at the pull, from the seats present, as base ×
+    seats^0.75, with an Echo counting as half a seat.** A bigger room is
+    slightly favoured, and difficulty comes from mechanics, never HP alone. A
+    late joiner does not change a running fight's HP; the next fight
+    re-scales. *Spec: `spec/orrery.test.ts`.*
+21. **No mechanic ships without a renderer and a test.** A new rule here gets a
+    spec test before it is code, and every event it emits gets a renderer
+    before it reaches a player (rule 11). *Spec: `spec/shown.test.ts`,
+    `spec/effects.test.ts`.*
+
 ## How to work in here
 
 - Commit when the checks pass. Never commit a red state, **with one
@@ -289,7 +337,7 @@ around it.
   the client is built, so after a client change rebuild and reload. After a
   server change restart the process, which ends every fight in progress, by
   design. Env: `PORT`, `DATABASE_PATH`, `TICK_MS` (150), `TURN_TIMEOUT_MS`
-  (20000).
+  (12000).
 - **`pnpm check` needs the app running**, because the specs run over HTTP.
   Three exceptions boot or drive something of their own:
   - `spec/restart.test.ts`, `spec/pacing.test.ts` and the first test in
