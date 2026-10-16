@@ -285,4 +285,28 @@ describe("open findings carried into phase two", () => {
     // The known wrong one: a hold must show the guard up (the server Braced).
     expect(mod.EXPECTED_STATE?.hold, "a hold's expected state includes the guard going up").toContainEqual(["scene.guard", "me", true]);
   });
+
+  it("R9 (rule 23; phase one-b): arriving with no code, the client goes through the default door to the public raid's room", async () => {
+    // Review R9 (docs/review/phase-one-b.md): rule 23's "anyone arriving
+    // without a code is sent there" is the client's to keep, and today's
+    // client knows no rooms: it opens a battle by id. Phase two gives it a
+    // door. The module and its shape are this test's proposal, to be changed
+    // deliberately in its own commit if phase two shapes the door otherwise:
+    // door(search, ask) answers the room code to open, asking the server's
+    // default door (GET /api/raid) only when the address carries no code.
+    const { door } = await client<{ door?: (search: string, ask: (path: string) => Promise<unknown>) => Promise<string> }>(
+      "src/client/door.ts",
+    );
+    expect(typeof door, "src/client/door.ts exports no door()").toBe("function");
+    const asked: string[] = [];
+    const ask = async (path: string) => {
+      asked.push(path);
+      return { code: "RAID", battleId: "b-public" };
+    };
+    expect(await door!("", ask), "no code in the address: the public raid's room").toBe("RAID");
+    expect(asked, "found by asking the server's default door, not chosen by the client").toEqual(["/api/raid"]);
+    asked.length = 0;
+    expect(await door!("?room=k3x9p", ask), "a code in the address: that room").toBe("K3X9P");
+    expect(asked, "with a code, the default door isn't asked").toEqual([]);
+  });
 });
