@@ -13,12 +13,17 @@ import type {
   JoinResponse,
   LogResponse,
   MeResponse,
+  EchoResponse,
   NewBattleResponse,
+  NewRoomResponse,
   RaidResponse,
+  RoleId,
+  RoomJoinResponse,
+  RoomResponse,
 } from "../shared/protocol.ts";
 import { newId, type Store } from "./db.ts";
 import { mountPages } from "./pages.ts";
-import { checkAction, checkJoin, cleanName, isRole } from "./rules.ts";
+import { checkAction, checkJoin, checkSeatEcho, cleanName, isRole } from "./rules.ts";
 import type { Table } from "./table.ts";
 
 const COOKIE = "raid_sid";
@@ -50,7 +55,11 @@ export function createApp(root: string, store: Store, table: Table): Hono {
 
   app.post("/api/battles", (c) => c.json({ battleId: table.create() } satisfies NewBattleResponse, 201));
 
-  app.post("/api/battles/:id/join", async (c) => {
+  /**
+   * Seat the caller in a battle: a battle's join and a room's are this one
+   * function. The answer is the seat, or the refusal to send as it is.
+   */
+  async function seatIn(c: Context, id: string): Promise<JoinResponse | Response> {
     const body = await readJson(c);
     if (!body) return fail(c, 400, "Send a JSON object with a name and a role.");
     const name = cleanName(body.name);
@@ -58,16 +67,13 @@ export function createApp(root: string, store: Store, table: Table): Hono {
     if (!isRole(body.role)) return fail(c, 400, "Choose a role: bulwark, lancer, mender or herald.");
 
     // No awaits from here on: the check and the seat see the same battle.
-    const id = c.req.param("id");
     const battle = table.get(id);
     if (!battle) return store.battle(id) ? fail(c, 409, "This fight is already over.") : fail(c, 404, "No such battle.");
 
     const sid = getCookie(c, COOKIE);
     const known = sid ? store.characterBySession(sessionKey(sid)) : null;
     const check = checkJoin(battle, known?.id ?? null, name);
-    if (check === "already" && known) {
-      return c.json({ battleId: id, characterId: known.id, character: known } satisfies JoinResponse);
-    }
+    if (check === "already" && known) return { battleId: id, characterId: known.id, character: known };
     if (check && check !== "already") return fail(c, check.status, check.error);
 
     // A cookie the database doesn't know is never adopted: mint a fresh one.
@@ -86,7 +92,51 @@ export function createApp(root: string, store: Store, table: Table): Hono {
     }
     const character = store.character(characterId);
     if (!character) throw new Error(`character ${characterId} was seated but not written`);
-    return c.json({ battleId: id, characterId, character } satisfies JoinResponse);
+    return { battleId: id, characterId, character };
+  }
+
+  app.post("/api/battles/:id/join", async (c) => {
+    const seat = await seatIn(c, c.req.param("id"));
+    return seat instanceof Response ? seat : c.json(seat);
+  });
+
+  // Rooms (docs/adr/007): a code is the only key, and a wrong one is a 404.
+  app.post("/api/rooms", (c) => {
+    const sid = getCookie(c, COOKIE);
+    if (!sid || !store.characterBySession(sessionKey(sid))) return fail(c, 403, "Sit down at a table before you make a room.");
+    const { code, battleId } = table.createRoom();
+    return c.json({ code, battleId } satisfies NewRoomResponse, 201);
+  });
+
+  app.get("/api/rooms/:code", (c) => {
+    const room = table.room(c.req.param("code"));
+    return room ? c.json(room satisfies RoomResponse) : fail(c, 404, "No such room.");
+  });
+
+  app.post("/api/rooms/:code/join", async (c) => {
+    const room = table.room(c.req.param("code"));
+    if (!room) return fail(c, 404, "No such room.");
+    const seat = await seatIn(c, room.battleId);
+    return seat instanceof Response ? seat : c.json({ ...seat, code: room.code } satisfies RoomJoinResponse);
+  });
+
+  app.post("/api/rooms/:code/echoes", async (c) => {
+    const room = table.room(c.req.param("code"));
+    if (!room) return fail(c, 404, "No such room.");
+    const body = await readJson(c);
+    if (!body) return fail(c, 400, "Send a JSON object with a role.");
+
+    // No awaits from here on: the check and the seat see the same battle.
+    const battle = table.get(room.battleId);
+    if (!battle) return fail(c, 409, "This fight is already over.");
+    const sid = getCookie(c, COOKIE);
+    const callerId = sid ? table.characterFor(sessionKey(sid)) : undefined;
+    if (!callerId) return fail(c, 403, "Only someone seated at this table can seat an Echo here.");
+
+    const refused = checkSeatEcho(battle, callerId, body.role);
+    if (refused) return fail(c, refused.status, refused.error);
+    const echoId = table.seatEcho(room.battleId, body.role as RoleId, callerId);
+    return c.json({ code: room.code, battleId: room.battleId, echoId } satisfies EchoResponse, 201);
   });
 
   app.get("/api/battles/:id", (c) => {

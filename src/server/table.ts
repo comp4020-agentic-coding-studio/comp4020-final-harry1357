@@ -6,25 +6,24 @@
 // seen. Area (a) owns this file in phase one-b: rooms (docs/adr/007).
 
 import type { WSContext } from "hono/ws";
-import type { ActionId, BattleState, RoleId } from "../shared/protocol.ts";
+import type { ActionId, BattleState, RoleId, RoomInfo } from "../shared/protocol.ts";
 import { newId, type CharacterWrite, type Store } from "./db.ts";
 import { createHub } from "./hub.ts";
-import { act, advance, createBattle, isEnded, join, seatEcho, type Battle, type Clock, type Step } from "./rules.ts";
+import { createRooms, hasPerson, PUBLIC_CODE } from "./rooms.ts";
+import { act, advance, close, createBattle, isEnded, join, seatEcho, type Battle, type Clock, type Step } from "./rules.ts";
+import { ROOM_EMPTY_MS } from "./tuning.ts";
 import { archived, view } from "./view.ts";
-
-/** The public raid's permanent room code (rule 23). */
-const PUBLIC_CODE = "RAID";
 
 /** How long an ended battle stays in memory before only the database has it. */
 const DROP_AFTER_MS = 10 * 60 * 1000;
 
 export type Table = ReturnType<typeof createTable>;
 
-export function createTable(store: Store, turnMs: number, tickMs: number, beatMs?: number) {
+export function createTable(store: Store, turnMs: number, tickMs: number, beatMs?: number, roomEmptyMs: number = ROOM_EMPTY_MS) {
   const battles = new Map<string, Battle>();
   /** Hashed session → character, for everyone seated since boot. Only they can be standing. */
   const sessions = new Map<string, string>();
-  let publicId: string | null = null;
+  const rooms = createRooms();
 
   const clock = (): Clock => ({ now: Date.now(), turnMs, beatMs });
   const timing = { tickMs, turnMs, beatMs };
@@ -32,8 +31,7 @@ export function createTable(store: Store, turnMs: number, tickMs: number, beatMs
     state: (id) => state(id),
     live: (id) => battles.has(id),
     view: (b) => view(b, timing),
-    // Area (a): rooms. Until they're built there are none.
-    room: () => null,
+    room: (code) => rooms.get(code),
   });
 
   function apply(step: Step, character: CharacterWrite | null = null): Battle {
@@ -45,23 +43,51 @@ export function createTable(store: Store, turnMs: number, tickMs: number, beatMs
     if (step.effects.status && isEnded(next)) {
       const seated = Object.keys(next.joined).length;
       console.log(`battle ${next.id} ended ${next.status} at tick ${next.tick} (${seated} seated)`);
-      if (next.id === publicId) open(true);
+      // A room's fight ends and its next one opens, for the same watchers (rule 24).
+      if (next.room !== null) {
+        const room = rooms.move(next.room, open(next.room), Date.now());
+        if (room) hub.moved(room);
+      }
     }
     return next;
   }
 
-  function open(isPublic: boolean): string {
+  /** A fresh fight, in the room with this code if it has one (null: a bare battle). */
+  function open(room: string | null): string {
     const id = newId();
     const now = Date.now();
+    const isPublic = room === PUBLIC_CODE;
     store.createBattle(id, isPublic, now);
-    battles.set(id, createBattle(id, isPublic, now));
-    if (isPublic) publicId = id;
+    const battle = createBattle(id, isPublic, now);
+    battle.room = room;
+    battles.set(id, battle);
     return id;
+  }
+
+  /** A room empty for its whole window is gone; its fight, if it isn't over, closes with a line saying why (rule 26). */
+  function expire(now: number): void {
+    for (const room of rooms.all()) {
+      const b = battles.get(room.battleId);
+      if (b) rooms.watch(room.code, hasPerson(b), now);
+    }
+    for (const room of rooms.expired(now, roomEmptyMs)) {
+      // Out of the registry first, so the closing fight doesn't open a successor.
+      rooms.remove(room.code);
+      const b = battles.get(room.battleId);
+      try {
+        if (b && !isEnded(b)) apply(close(b, "The room closed: nobody had been seated at the table for too long.", clock()));
+      } catch (err) {
+        console.error(`room ${room.code}: closing its fight failed`, err);
+      }
+      hub.expired(room.code);
+      console.log(`room ${room.code} closed after ${roomEmptyMs}ms empty`);
+    }
   }
 
   /** One iteration of the process's one clock, across every battle. */
   function tick(): void {
     const c = clock();
+    expire(c.now);
     for (const b of [...battles.values()]) {
       try {
         if (isEnded(b)) {
@@ -87,20 +113,36 @@ export function createTable(store: Store, turnMs: number, tickMs: number, beatMs
     return row ? archived(id, row, store.log(id), timing) : null;
   }
 
+  // The public raid is a room from boot, so its code answers before anyone asks the door.
+  rooms.add(true, Date.now(), open);
+
   return {
     /** The live battle, if this process holds it. */
     get(id: string): Battle | undefined {
       return battles.get(id);
     },
 
-    /** The open public raid and its room code, opening a fresh fight if there's none or it has ended. Area (a): the public raid becomes a permanent room (rule 23). */
-    publicRaid(): { battleId: string; code: string } {
-      const current = publicId ? battles.get(publicId) : undefined;
-      return { battleId: current && !isEnded(current) ? current.id : open(true), code: PUBLIC_CODE };
+    /** The public raid's room (rule 23): permanent, and always holding an open fight. */
+    publicRaid(): RoomInfo {
+      const room = rooms.get(PUBLIC_CODE) as RoomInfo;
+      const current = battles.get(room.battleId);
+      if (current && !isEnded(current)) return room;
+      return rooms.move(PUBLIC_CODE, open(PUBLIC_CODE), Date.now()) as RoomInfo;
     },
 
+    /** A bare battle, in no room. */
     create(): string {
-      return open(false);
+      return open(null);
+    },
+
+    /** A seated player's new private room (rule 22). */
+    createRoom(): RoomInfo {
+      return rooms.add(false, Date.now(), open);
+    },
+
+    /** The room with this code (any case), or null. */
+    room(code: string): RoomInfo | null {
+      return rooms.get(code);
     },
 
     /** Seat a character (already checked) and write their row in the same transaction. */

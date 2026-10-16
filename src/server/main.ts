@@ -8,6 +8,7 @@ import { WebSocketServer } from "ws";
 import { createApp } from "./app.ts";
 import { openStore } from "./db.ts";
 import { createTable } from "./table.ts";
+import { ROOM_EMPTY_MS } from "./tuning.ts";
 
 /** The repo root (/app in the image), whatever directory the process was started from. */
 const ROOT = resolve(import.meta.dirname, "../..");
@@ -31,7 +32,8 @@ const databasePath = resolve(process.env.DATABASE_PATH || "/data/raid.db");
 
 const store = openStore(databasePath, join(ROOT, "drizzle"));
 const closed = store.closeLiveBattles(Date.now());
-const table = createTable(store, turnMs, tickMs, beatMs);
+const roomEmptyMs = intEnv("ROOM_EMPTY_MS", ROOM_EMPTY_MS);
+const table = createTable(store, turnMs, tickMs, beatMs, roomEmptyMs);
 const app = createApp(ROOT, store, table);
 
 const server = serve(
