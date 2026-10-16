@@ -367,4 +367,55 @@ longer raised.
 
 ### What was done about the re-review
 
-(Added as each is fixed, carried, or put to the owner.)
+Each fixed in its own commit naming the finding, red first where there was a
+test; new tests mutation-checked (the code broken on purpose, the test seen to
+fail, the code restored).
+
+| Finding | What was done | Where |
+| --- | --- | --- |
+| F4 (rest) | Fixed: an Echo seat at the end gets no win or loss; the economy.ts comment corrected | `1683b0f` red, `a9a5004` |
+| F10 | Fixed: the hook is now an argument allowlist (refs, paths, read-only flags; spec paths and `-t`); tested on 11 reads and 21 attempts, every re-review leak included | `58a134e` |
+| F12 (healing) | Fixed: Mend at +50% heals exactly 1.5x | `3150b23` |
+| F7 (rest) | **Open, carried red**: Anchor and Stillpoint must aim at cards; a Reaction must be sendable off-turn | `spec/phase-two.test.ts` |
+| F9 (rest) | Fixed: the shim is loaded defensively; with it removed, the licence checks still pass | `1414c67` |
+| F14 (rest) | Fixed: rule 1 names its two specs | `68b5eea` |
+| F25 | **Open, carried red correctly now**: every event needs a declared expected state | `spec/phase-two.test.ts` F25 |
+| R1 | Fixed on the server: a `spent` flag in the protocol, no cast; **drawing it, open, carried red** | `d4eff84` red, `792a6ee` |
+| R2 | Fixed: names stored as typed (NFC, only deceiving invisibles removed), so joiners survive | `781ec9d` |
+| R3 | Fixed: ADR-006 records the beat's cost to the clock, and why it's accepted | `952cb8d` |
+| R4 | Fixed: compared by a folded key with everything invisible removed; a name with nothing visible refused | `781ec9d` |
+| R5 | **Open, carried red**: drifting and Echo drawn from state, persistently | `spec/phase-two.test.ts` R5 |
+| R6 | Fixed: `spec/actions.test.ts` pins each action's effect; five mutation-checked as no-ops | `3150b23` |
+| R7 | Fixed: the beat is set by `ECHO_BEAT_MS`; the masked check now finishes in 16 s | `f9afd47` |
+| R8 | Fixed on the server: `plateMs` sent; **drawing it, open, carried red** | `f9afd47`; `spec/phase-two.test.ts` R8 |
+| R9 | **Open, carried red**: a card shows its target and countdown | `spec/phase-two.test.ts` F2 |
+| R10 | Fixed: the Chain checked on a heal too large for rounding to hide | `3150b23` |
+| R11 | Fixed: the card rule held on every turn through all three phases; a silent-Retrograde mutant passes the old test and fails this one | `6bbadb0` |
+
+**One rule needs the owner's wording.** Rule 2 says the command window "stays
+disabled until the server says it is your turn"; rule 18 says a Reaction "is
+taken out of turn". Read together they make Intercept unsendable from the app.
+The red F7 Reaction test is written to the reading that keeps both rules'
+intent: the turn's actions stay dark off-turn, and a Reaction is live while the
+server says one is ready (`reactionReady` and a card on the strip), so the
+client still decides nothing. Rule 2's wording should say so; that is the
+owner's to change.
+
+### Open, and blocking the merge
+
+All client work outside phase one's server surface, each held by a red test
+that fails on that finding and nothing else:
+
+- **F1**: a log line written for an event no renderer showed.
+- **F2 / R9**: no boss card on the strip, with its intent, target and countdown.
+- **F6**: the hold renderer drops the guard the server Braced.
+- **R5**: drifting and Echo seats not drawn from state.
+- **R8**: the countdown not drawn against `plateMs`.
+- **R1**: a spent card drawn as a hit.
+- **F7**: card actions sent ally ids (Delay, Anchor, Stillpoint); Reactions unsendable off-turn.
+- **F25**: no declared expected state per event.
+- **F26**: thirty events with no renderer (`effects`, `shown`).
+- The shims: two roles share a sprite, and Jab and Haste borrow animations (`sprites` ×2).
+
+**Roster after the re-review's fixes:** 107 green, 14 red, every red one of the
+above. Typecheck and lint clean.
