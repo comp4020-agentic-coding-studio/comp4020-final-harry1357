@@ -23,8 +23,13 @@ interface Room {
   emptySince: number | null;
 }
 
-/** A code as it is looked up: case doesn't matter, and stray spaces don't count. */
-const normal = (code: string): string => code.trim().toUpperCase();
+/**
+ * A code as it is looked up: ASCII letters and digits in any case, and
+ * nothing else. Padding isn't trimmed and Unicode isn't case-mapped, so "raıd"
+ * (a dotless i) never upper-cases onto RAID (breaker Q1): a code is never
+ * guessed at (rule 22). Null for anything that can't be a code.
+ */
+const normal = (code: string): string | null => (/^[A-Za-z0-9]{1,16}$/.test(code) ? code.toUpperCase() : null);
 
 /** A person's seat: a character that isn't an Echo someone else seated (standing or fallen). */
 export const hasPerson = (b: Battle): boolean =>
@@ -56,7 +61,8 @@ export function createRooms() {
 
     /** The room with this code (any case), or null. */
     get(code: string): RoomInfo | null {
-      const room = rooms.get(normal(code));
+      const key = normal(code);
+      const room = key === null ? undefined : rooms.get(key);
       return room ? info(room) : null;
     },
 

@@ -108,6 +108,12 @@ describe("a room is a code", () => {
     expect(refused.status, "a wrong code is refused").toBe(404);
     expect(refused.cookie, "and the refusal mints no session").toBe("");
     expect((await room(base, wrong)).status, "and describes no room").toBe(404);
+    // Breaker Q1: the code is matched as typed letters and digits, any case,
+    // and nothing else: padding, or a Unicode letter that upper-cases onto
+    // one ("raıd" with a dotless i becomes "RAID"), is a different string.
+    expect((await room(base, made.code.toLowerCase())).status, "the code in lower case is the code").toBe(200);
+    expect((await room(base, ` ${made.code} `)).status, "a padded code is not the code").toBe(404);
+    expect((await room(base, "ra\u0131d")).status, "a dotless i doesn't upper-case into the public raid").toBe(404);
 
     // The right code, from a stranger with no cookie, gets in.
     const right = await joinRoom(base, made.code, `found-${suffix()}`, "mender");
