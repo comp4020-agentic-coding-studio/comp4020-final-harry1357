@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { act, battle, join as joinBattle, newBattle, type Joined } from "../spec/raid.ts";
-import { APP_URL, PHONE, ProbeError, joinByForm, launch, sleep, tableDrawn, type Page } from "./check-viewports.ts";
+import { APP_URL, FORM_ROLE, PHONE, ProbeError, SEEDED, joinByForm, launch, sleep, tableDrawn, type Page } from "./check-viewports.ts";
 
 // Do the party's name plates ever collide at 390×844?
 //
@@ -12,8 +12,8 @@ import { APP_URL, PHONE, ProbeError, joinByForm, launch, sleep, tableDrawn, type
 // Off the `check` roster, like the other Chrome sensors (CLAUDE.md). Carried
 // from the rail's name tags; the claim moved with the names, which now live on
 // the party's plates on the field. A table of four with 24-character names
-// (three seated over HTTP, one joined through the form) plays a run of strikes
-// on a phone. In every state the page lands in, it measures every name plate
+// (three seated over HTTP, one joined through the form) plays a run of turns,
+// each seat its own role's blow, on a phone. In every state the page lands in, it measures every name plate
 // `[data-plate]` on the field (the party's, and the Orrery's) and every sprite
 // `[data-sprite]`, and fails if:
 //   - two plates intersect,
@@ -48,6 +48,8 @@ import { APP_URL, PHONE, ProbeError, joinByForm, launch, sleep, tableDrawn, type
 // the field, and the command window's flow is check:keyboard's to drive.
 
 const STRIKES = Number(process.env.TAG_STRIKES ?? 16);
+/** Each role's turn here: an action that needs no target and changes the field (a blow, a heal, a scan). */
+const TURN: Readonly<Record<string, string>> = { warden: "counterweight", striker: "jab", mender: "mend", breaker: "scan", chronist: "relay" };
 const TOLERANCE = 0.5; // px: touching edges and sub-pixel rounding aren't collisions
 const SEATS = 4;
 
@@ -284,13 +286,13 @@ async function main(): Promise<void> {
     await page.send("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] });
 
     // Three seated over HTTP, with their cookies kept so they can take their
-    // turns: three roles, so the form's herald makes four different sprites.
+    // turns: three roles, so the form's Breaker makes four different sprites.
     const battleId = await newBattle(APP_URL);
-    const seated: Joined[] = [];
-    for (const [i, role] of (["bulwark", "lancer", "mender"] as const).entries()) {
+    const seated: (Joined & { role: string })[] = [];
+    for (const [i, role] of SEEDED.entries()) {
       const seat = await joinBattle(APP_URL, battleId, longName(i + 1), role);
       if (seat.status !== 200 || !seat.characterId) throw new Error(`could not seat ${role} (join answered ${seat.status})`);
-      seated.push(seat);
+      seated.push({ ...seat, role });
     }
 
     await page.goto(`${APP_URL}/?battle=${encodeURIComponent(battleId)}`);
@@ -341,9 +343,9 @@ async function main(): Promise<void> {
         console.log(`  the battle ended (${st.status}) after ${strikes} strike(s)`);
         break;
       }
-      const actor = st.activeId === me ? cookie : seated.find((x) => x.characterId === st.activeId)?.cookie;
-      if (actor && st.status === "fighting") {
-        if ((await act(APP_URL, battleId, actor, "strike")).status === 200) strikes++;
+      const up = st.activeId === me ? { cookie, role: FORM_ROLE } : seated.find((x) => x.characterId === st.activeId);
+      if (up && st.status === "fighting") {
+        if ((await act(APP_URL, battleId, up.cookie, TURN[up.role] ?? "brace")).status === 200) strikes++;
       } else {
         await sleep(40);
       }

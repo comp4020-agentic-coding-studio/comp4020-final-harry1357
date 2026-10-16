@@ -627,14 +627,19 @@ async function selfTest(page: Page): Promise<string[]> {
  *  overflows the day someone types their full gamer tag. */
 const longName = (n: number): string => "W".repeat(22) + String(n).padStart(2, "0");
 
+/** The three roles seated over HTTP, and the one the form joins as: four roles on four different sheets. */
+export const SEEDED = ["warden", "striker", "mender"] as const;
+export const FORM_ROLE = "breaker";
+
 /** A battle with three of the four seats taken via the API, by three different
- *  roles (the lancer's sheet is the widest), so the form's herald makes a
- *  full table of four distinct sprites. An empty page fits no matter what the
+ *  roles drawn from three different sheets (the Striker's, from the old
+ *  lancer's sheet, is the widest; src/client/sprites.ts maps roles to sheets),
+ *  so the form's Breaker makes a full table of four distinct sprites. An empty page fits no matter what the
  *  stylesheet says, and a sensor that measured the easy version reports
  *  exactly what a clean page reports. */
 export async function seededBattle(): Promise<string> {
   const battleId = await newBattle(APP_URL);
-  for (const [i, role] of (["bulwark", "lancer", "mender"] as const).entries()) {
+  for (const [i, role] of SEEDED.entries()) {
     const seat = await joinBattle(APP_URL, battleId, longName(i + 1), role);
     if (seat.status !== 200) {
       throw new Error(`could not seat ${role} via the API (POST join answered ${seat.status}); the table would be measured near-empty`);
@@ -675,8 +680,8 @@ export async function joinByForm(page: Page): Promise<string> {
   await page.type(longName(0));
   const typed = await page.evaluate<string>(`document.querySelector('form[data-join] input[name="name"]').value`);
   if (typed !== longName(0)) throw new Error(`typed ${longName(0)} into the name field and it holds ${JSON.stringify(typed)}`);
-  await page.activate(`form[data-join] input[type="radio"][name="role"][value="herald"]`);
-  await page.until(`document.querySelector('input[type="radio"][name="role"][value="herald"]').checked`, "the herald radio to be checked", 2_000);
+  await page.activate(`form[data-join] input[type="radio"][name="role"][value="${FORM_ROLE}"]`);
+  await page.until(`document.querySelector('input[type="radio"][name="role"][value="${FORM_ROLE}"]').checked`, `the ${FORM_ROLE} radio to be checked`, 2_000);
   await page.activate(`form[data-join] button[type="submit"]`);
   const me = await page.until<string>(`document.body.dataset.me`, "document.body.dataset.me after joining", 10_000);
   const id = JSON.stringify(me);

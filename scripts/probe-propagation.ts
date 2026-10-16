@@ -24,7 +24,7 @@ import type { BattleState, NewBattleResponse } from "../src/shared/protocol.ts";
 //
 // The timing. Both browsers run on this machine, so `performance.timeOrigin +
 // performance.now()` in each is a sub-millisecond reading of the same wall
-// clock. The actor side reads it just before the confirming click (Strike
+// clock. The actor side reads it just before the confirming click (a blow
 // aims on its first press and fires on its second) is dispatched; the
 // observer side reads it inside a MutationObserver callback, which runs the
 // moment the client's render has changed the DOM. Observer minus actor is the
@@ -47,15 +47,22 @@ const SAMPLES = Number(process.env.PROBE_SAMPLES ?? "6");
 const BUDGET_MS = 1000;
 /** A change that hasn't arrived in this long is a failure, not a slow sample. */
 const TIMEOUT_MS = 10_000;
-/** The Orrery's turn and a slow Bulwark's wait both sit between our turns. */
+/** The Orrery's turn and a slow Warden's wait both sit between our turns. */
 const TURN_WAIT_MS = 30_000;
 /** Above this, "same machine, same clock" is false and the numbers are not comparable. */
 const SKEW_LIMIT_MS = 5;
 const PORTS = { A: 9301, B: 9302 } as const;
 const VIEWPORT = { width: 1280, height: 900 };
 
-const STRIKE = 'button[data-action="strike"]';
-const STRIKE_READY = `${STRIKE}:not([disabled])`;
+// Each person's blow at the Orrery: an action aimed at the boss, so it aims on
+// the first press and fires on the second. A plays a Striker (agility 70, Jab
+// rank 1: the most turns); B a Warden (agility 30, Counterweight rank 3: the
+// slowest seat). Each page offers only its own role's actions, so one selector
+// finds the one that page has.
+const ROLES = { A: "striker", B: "warden" } as const;
+const BLOWS = ["jab", "counterweight"] as const;
+const STRIKE = BLOWS.map((action) => `button[data-action="${action}"]`).join(", ");
+const STRIKE_READY = BLOWS.map((action) => `button[data-action="${action}"]:not([disabled])`).join(", ");
 
 type Json = Record<string, unknown>;
 const j = (value: unknown): string => JSON.stringify(value);
@@ -127,11 +134,11 @@ const LIB = String.raw`window.__probe ??= (() => {
   });
 
   // Every click the page receives, captured before the app's own handler:
-  // proves the click was trusted and landed on Strike, and when it arrived.
+  // proves the click was trusted and landed on the blow, and when it arrived.
   const clicks = [];
   window.addEventListener('click', (e) => {
     clicks.push({ trusted: e.isTrusted,
-      onTarget: e.target instanceof Element && !!e.target.closest('button[data-action="strike"]'),
+      onTarget: e.target instanceof Element && !!e.target.closest(${JSON.stringify(STRIKE)}),
       at: performance.timeOrigin + e.timeStamp });
   }, true);
 
@@ -657,11 +664,11 @@ async function run(): Promise<number> {
       `and on a replaced token node (A ${ms(tests.A?.replacedMs ?? 0)}, B ${ms(tests.B?.replacedMs ?? 0)})`,
   );
 
-  // Two people, through the real form. Herald is the fastest role, so A acts
-  // most; B's Bulwark must still take its turns or the battle waits for it.
+  // Two people, through the real form. A's Striker acts most; B's Warden must
+  // still take its turns or the battle waits for it.
   const suffix = Math.random().toString(36).slice(2, 10);
-  const meA = await joinAs(a, `probe-a-${suffix}`, "herald");
-  const meB = await joinAs(b, `probe-b-${suffix}`, "bulwark");
+  const meA = await joinAs(a, `probe-a-${suffix}`, ROLES.A);
+  const meB = await joinAs(b, `probe-b-${suffix}`, ROLES.B);
   const me: Record<string, string> = { A: meA, B: meB };
   if (meA === meB) throw new Error(`both browsers report body.dataset.me = ${meA}: one person, not two`);
   const [jarA, jarB] = await Promise.all([cookieJar(a), cookieJar(b)]);
@@ -672,7 +679,7 @@ async function run(): Promise<number> {
     );
   }
   if (jarA.join("\n") === jarB.join("\n")) throw new Error("both browsers hold the same cookies: one person, not two");
-  console.log(`✓ two people: A is ${meA} (herald), B is ${meB} (bulwark), with different session cookies`);
+  console.log(`✓ two people: A is ${meA} (${ROLES.A}), B is ${meB} (${ROLES.B}), with different session cookies`);
 
   // The same battle, seen from both sides.
   for (const p of [a, b]) {
@@ -701,7 +708,7 @@ async function run(): Promise<number> {
   const clickLags: number[] = [];
   const failures: string[] = [];
 
-  // "My turn" is Strike enabled AND my own token on the plate in my own view.
+  // "My turn" is my blow enabled AND my own token on the plate in my own view.
   // The enabled button alone is not enough: right after acting it can still be
   // the previous state's button, and clicking it would be an early action.
   const myTurn = (p: Page): Promise<boolean> =>
@@ -713,13 +720,13 @@ async function run(): Promise<number> {
 
   /** One action and its two observers. Throws when the run cannot go on. */
   const takeSample = async (n: number): Promise<Sample> => {
-    const who = await until(`someone's turn (Strike enabled, own token on 0)`, TURN_WAIT_MS, async () => {
+    const who = await until(`someone's turn (their blow enabled, own token on 0)`, TURN_WAIT_MS, async () => {
       const [readyA, readyB] = await Promise.all([myTurn(a), myTurn(b)]);
       return readyA && readyB ? "both" : readyA ? "A" : readyB ? "B" : null;
     }).catch(async (error: unknown) => {
       throw new Error(`${message(error)}. The server says: ${await serverSays(battleId)}`);
     });
-    if (who === "both") throw new Error("Strike is enabled in both browsers at once: two people think it is their turn");
+    if (who === "both") throw new Error("a blow is enabled in both browsers at once: two people think it is their turn");
     const actor = who === "A" ? a : b;
     const other = who === "A" ? b : a;
     const actorId = me[who] as string;
@@ -738,20 +745,20 @@ async function run(): Promise<number> {
     const at = await actor.evaluate<Point>(lib(`P.point(${j(STRIKE_READY)})`));
     if ("error" in at) throw new Error(`${actor.label}: ${at.error}`);
     await actor.send("Input.dispatchMouseEvent", { type: "mouseMoved", x: at.x, y: at.y });
-    // Strike is two presses: the first aims it (the Orrery lights) and sends
-    // nothing; the second confirms. The clock starts at the confirm, the click
-    // that actually leaves the page.
+    // A blow is two presses: the first aims it (the Orrery lights) and sends
+    // nothing; the second, on the same command, confirms. The clock starts at
+    // the confirm, the click that actually leaves the page.
     await press(actor, at.x, at.y);
-    await until(`${actor.label} to aim Strike at the Orrery`, TIMEOUT_MS, () =>
+    await until(`${actor.label} to aim its blow at the Orrery`, TIMEOUT_MS, () =>
       actor.evaluate<boolean>(`!!document.querySelector("[data-boss][data-targeted]")`),
     );
-    // Aiming opens the target row, which can move Strike; find it again.
+    // Aiming opens the target row, which can move the command; find it again.
     const confirmAt = await actor.evaluate<Point>(lib(`P.point(${j(STRIKE_READY)})`));
     if ("error" in confirmAt) throw new Error(`${actor.label}: ${confirmAt.error}`);
     const clickAt = await actor.evaluate<number | null>(
       lib(`document.querySelector(${j(STRIKE_READY)}) ? (P.resetClicks(), P.now()) : null`),
     );
-    if (clickAt === null) throw new Error(`${actor.label}'s Strike disabled itself before it was clicked`);
+    if (clickAt === null) throw new Error(`${actor.label}'s blow disabled itself before it was clicked`);
     await press(actor, confirmAt.x, confirmAt.y);
 
     const [remote, local] = await Promise.all([
@@ -762,7 +769,7 @@ async function run(): Promise<number> {
     const click = clicks[0];
     if (!click) throw new Error(`${actor.label}'s page never received the click`);
     if (!click.trusted || !click.onTarget) {
-      throw new Error(`the click was ${click.trusted ? "" : "untrusted and "}not on Strike`);
+      throw new Error(`the click was ${click.trusted ? "" : "untrusted and "}not on the blow`);
     }
     clickLags.push(click.at - clickAt);
 

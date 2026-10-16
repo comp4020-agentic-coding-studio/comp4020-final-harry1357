@@ -12,10 +12,12 @@ import { APP_URL, DESKTOP, launch, type Page, ProbeError, type Rect, SHIFT, sett
 //      indicator and be on screen once scrolling settles.
 //   2. Join by keyboard only: Tab into the role radios and choose with the
 //      arrow keys, Tab to the name, type it, Tab to submit, press Enter.
-//   3. Wait for the server to put you on the plate, Tab to Strike, check Tab
-//      can carry focus back OUT of the action panel (no trap), come back, and
-//      press Enter to aim (the Orrery lights) and Enter to confirm. The strike has to land: your token's data-counter leaves 0
-//      and the Orrery's HP drops, read from the server rather than the page.
+//   3. Wait for the server to put you on the plate, Tab into the command
+//      list and arrow down to Jab, check Tab can carry focus back OUT of the
+//      command window (no trap), come back, and press Enter to aim (the Orrery
+//      lights) and Enter to confirm. The Jab has to land: your token's
+//      data-counter leaves 0 and the Orrery's HP drops, read from the server
+//      rather than the page.
 //   4. Tab through the joined page too, so the rail and log are held to the
 //      same indicator and on-screen rules as the form.
 //
@@ -31,6 +33,9 @@ import { APP_URL, DESKTOP, launch, type Page, ProbeError, type Rect, SHIFT, sett
 // Chrome. It also needs the turn clock, so it takes up to ~40s.
 
 const TURN_WAIT_MS = 20_000;
+/** The role joined as, and its blow: a Striker's Jab aims at the Orrery, then fires. */
+const ROLE = "striker";
+const BLOW = 'button[data-action="jab"]';
 
 interface Indicator {
   on: "self" | "label" | "parent";
@@ -50,7 +55,7 @@ interface Focus {
   isName: boolean;
   isRole: boolean;
   isSubmit: boolean;
-  isStrike: boolean;
+  isBlow: boolean;
   checked: boolean | null;
   value: string;
 }
@@ -119,7 +124,7 @@ const KB = `(window.__kb ??= (() => {
   };
   const state = () => {
     const el = document.activeElement;
-    const base = { inActions: false, isName: false, isRole: false, isSubmit: false, isStrike: false, checked: null, value: "" };
+    const base = { inActions: false, isName: false, isRole: false, isSubmit: false, isBlow: false, checked: null, value: "" };
     if (!el || el === document.body || el === document.documentElement) {
       return { ...base, id: 0, tag: el ? "<" + el.tagName.toLowerCase() + ">" : "<none>", name: "", rect: null, onScreen: false, indicator: null };
     }
@@ -137,7 +142,7 @@ const KB = `(window.__kb ??= (() => {
       isName: el.matches('form[data-join] input[name="name"]'),
       isRole: el.matches('input[type="radio"][name="role"]'),
       isSubmit: el.matches('form[data-join] button[type="submit"], form[data-join] input[type="submit"]'),
-      isStrike: el.matches('button[data-action="strike"]'),
+      isBlow: el.matches(${JSON.stringify(BLOW)}),
       checked: el instanceof HTMLInputElement ? el.checked : null,
       value: el instanceof HTMLInputElement ? el.value : "",
     };
@@ -145,8 +150,8 @@ const KB = `(window.__kb ??= (() => {
   return { snapshot, state };
 })())`;
 
-const STRIKE_LIVE = `(() => {
-  const b = document.querySelector('button[data-action="strike"]');
+const BLOW_LIVE = `(() => {
+  const b = document.querySelector(${JSON.stringify(BLOW)});
   return !!b && !b.disabled && b.getAttribute("aria-disabled") !== "true";
 })()`;
 
@@ -274,7 +279,7 @@ async function run(page: Page): Promise<void> {
     page.evaluate<string | null>(`document.querySelector('input[type="radio"][name="role"]:checked')?.value ?? null`);
   let picked = await checkedRole();
   let moved = 0;
-  for (let i = 0; i < 8 && !(picked === "herald" && moved > 0); i++) {
+  for (let i = 0; i < 8 && !(picked === ROLE && moved > 0); i++) {
     focus = await step(page, "join", "ArrowDown");
     const now = await checkedRole();
     if (now === picked || !focus.isRole || !focus.checked) {
@@ -285,8 +290,8 @@ async function run(page: Page): Promise<void> {
     picked = now;
     moved += 1;
   }
-  if (picked !== "herald") throw new Error(`the arrow keys cycled the roles without reaching herald (stuck on ${picked})`);
-  console.log(`✓ the arrow keys move through the role radios (${moved} press(es) to reach herald)`);
+  if (picked !== ROLE) throw new Error(`the arrow keys cycled the roles without reaching ${ROLE} (stuck on ${picked})`);
+  console.log(`✓ the arrow keys move through the role radios (${moved} press(es) to reach ${ROLE})`);
 
   await tabUntil(page, "join", (f) => f.isName, 'form[data-join] input[name="name"]', 10);
   const name = `Keys ${suffix()}`;
@@ -297,66 +302,73 @@ async function run(page: Page): Promise<void> {
   await tabUntil(page, "join", (f) => f.isSubmit, "the join form's submit button", 10);
   await step(page, "join", "Enter");
   const me = await page.until<string>(`document.body.dataset.me`, "document.body.dataset.me after pressing Enter on join", 10_000);
-  console.log(`✓ joined by keyboard alone as "${name}" (herald), body.dataset.me = ${me}`);
+  console.log(`✓ joined by keyboard alone as "${name}" (${ROLE}), body.dataset.me = ${me}`);
 
   // 3. My turn, by keyboard.
   const myToken = `document.querySelector('[data-token-id="${me}"]')`;
   await page.until(`!!${myToken}`, `my token [data-token-id="${me}"] on the rail`, 5_000);
   const waitStart = Date.now();
-  await page.until(STRIKE_LIVE, 'button[data-action="strike"] to be enabled (my turn)', TURN_WAIT_MS);
+  await page.until(BLOW_LIVE, `${BLOW} to be enabled (my turn)`, TURN_WAIT_MS);
   const turnStart = Date.now();
   console.log(`✓ my turn after ${((turnStart - waitStart) / 1000).toFixed(1)}s`);
   const counterAtTurn = await page.evaluate<string | null>(`${myToken}?.dataset.counter ?? null`);
   if (counterAtTurn !== "0") {
     failures.push(`the action panel is live while my token's data-counter is ${counterAtTurn}, not 0: the rail and the panel disagree`);
   }
-  if ((await current(page)).isStrike) notes.push("focus was moved to Strike when the turn arrived");
+  if ((await current(page)).isBlow) notes.push("focus was moved to Jab when the turn arrived");
 
-  await tabUntil(page, "turn", (f) => f.isStrike, 'button[data-action="strike"]', 40);
+  // The command list is one tab stop (its cursor's option); the arrows move the cursor.
+  focus = await tabUntil(page, "turn", (f) => f.inActions, "the command list, [data-actions]", 40);
+  for (let i = 0; i < 8 && !focus.isBlow; i++) {
+    focus = await step(page, "turn", "ArrowDown");
+    if (!focus.inActions) throw new Error(`ArrowDown in the command list moved focus out of it, to ${focus.tag}`);
+  }
+  if (!focus.isBlow) throw new Error(`eight presses of ↓ in the command list never reached ${BLOW}`);
+  console.log("✓ Tab reaches the command list and the arrow keys move its cursor to Jab");
   // No trap: Tab must be able to carry focus out of the live panel...
   try {
     await tabUntil(page, "turn", (f) => !f.inActions, "anything outside [data-actions]", 15);
     console.log("✓ Tab carries focus out of the action panel (no trap)");
   } catch {
-    failures.push("focus trap: 15 Tab presses from Strike never left [data-actions]");
+    failures.push("focus trap: 15 Tab presses from Jab never left [data-actions]");
   }
   // ...and back again, the long way round if need be.
-  await tabUntil(page, "turn", (f) => f.isStrike, 'button[data-action="strike"] again (Shift+Tab)', 40, SHIFT);
-  if (!(await page.evaluate<boolean>(STRIKE_LIVE))) {
-    throw new Error(`my turn ended (${((Date.now() - turnStart) / 1000).toFixed(1)}s in) before Enter was pressed on Strike`);
+  await tabUntil(page, "turn", (f) => f.isBlow, `${BLOW} again (Shift+Tab), the cursor where it was left`, 40, SHIFT);
+  if (!(await page.evaluate<boolean>(BLOW_LIVE))) {
+    throw new Error(`my turn ended (${((Date.now() - turnStart) / 1000).toFixed(1)}s in) before Enter was pressed on Jab`);
   }
   const before = boss(await battle(APP_URL, battleId));
-  // Strike is two presses (CLAUDE.md, "Design: the battle screen"): the first
+  // A blow is two presses (CLAUDE.md, "Design: the battle screen"): the first
   // aims it and lights the Orrery, the second confirms. Aiming alone must not
   // fire: the server's Orrery is unhurt until the confirm.
   await step(page, "turn", "Enter");
   try {
-    await page.until(`!!document.querySelector("[data-boss][data-targeted]")`, "the Orrery to be highlighted as Strike's target", 2_000);
-    console.log("✓ Enter on Strike aims it: the Orrery is highlighted before anything fires");
+    await page.until(`!!document.querySelector("[data-boss][data-targeted]")`, "the Orrery to be highlighted as Jab's target", 2_000);
+    console.log("✓ Enter on Jab aims it: the Orrery is highlighted before anything fires");
   } catch (error) {
-    failures.push(`Enter on Strike didn't highlight the Orrery: ${(error as Error).message}`);
+    failures.push(`Enter on Jab didn't highlight the Orrery: ${(error as Error).message}`);
   }
   const aimed = boss(await battle(APP_URL, battleId));
-  if (before && aimed && aimed.hp < before.hp) failures.push("aiming Strike already hurt the Orrery: it fired without a confirm");
+  if (before && aimed && aimed.hp < before.hp) failures.push("aiming Jab already hurt the Orrery: it fired without a confirm");
   await step(page, "turn", "Enter");
   const pressed = Date.now();
 
-  // The strike landed: my token leaves the plate (the server reset its
+  // The Jab landed: my token leaves the plate (the server reset its
   // counter), and the Orrery is hurt. The second is read from the server, so
   // a 20s timeout resetting my counter can't pass for a strike.
   try {
     const after = await page.until<string>(
       `(() => { const c = ${myToken}?.dataset.counter; return c !== undefined && Number(c) > 0 ? c : null; })()`,
-      `my token's data-counter to go above 0 after Strike`,
+      `my token's data-counter to go above 0 after Jab`,
       5_000,
     );
-    console.log(`✓ Strike landed: my data-counter went 0 → ${after} in ${((Date.now() - pressed) / 1000).toFixed(1)}s`);
+    console.log(`✓ Jab landed: my data-counter went 0 → ${after} in ${((Date.now() - pressed) / 1000).toFixed(1)}s`);
   } catch (error) {
-    failures.push(`Enter on Strike didn't land in the page: ${(error as Error).message}`);
+    failures.push(`Enter on Jab didn't land in the page: ${(error as Error).message}`);
   }
   const hurt = boss(await battle(APP_URL, battleId));
   if (!before || !hurt) failures.push("the server's state has no Orrery to check the strike against");
-  else if (hurt.hp >= before.hp) failures.push(`the server says the Orrery is still at ${hurt.hp}/${hurt.maxHp} HP: the strike never reached it`);
+  else if (hurt.hp >= before.hp) failures.push(`the server says the Orrery is still at ${hurt.hp}/${hurt.maxHp} HP: the Jab never reached it`);
   else console.log(`✓ the server agrees: the Orrery went ${before.hp} → ${hurt.hp} HP`);
 
   // 4. The joined page, the same rules.
