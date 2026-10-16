@@ -149,6 +149,13 @@ export interface ExposedStack {
   appliedBy: string;
 }
 
+/** An Exposed stack that has been spent: who set it, and who spent it (rule 16). */
+export interface SpentExposed {
+  ringId: RingId;
+  appliedBy: string;
+  spentBy: string;
+}
+
 export interface Ring {
   id: RingId;
   /** Shield pips left. At 0 the ring is Broken. */
@@ -226,6 +233,9 @@ export interface BattleState {
   chain: Chain;
   /** Seats counted when the Orrery's HP was set at the pull (an Echo is half a seat). */
   pullSeats: number;
+  /** Exposed stacks once spent: who set each and who spent it (rule 16). A
+   *  client that connects late still sees both, not only from the event. */
+  spentExposed: SpentExposed[];
   /** The most recent log lines, oldest first. */
   log: LogEntry[];
 }

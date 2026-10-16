@@ -107,6 +107,7 @@ export function createTable(store: Store, turnMs: number, tickMs: number) {
       cards: [],
       chain: { links: 0, potency: 1 },
       pullSeats: 0,
+      spentExposed: [],
     };
   }
 

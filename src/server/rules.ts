@@ -482,6 +482,7 @@ export function view(b: Battle, timing: { tickMs: number; turnMs: number }): Bat
     cards: b.cards.map((c) => ({ ...c })),
     chain: { ...b.chain },
     pullSeats: b.pullSeats,
+    spentExposed: b.spentExposed.map((x) => ({ ...x })),
   };
 }
 
