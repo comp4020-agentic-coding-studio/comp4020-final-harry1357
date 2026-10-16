@@ -24,6 +24,10 @@ export function cleanScratch(): void {
 
 export interface Booted {
   base: string;
+  /** What the server has written to stdout so far, one entry per line. */
+  stdout(): string[];
+  /** stdout and stderr together, as a log tail would show them. */
+  output(): string;
   kill(): Promise<void>;
 }
 
@@ -36,7 +40,11 @@ export async function boot(databasePath: string, env: Record<string, string> = {
     stdio: ["ignore", "pipe", "pipe"],
   });
   let output = "";
-  child.stdout.on("data", (chunk: Buffer) => (output += chunk));
+  let stdout = "";
+  child.stdout.on("data", (chunk: Buffer) => {
+    output += chunk;
+    stdout += chunk;
+  });
   child.stderr.on("data", (chunk: Buffer) => (output += chunk));
   let exited = false;
   const exit = new Promise<void>((resolve) =>
@@ -49,7 +57,8 @@ export async function boot(databasePath: string, env: Record<string, string> = {
   let base = "";
   for (const deadline = Date.now() + 15_000; ; await sleep(100)) {
     if (exited) throw new Error(`${SERVER} exited before it answered:\n${output}`);
-    const port = /listening on [\d.]+:(\d+)/.exec(output)?.[1];
+    // the start line as prose, or as the key=value line docs/adr/008 makes it
+    const port = /(?:listening on |listen=)[\d.]+:(\d+)/.exec(output)?.[1];
     if (port) {
       base = `http://127.0.0.1:${port}`;
       try {
@@ -66,6 +75,8 @@ export async function boot(databasePath: string, env: Record<string, string> = {
 
   return {
     base,
+    stdout: () => stdout.split("\n").filter((line) => line !== ""),
+    output: () => output,
     kill: async () => {
       if (!exited) child.kill("SIGKILL");
       await exit;
