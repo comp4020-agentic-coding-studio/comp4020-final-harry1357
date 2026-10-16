@@ -107,13 +107,19 @@ describe("an Echo is seated on purpose", () => {
   it("an Echo reads only what every client is sent", async () => {
     // Rule 25: a policy never reads anything a player can't see. Two fights
     // identical on the wire, differing only in what the server keeps back (the
-    // rings' unscanned weaknesses), get the same move from every role's Echo.
+    // rings' unscanned weaknesses and the Orrery's script), get the same move
+    // from every role's Echo.
     const e = await echoEngine();
     const rotate: Record<string, string> = { ember: "frost", frost: "aether", aether: "ember" };
     for (const role of ROLES) {
       const { b, echoId } = withEcho(e, role);
       const twin = structuredClone(b);
       for (const r of twin.rings) if (r.weakness === null) r.element = rotate[r.element] ?? r.element;
+      // And the Orrery's script, never sent (review R16): its place in the
+      // rotation and the Alignment's count.
+      const held = twin as unknown as { orreryScript: Record<string, unknown> | null };
+      expect(held.orreryScript, "the pull has written the Orrery's script").not.toBeNull();
+      held.orreryScript = { ...held.orreryScript, played: 7, aligned: 2 };
       expect(sent(e, twin), "the twin is the same fight on the wire").toEqual(sent(e, b));
       const move = (s: Step) =>
         actionsBy(s, echoId).map((ev) => ({ kind: ev.kind, ringId: ev.ringId, targetId: ev.targetId, cardId: ev.cardId }));
