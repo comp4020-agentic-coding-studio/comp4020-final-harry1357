@@ -438,9 +438,11 @@ export function advance(b: Battle, clock: Clock): Step | null {
   }
   if (b.status !== "fighting") return null;
   // A Reaction is legal off-turn (rule 18): an Echo whose policy has one takes it now.
-  const state = view(b, { tickMs: 0, turnMs: clock.turnMs });
-  for (const f of b.standing) {
-    if (f.kind !== "character" || !f.echo || f.id === b.activeId || !echoes.offTurn(state, f.id)) continue;
+  // The view is built only when there's an Echo to read it; this runs every tick.
+  const offTurn = b.standing.filter((f) => f.kind === "character" && f.echo && f.id !== b.activeId);
+  const state = offTurn.length > 0 ? view(b, { tickMs: 0, turnMs: clock.turnMs }) : null;
+  for (const f of offTurn) {
+    if (!state || !echoes.offTurn(state, f.id)) continue;
     const step = echoMove(b, f.id, clock);
     if ("battle" in step) return step;
   }
