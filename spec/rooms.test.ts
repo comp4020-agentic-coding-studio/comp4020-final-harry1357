@@ -363,9 +363,14 @@ describe("rooms expire; logs don't", () => {
     // nobody could find without its id and that never went away: a private
     // room with no code, no seated player behind it, and no expiry (rules 22,
     // 26). A bare battle with no person seated is closed on the room window.
-    server = await boot(scratchDatabase(), { TICK_MS: "20", ROOM_EMPTY_MS: "800" });
+    server = await boot(scratchDatabase(), { TICK_MS: "20", ROOM_EMPTY_MS: "1500" });
     const empty = await newBattle(server.base);
     const host = await seatedPlayer(server.base);
+    // Inside the window it is still open (re-review N5: only checked after it,
+    // a sweep that closed an empty bare battle at once passed).
+    await sleep(500);
+    const early = (await (await fetch(new URL(`/api/battles/${empty}`, server.base))).json()) as { status: string };
+    expect(early.status, "an empty bare battle inside the window is still open").toBe("waiting");
     await sleep(2_500);
     const late = await join(server.base, empty, `late-${suffix()}`, "mender");
     expect(late.status, "an empty bare battle past the window seats nobody").toBe(409);
