@@ -287,17 +287,41 @@ describe("the five roles", () => {
     expect(Object.keys(protocol.ROLES).sort(), "five roles, and only these").toEqual(Object.keys(ROLE_TABLE).sort());
   });
 
-  it("each role can take each of its actions in the engine", async () => {
+  it("each role takes each of its actions in the engine, and each one happens", async () => {
     const e = await engine();
+    // Each action's precondition, set up so a refusal can't pass for an action
+    // and a silent no-op can't either: every one must be accepted and emit
+    // its own event.
+    const prepare = (b: ReturnType<typeof table>, role: string, action: string) => {
+      const next = structuredClone(b);
+      const me = next.standing.find((f) => f.id === `${role}-1`)!;
+      me.resource = 5; // a full Resolve, Grace, Momentum, Insight or Flux
+      const outer = next.rings.find((r) => r.id === "outer")!;
+      if (action === "pry") outer.weakness = outer.element; // revealed, pips up
+      if (action === "shatter") outer.pips = 2;
+      if (action === "feint") outer.exposed = [{ appliedBy: "striker-2" }];
+      if (action === "restore") {
+        const ally = next.standing.find((f) => f.id === "striker-2")!;
+        next.standing = next.standing.filter((f) => f !== ally);
+        next.fallen.push({ ...ally, hp: 0, out: "downed" } as typeof ally);
+      }
+      return next;
+    };
+    const targets: Record<string, string | null> = { mend: "striker-2", ward: "striker-2", quicken: "striker-2", haste: "striker-2", restore: "striker-2" };
     for (const [role, actions] of Object.entries(ROLE_TABLE)) {
       for (const action of Object.keys(actions)) {
         if (action === "intercept") continue; // a Reaction, held above
-        const b = table(e, [role, "striker"]);
-        const target = ["mend", "ward", "quicken", "haste", "restore"].includes(action) ? "striker-2" : null;
+        let b = prepare(table(e, [role, "striker"]), role, action);
+        let target = targets[action] ?? null;
+        if (["anchor", "delay", "stillpoint"].includes(action)) {
+          b = e.announce(b, { intent: "eclipse", targetId: "striker-2", amount: 20, countdown: 2 });
+          target = announced(b).id;
+        }
         const ready = e.plate(b, `${role}-1`, clock());
         const ok = e.checkAction(ready, `${role}-1`, action, target);
-        // Some actions need a resource or a card first; the refusal must say so, not "can't do that".
-        if ("status" in ok) expect(ok.error, `${role} ${action}: refused for the wrong reason`).not.toMatch(/can't do that/i);
+        expect("status" in ok ? `${ok.status} ${ok.error}` : null, `${role} can ${action}`).toBeNull();
+        const step = e.act(ready, `${role}-1`, action, target, clock());
+        expect(events(step, action).length, `${role}'s ${action} happened: it emitted its own event`).toBeGreaterThan(0);
       }
     }
   });
