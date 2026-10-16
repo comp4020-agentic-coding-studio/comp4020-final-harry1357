@@ -18,6 +18,15 @@ case "$cmd" in
     exit 2 ;;
 esac
 
+# Both allowed commands can be told to write a file: `git diff --output=<f>`
+# and the runner's `--outputFile`, `--reporter=… --outputFile`, `-u`/
+# `--update` (snapshots). Refuse any argument that writes.
+case "$cmd" in
+  *--output* | *-o\ * | *--update* | *" -u"* | *--outputFile* | *--coverage* | *--ext-diff*)
+    echo "reviewer: no argument that writes a file (--output, --outputFile, --update, --coverage, --ext-diff)." >&2
+    exit 2 ;;
+esac
+
 case "$cmd" in
   "git diff" | "git diff "*) exit 0 ;;
   "pnpm test" | "pnpm check" | "pnpm vitest run" | "pnpm vitest run "*) exit 0 ;;
