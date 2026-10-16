@@ -119,7 +119,17 @@ describe("an Echo is seated on purpose", () => {
       // rotation and the Alignment's count.
       const held = twin as unknown as { orreryScript: Record<string, unknown> | null };
       expect(held.orreryScript, "the pull has written the Orrery's script").not.toBeNull();
-      held.orreryScript = { ...held.orreryScript, played: 7, aligned: 2 };
+      // Every field of it, not two (re-review N9).
+      held.orreryScript = {
+        ...held.orreryScript,
+        played: 7,
+        phase: 3,
+        periheliaFor: 3,
+        lastPerihelion: 9,
+        aligned: 2,
+        aimedAt: { "card-90": "mender-1" },
+        touchedBy: { "card-90": "mender-1" },
+      };
       expect(sent(e, twin), "the twin is the same fight on the wire").toEqual(sent(e, b));
       const move = (s: Step) =>
         actionsBy(s, echoId).map((ev) => ({ kind: ev.kind, ringId: ev.ringId, targetId: ev.targetId, cardId: ev.cardId }));
@@ -179,6 +189,11 @@ describe("each role's policy, branch by branch", () => {
     expect(moveOf(e, heavy, echoId), "a Lunge on an ally at two Gravity: Anchor it").toMatchObject({ kind: "anchor", card: heavy.cards[0].id });
     const light = withCards(e, b, [{ intent: "lunge", targetId: "mender-1", countdown: 1 }]);
     expect(moveOf(e, light, echoId), "the same Lunge at no Gravity: Counterweight").toMatchObject({ kind: "counterweight" });
+    // The line itself (re-review N9): one stack short of "one Lunge from lethal" isn't high.
+    const one = edit(light, (x) => {
+      x.standing.find((f) => f.id === "mender-1")!.gravity = 1;
+    });
+    expect(moveOf(e, one, echoId), "at one Gravity: still Counterweight").toMatchObject({ kind: "counterweight" });
 
     // Off its turn: the Mender is on the plate, a blow at the Mender resolves next.
     const due = e.plate(withCards(e, b, [{ intent: "eclipse", targetId: "mender-1", countdown: 0 }]), "mender-1", clock(T0));
@@ -315,7 +330,9 @@ describe("an Echo seated on purpose waits for nobody", () => {
     expect(sent(e, onPlate).plateMs, "the client is told the seat's window is nothing").toBe(0);
     const step = e.advance(onPlate, clock(T0 + 1));
     expect(step, "a millisecond on, the server has played it").not.toBeNull();
-    expect(actionsBy(step!, echoId).length, "and the Echo acted").toBeGreaterThan(0);
+    expect(actionsBy(step!, echoId).map((ev) => [ev.kind, ev.ringId]), "and the Echo acted: every weakness hidden, it Scans the outer ring").toEqual([
+      ["scan", "outer"],
+    ]);
     // A timed-out seat still waits for its person (spec/echo.test.ts).
     const timedOut = structuredClone(b);
     const f = timedOut.standing.find((x) => x.id === "mender-1")!;
