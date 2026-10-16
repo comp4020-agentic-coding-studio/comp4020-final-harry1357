@@ -62,6 +62,31 @@ describe("the Orrery's script", () => {
     expect(ring(b, "outer").maxPips, "3 pips, plus 1 for the one squad").toBe(4);
   });
 
+  it("a card whose target has fallen lands on nobody: it never re-aims at someone no card named", async () => {
+    const e = await engine();
+    for (const intent of ["eclipse", "lunge"] as const) {
+      let b = table(e, ["striker", "warden", "mender"]);
+      b = e.announce(b, { intent, targetId: "striker-1", amount: 40, countdown: 0 });
+      // The named target falls before the card resolves.
+      const next = structuredClone(b);
+      const gone = next.standing.find((f) => f.id === "striker-1")!;
+      next.standing = next.standing.filter((f) => f !== gone);
+      next.fallen.push({ ...gone, hp: 0 });
+      b = next;
+      const before = Object.fromEntries(b.standing.map((f) => [f.id, f.hp]));
+      const step = bossTurn(e, b);
+      const struck = events(step, intent).filter((x) => x.targetId !== undefined && x.targetId !== "striker-1");
+      expect(struck, `a ${intent} aimed at a fallen striker struck someone else instead`).toEqual([]);
+      for (const id of ["warden-2", "mender-3"]) {
+        const took = (before[id] ?? 0) - fighter(step.battle, id).hp;
+        const named = step.effects.events
+          .filter((x) => x.kind !== intent)
+          .flatMap((x) => (Array.isArray(x.hits) ? (x.hits as { targetId: string; amount: number }[]).filter((h) => h.targetId === id).map((h) => h.amount) : x.targetId === id && typeof x.amount === "number" && x.actorId === "orrery" ? [x.amount] : []));
+        expect(took, `${id} took a ${intent} meant for someone else`).toBe(named.reduce((n, a) => n + a, 0));
+      }
+    }
+  });
+
   it("Gravity is lethal at three stacks unless a second Warden Anchors the Lunge", async () => {
     const e = await engine();
     const setUp = () => {
