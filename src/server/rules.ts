@@ -490,14 +490,29 @@ export function announce(b: Battle, card: Omit<BossCard, "id" | "frozen">): Batt
   return ctx.b;
 }
 
-/** Put a fighter on the plate the way the clock would, without running anything there. */
+/**
+ * Put a fighter on the plate, without running anything there: a test's way to
+ * reach "it's X's turn" without playing the fight up to it (spec/engine.ts).
+ * The target goes to 0 and everyone else keeps their place: the queue's order,
+ * as it stood, is never changed by putting someone on the plate. Subtracting
+ * the target's lead and clamping at 1 used to flatten everyone who was ahead of
+ * it onto the same notch, where seat order broke the tie and silently
+ * reordered them (it swapped a Breaker on 15 behind a Mender on 18).
+ */
 export function plate(b: Battle, id: string, clock: Clock): Battle {
   const next = structuredClone(b);
   const target = next.standing.find((f) => f.id === id);
   if (!target) throw new Error(`no standing fighter ${id} in battle ${b.id}`);
   const lead = target.counter;
-  for (const f of next.standing) f.counter = Math.max(f === target ? 0 : 1, f.counter - lead);
-  next.tick += lead;
+  // Everyone else, in queue order, gets a counter of at least 1 that keeps that order.
+  const others = next.standing.filter((f) => f !== target);
+  let floor = 0;
+  for (const f of others) {
+    f.counter = Math.max(f.counter - lead, floor + 1);
+    floor = f.counter;
+  }
+  target.counter = 0;
+  next.tick += Math.max(0, lead);
   next.standing.sort((x, y) => x.counter - y.counter || x.seat - y.seat);
   next.activeId = id;
   next.turnDeadline = target.kind === "character" ? clock.now + clock.turnMs : null;
