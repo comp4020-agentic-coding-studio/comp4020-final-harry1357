@@ -80,6 +80,8 @@ export interface Step {
 export interface Clock {
   now: number;
   turnMs: number;
+  /** How long an Echo waits on the plate for its person; the server's default when absent. */
+  beatMs?: number;
 }
 
 export interface Engine {

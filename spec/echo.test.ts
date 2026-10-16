@@ -66,6 +66,23 @@ describe("the Echo's beat", () => {
     expect(line?.text, "the log says it was the Echo").toMatch(/Echo/);
   });
 
+  it("the beat's length comes from the clock, and the client is told the plate's real window", async () => {
+    // Review R7: a fixed 3 s no env could shorten made every Echo turn in a
+    // fast spec cost 3 s. Review R8: the client drew the beat as a full turn
+    // already 75% gone, because only turnMs was sent.
+    const e = await engine();
+    let b = table(e, ["striker", "warden"]);
+    const next = structuredClone(b);
+    next.standing.find((f) => f.id === "striker-1")!.echo = true;
+    b = next;
+    const fast = { now: T0, turnMs: 12_000, beatMs: 200 };
+    const onPlate = e.plate(b, "striker-1", fast);
+    expect(e.advance(onPlate, { ...fast, now: T0 + 150 }), "inside a 200 ms beat the server still waits").toBeNull();
+    expect(e.advance(onPlate, { ...fast, now: T0 + 250 }), "past it, the server plays the Echo").not.toBeNull();
+    const sent = e.view(onPlate, { tickMs: 150, turnMs: 12_000 }) as { plateMs?: number };
+    expect(sent.plateMs, "the client is sent the Echo's beat, not the person's twelve seconds").toBe(200);
+  });
+
   it("an Echo seat at the end isn't credited the win or the loss", async () => {
     // Review F4 (re-review): Echo turns are never counted in the person's
     // record, and the outcome is the record's clearest line. A seat that is an
