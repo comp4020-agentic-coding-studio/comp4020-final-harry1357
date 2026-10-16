@@ -16,21 +16,29 @@ describe("the Orrery's script", () => {
     let b = table(e, ["striker", "breaker"]);
     expect(b.phase, "the fight opens in phase I").toBe(1);
 
-    // Put the Orrery exactly on a threshold; any blow carries it below.
-    const at = (fraction: number, phase: number) => {
+    // Pin each line from both sides: a blow that leaves the Orrery one HP above
+    // the line keeps the phase, and one that takes it a HP below crosses. A
+    // line set anywhere else fails one side or the other.
+    const jab = (() => {
+      const probe = turn(e, b, "striker-1", "jab", "outer");
+      return events(probe, "jab")[0]!.amount as number;
+    })();
+    const setTo = (hp: number, phase: number) => {
       const next = structuredClone(b);
-      const o = next.standing.find((f) => f.id === "orrery")!;
-      o.hp = Math.ceil(o.maxHp * fraction);
+      next.standing.find((f) => f.id === "orrery")!.hp = hp;
       next.phase = phase;
       return next;
     };
-    const two = turn(e, at(0.7, 1), "striker-1", "jab", "outer");
-    expect(two.battle.phase, "below 70%: phase II").toBe(2);
-    expect(events(two, "phase")[0], "crossing is an event").toMatchObject({ phase: 2 });
-
-    const three = turn(e, at(0.35, 2), "striker-1", "jab", "outer");
-    expect(three.battle.phase, "below 35%: phase III").toBe(3);
-    expect(events(three, "phase")[0], "crossing is an event").toMatchObject({ phase: 3 });
+    const max = b.standing.find((f) => f.id === "orrery")!.maxHp;
+    for (const [fraction, from, to] of [[0.7, 1, 2], [0.35, 2, 3]] as const) {
+      const line = Math.ceil(max * fraction); // the lowest HP still at or above the line
+      const stays = turn(e, setTo(line + jab, from), "striker-1", "jab", "outer");
+      expect(stays.battle.phase, `a Jab that leaves it on ${line} (${fraction * 100}%) keeps phase ${from}`).toBe(from);
+      expect(events(stays, "phase"), "and announces no crossing").toEqual([]);
+      const crosses = turn(e, setTo(line + jab - 1, from), "striker-1", "jab", "outer");
+      expect(crosses.battle.phase, `a Jab that takes it to ${line - 1}, below ${fraction * 100}%, enters phase ${to}`).toBe(to);
+      expect(events(crosses, "phase")[0], "crossing is an event").toMatchObject({ phase: to });
+    }
   });
 
   it("announces every boss attack on the strip as a card before it resolves", async () => {
