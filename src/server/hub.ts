@@ -6,7 +6,8 @@
 // changed; it never decides anything about a fight.
 
 import type { WSContext } from "hono/ws";
-import type { BattleEvent, BattleState, RoomInfo, ServerMessage } from "../shared/protocol.ts";
+import type { BattleEvent, BattleState, RoomInfo, RoomMessage, ServerMessage } from "../shared/protocol.ts";
+import { ROOM_CLOSED_CODE } from "../shared/protocol.ts";
 import type { Battle } from "./rules.ts";
 
 /** What the hub asks the table. */
@@ -25,6 +26,7 @@ export type Hub = ReturnType<typeof createHub>;
 
 export function createHub(source: HubSource) {
   const battleWatchers = new Map<string, Set<WSContext>>();
+  const roomWatchers = new Map<string, Set<WSContext>>();
 
   function send(ws: WSContext, message: string): void {
     if (ws.readyState !== 1) return;
@@ -38,6 +40,14 @@ export function createHub(source: HubSource) {
   const stateMessage = (battle: BattleState, events: BattleEvent[]): string =>
     JSON.stringify({ type: "state", battle, events } satisfies ServerMessage);
 
+  const roomMessage = (room: RoomInfo): string => JSON.stringify({ type: "room", room } satisfies RoomMessage);
+
+  function subscribe(map: Map<string, Set<WSContext>>, key: string, ws: WSContext): void {
+    let set = map.get(key);
+    if (!set) map.set(key, (set = new Set()));
+    set.add(ws);
+  }
+
   return {
     /**
      * A socket opened on /ws?battle=<id> or /ws?room=<code>: send what is there
@@ -46,16 +56,20 @@ export function createHub(source: HubSource) {
      */
     open(query: { battle?: string; room?: string }, ws: WSContext): boolean {
       if (query.room !== undefined) {
-        // Area (c): a room's socket. Until it's built, no room can be watched.
-        return false;
+        // A room's socket: the room, then its fight now, then every fight after.
+        const room = source.room(query.room);
+        if (!room) return false;
+        send(ws, roomMessage(room));
+        const fight = source.state(room.battleId);
+        if (fight) send(ws, stateMessage(fight, []));
+        subscribe(roomWatchers, room.code, ws);
+        return true;
       }
       const id = query.battle ?? "";
       const current = source.state(id);
       if (!current) return false;
       if (source.live(id)) {
-        let set = battleWatchers.get(id);
-        if (!set) battleWatchers.set(id, (set = new Set()));
-        set.add(ws);
+        subscribe(battleWatchers, id, ws);
       }
       send(ws, stateMessage(current, []));
       return true;
@@ -64,24 +78,43 @@ export function createHub(source: HubSource) {
     /** A socket closed: let it go, wherever it was watching. */
     close(ws: WSContext): void {
       for (const set of battleWatchers.values()) set.delete(ws);
+      for (const set of roomWatchers.values()) set.delete(ws);
     },
 
     /** A battle changed: its new state and the events that made it, to everyone watching it (and, area c, its room). */
     broadcast(b: Battle, events: BattleEvent[]): void {
-      const set = battleWatchers.get(b.id);
-      if (!set || set.size === 0) return;
+      const battle = battleWatchers.get(b.id);
+      const room = b.room ? roomWatchers.get(b.room) : undefined;
+      if (!battle?.size && !room?.size) return;
       const message = stateMessage(source.view(b), events);
-      for (const ws of set) send(ws, message);
+      for (const ws of battle ?? []) send(ws, message);
+      for (const ws of room ?? []) if (!battle?.has(ws)) send(ws, message);
     },
 
-    /** A room's fight changed: area (c) tells its watchers, then sends them the new fight. */
+    /** A room's fight changed: tell its watchers, then send them the new fight. */
     moved(room: RoomInfo): void {
-      void room;
+      const set = roomWatchers.get(room.code);
+      if (!set || set.size === 0) return;
+      const note = roomMessage(room);
+      const fight = source.state(room.battleId);
+      const message = fight ? stateMessage(fight, []) : null;
+      for (const ws of set) {
+        send(ws, note);
+        if (message) send(ws, message);
+      }
     },
 
-    /** A room is gone: area (c) lets its watchers go. */
+    /** A room is gone: its watchers are let go with ROOM_CLOSED_CODE. */
     expired(code: string): void {
-      void code;
+      const set = roomWatchers.get(code);
+      roomWatchers.delete(code);
+      for (const ws of set ?? []) {
+        try {
+          ws.close(ROOM_CLOSED_CODE, "This room has closed.");
+        } catch {
+          // already closing
+        }
+      }
     },
 
     /** A battle left memory: nobody can watch it live any more. */

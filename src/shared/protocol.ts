@@ -262,7 +262,9 @@ export interface BattleState {
 // carries that line's `seq`, and the client writes the line only after the
 // event's renderer has shown it (CLAUDE.md rule 11). `plate` (someone reached
 // the strike plate) writes no line. Every kind here must have a renderer in
-// src/client/battle/registry.ts; spec/shown.test.ts holds both sides.
+// src/client/battle/registry.ts; spec/shown.test.ts holds both sides. Phase one-b
+// added "seat" (an Echo seated on purpose, rule 25): the client needs a renderer
+// for it, as for every other kind below.
 
 export const EVENT_KINDS = [
   // the table
@@ -401,7 +403,21 @@ export interface RoomInfo {
  */
 export type RoomMessage = { type: "room"; room: RoomInfo };
 
-/** Everything a room's socket can carry. */
+/**
+ * The close code a room's socket is closed with when the room expires (rule 26),
+ * reason "This room has closed." A client seeing it must not reconnect: the code
+ * is gone (GET /api/rooms/:code answers 404). The battle's own log stays
+ * readable by id. Any other close is a dropped connection: reconnect.
+ */
+export const ROOM_CLOSED_CODE = 4410;
+
+/**
+ * Everything a room's socket can carry, and the full list of message types a
+ * client renders: "state" (with its events; EVENT_KINDS lists the kinds, and
+ * "seat" is the phase-one-b addition that needs a renderer) and "room".
+ * Order on open: "room", then "state". On a change of fight: "room", then the
+ * new fight's "state" (events empty), then states as usual.
+ */
 export type RoomSocketMessage = ServerMessage | RoomMessage;
 
 export interface CharacterInfo {
