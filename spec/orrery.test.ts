@@ -153,6 +153,19 @@ describe("the Orrery's script", () => {
     const card = announced(fresh);
     const delayed = turn(e, fresh, "chronist-1", "delay", card.id);
     expect(delayed.battle.cards.find((c) => c.id === card.id)?.countdown, "Delay pushes it back a slot").toBe(1);
+
+    // And the point of it: a Delayed Retrograde never flips the strip. A Delay
+    // only moves it a slot, so follow the card through the Orrery's turns until
+    // it is off the strip, not just the next one, and no turn may flip.
+    let cur = delayed.battle;
+    const flips: unknown[] = [];
+    for (let i = 0; i < 4 && cur.cards.some((c) => c.id === card.id); i++) {
+      const next = bossTurn(e, cur);
+      flips.push(...events(next, "retrograde").filter((x) => x.flipped === true));
+      cur = next.battle;
+    }
+    expect(cur.cards.some((c) => c.id === card.id), "the Delayed Retrograde has left the strip").toBe(false);
+    expect(flips, "and at no point did it flip the strip").toEqual([]);
   });
 
   it("Retrograde is cancelled outright by a Chronist's Stillpoint", async () => {
