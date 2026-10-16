@@ -125,6 +125,22 @@ describe("a room is a code", () => {
   });
 });
 
+describe("a refusal says what's true", () => {
+  it("a refused role names the roles there are", async () => {
+    // Breaker Q3: the refusal still listed the four roles from before the
+    // overhaul, none of which a join accepts.
+    const res = await fetch(new URL(`/api/battles/${await newBattle(base)}/join`, base), {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ name: `roleless-${suffix()}`, role: "herald" }),
+    });
+    expect(res.status, "a role that isn't one is refused").toBe(400);
+    const { error } = (await res.json()) as { error: string };
+    for (const role of ["warden", "mender", "striker", "breaker", "chronist"]) expect(error, `the refusal names the ${role}`).toContain(role);
+    for (const gone of ["bulwark", "lancer", "herald"]) expect(error, `and not the ${gone}, who's gone`).not.toContain(gone);
+  });
+});
+
 describe("the code is the only key", () => {
   it("a private room's fight is reachable only through its code, and nothing lists rooms or owns one", async () => {
     // Review R4: the fight was reachable by its battle id too, seated, watched

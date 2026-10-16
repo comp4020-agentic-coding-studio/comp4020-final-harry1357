@@ -23,7 +23,7 @@ import type {
 } from "../shared/protocol.ts";
 import { newId, type Store } from "./db.ts";
 import { mountPages } from "./pages.ts";
-import { ROLES } from "../shared/protocol.ts";
+import { ROLE_IDS, ROLES } from "../shared/protocol.ts";
 import { checkAction, checkJoin, checkSeatEcho, cleanName, isRole, nameKey } from "./rules.ts";
 import type { Table } from "./table.ts";
 
@@ -65,7 +65,7 @@ export function createApp(root: string, store: Store, table: Table): Hono {
     if (!body) return fail(c, 400, "Send a JSON object with a name and a role.");
     const name = cleanName(body.name);
     if (!name) return fail(c, 400, "A name is 1 to 24 characters, with no control characters.");
-    if (!isRole(body.role)) return fail(c, 400, "Choose a role: bulwark, lancer, mender or herald.");
+    if (!isRole(body.role)) return fail(c, 400, `Choose a role: ${ROLE_IDS.slice(0, -1).join(", ")} or ${ROLE_IDS.at(-1)}.`);
 
     // No awaits from here on: the check and the seat see the same battle.
     const battle = table.get(id);
