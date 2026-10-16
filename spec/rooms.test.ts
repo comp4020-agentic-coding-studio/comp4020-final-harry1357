@@ -154,13 +154,16 @@ describe("the code is the only key", () => {
     const byId = await join(base, made.battleId, `sidedoor-${suffix()}`, "mender");
     expect(byId.status, "nobody sits down by battle id").toBe(404);
     expect(byId.cookie, "and the refusal mints no session").toBe("");
+    // The battle socket opens first, then someone sits down by the code, which
+    // the fight broadcasts: a socket subscribed silently would get that
+    // (re-review N4: checked before anything in the fight broadcast, a held-back
+    // first state passed).
     const peek = watch(base, made.battleId);
     open.push(peek);
-    await sleep(750);
-    expect(peek.states.length, "nobody watches it by battle id").toBe(0);
-
     const seat = await joinRoom(base, made.code, `frontdoor-${suffix()}`, "mender");
     expect(seat.status, "the code still seats you").toBe(200);
+    await sleep(750);
+    expect(peek.states.length, "nobody watches it by battle id, not even the seat it broadcast").toBe(0);
 
     // The public raid isn't a secret, and today's client reaches it by battle id.
     const door = await raid(base);
