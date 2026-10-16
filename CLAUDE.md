@@ -259,8 +259,9 @@ around it.
    the plate it waits a three-second beat (`ECHO_BEAT_MS`): an action from its
    person in that window is an ordinary turn that ends the Echo; otherwise the
    server plays it. An Echo seated on purpose has no person to wait for, so it
-   gets no beat and is played on the next tick (ADR-007). Nothing happens
-   off-turn, so rule 2 stands. An Echo's turns are the Echo's: logged as the
+   gets no beat and is played on the next tick (ADR-007). Off its turn an
+   Echo does only what anyone may: a Reaction against a card already on the
+   strip (rule 18). So rule 2 stands. An Echo's turns are the Echo's: logged as the
    Echo's, never counted in the person's record. Acting resets the count. A
    timeout never decides *order*: the auto-Brace takes a turn the clock
    already gave them, at Brace's rank.
