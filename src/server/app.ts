@@ -106,6 +106,8 @@ export function createApp(root: string, store: Store, table: Table): Hono {
   }
 
   app.post("/api/battles/:id/join", async (c) => {
+    // A private room's fight is joined by its code, never by its id (rule 22; review R4).
+    if (table.behindCode(c.req.param("id"))) return fail(c, 404, "No such battle.");
     const seat = await seatIn(c, c.req.param("id"));
     return seat instanceof Response ? seat : c.json(seat);
   });
@@ -150,6 +152,7 @@ export function createApp(root: string, store: Store, table: Table): Hono {
   });
 
   app.get("/api/battles/:id", (c) => {
+    if (table.behindCode(c.req.param("id"))) return fail(c, 404, "No such battle.");
     const state = table.state(c.req.param("id"));
     return state ? c.json(state) : fail(c, 404, "No such battle.");
   });
@@ -177,6 +180,8 @@ export function createApp(root: string, store: Store, table: Table): Hono {
 
   app.get("/api/battles/:id/log", (c) => {
     const id = c.req.param("id");
+    // Readable by id once it's over (rule 26), not while a private room is playing it.
+    if (table.behindCode(id)) return fail(c, 404, "No such battle.");
     const battle = store.battle(id);
     if (!battle) return fail(c, 404, "No such battle.");
     return c.json({ battleId: id, status: battle.status, entries: store.log(id) } satisfies LogResponse);

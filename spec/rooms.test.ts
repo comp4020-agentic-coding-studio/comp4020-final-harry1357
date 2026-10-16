@@ -15,6 +15,7 @@ import {
   sleep,
   suffix,
   token,
+  watch,
   watchRoom,
   type BattleState,
   type Event,
@@ -115,6 +116,42 @@ describe("a room is a code", () => {
     const w = watching(base, made.code);
     const st = await w.waitFor((s) => token(s, right.characterId) !== undefined, "the new seat on the room's strip", 5_000);
     expect(st.queue.some((t) => t.name.startsWith("lost-")), "the wrong code seated nobody in the right room").toBe(false);
+  });
+});
+
+describe("the code is the only key", () => {
+  it("a private room's fight is reachable only through its code, and nothing lists rooms or owns one", async () => {
+    // Review R4: the fight was reachable by its battle id too, seated, watched
+    // and read by anyone holding the id, and every state carried the code.
+    // Review R10: nothing held "nothing lists rooms, nothing owns one".
+    const host = await seatedPlayer(base);
+    const made = await madeRoom(base, host.cookie);
+
+    expect((await fetch(new URL(`/api/battles/${made.battleId}`, base))).status, "its state isn't served by battle id").toBe(404);
+    expect((await fetch(new URL(`/api/battles/${made.battleId}/log`, base))).status, "nor its log, while it lasts").toBe(404);
+    const byId = await join(base, made.battleId, `sidedoor-${suffix()}`, "mender");
+    expect(byId.status, "nobody sits down by battle id").toBe(404);
+    expect(byId.cookie, "and the refusal mints no session").toBe("");
+    const peek = watch(base, made.battleId);
+    open.push(peek);
+    await sleep(750);
+    expect(peek.states.length, "nobody watches it by battle id").toBe(0);
+
+    const seat = await joinRoom(base, made.code, `frontdoor-${suffix()}`, "mender");
+    expect(seat.status, "the code still seats you").toBe(200);
+
+    // The public raid isn't a secret, and today's client reaches it by battle id.
+    const door = await raid(base);
+    expect((await fetch(new URL(`/api/battles/${door.battleId}`, base))).status, "the public raid's fight stays open by id").toBe(200);
+
+    // Nothing lists rooms, and a room names no owner.
+    expect((await fetch(new URL("/api/rooms", base))).status, "no route lists the rooms").toBe(404);
+    const found = await room(base, made.code);
+    expect(Object.keys(found.room ?? {}).sort(), "a room is its code, whether it's public, and its fight: no owner").toEqual([
+      "battleId",
+      "code",
+      "isPublic",
+    ]);
   });
 });
 
