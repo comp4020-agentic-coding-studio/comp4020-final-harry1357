@@ -142,6 +142,15 @@ record (no turns, no damage credited to them), and shown as the Echo's on the
 strip. The first two are held by `spec/echo.test.ts`. Drawing the Echo on the
 strip is client work, carried into phase two (docs/review/phase-one.md).
 
+**A second cost: the beat stops the table's clock** for its three seconds on
+every Echo turn, for as long as the person is gone. That is the cost ADR-002's
+option 3 was rejected for ("keeps costing the table one full timeout every
+cycle, forever"; review R3). It is accepted here because it is a quarter of
+what option 3 cost: three seconds against a whole twelve-second turn, and
+an Echo, unlike a held seat, still acts when its beat runs out. A table of
+Echoes therefore keeps moving, at about a beat per Echo per cycle. The beat is
+set by `ECHO_BEAT_MS`, so it can be cut if a room finds it slow.
+
 ## Cost
 
 - **More rules to teach, without a tutorial.** Ranks, Resonance, Chains,
