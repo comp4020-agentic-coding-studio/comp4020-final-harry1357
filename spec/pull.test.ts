@@ -70,6 +70,11 @@ describe("the pull", () => {
     b = runTo(e, b, T0 + CAP_MS - 500, T0 + CAP_MS + 500);
     expect(b.status, "at thirty seconds from the first seat it pulls anyway").toBe("fighting");
     expect(b.pullSeats, "with everyone who had sat down").toBe(4);
+    // The pull sets HP on the curve, base × seats^0.75: at four seats that is
+    // not four times one seat's, so a pull that multiplied linearly fails here.
+    const boss = b.standing.find((f) => f.id === "orrery")!;
+    expect(boss.maxHp, "the pull set the Orrery's HP from four seats, on the curve").toBe(e.orreryHp(4));
+    expect(e.orreryHp(4), "which is below four times one seat's, so the curve is what's being tested").toBeLessThan(4 * e.orreryHp(1));
   });
 
   it("announces the pull as an event, so the screen can show it before the log does", async () => {
