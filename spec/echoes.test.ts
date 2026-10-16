@@ -340,6 +340,27 @@ describe("an Echo gets no favours", () => {
     const own = e.echoMove(e.plate(b, echoId, clock()), echoId, clock());
     expect("status" in own ? own : null, "on its own turn the Echo's move goes through").toBeNull();
   });
+
+  it("the clock's Echo turn goes through the check a person's does", async () => {
+    // Review R13: in a real fight an Echo's policy only proposes legal moves, so
+    // nothing showed the clock submitting them through checkAction rather than
+    // performing them straight. A state play can't reach does: each ring shows
+    // a weakness that isn't its element, so the Breaker's policy proposes a Pry
+    // that checkAction refuses ("Pry needs the weakness revealed"). Through the
+    // check, the Echo Braces instead; around it, the Pry would land.
+    const e = await echoEngine();
+    const { b, echoId } = withEcho(e, "breaker");
+    const wrong: Record<string, string> = { ember: "frost", frost: "aether", aether: "ember" };
+    const doctored = structuredClone(b);
+    for (const r of doctored.rings) {
+      r.weakness = wrong[r.element] ?? null;
+      r.exposed = [{ appliedBy: "mender-1" }];
+    }
+    const step = echoTurn(e, doctored, echoId);
+    const kinds = actionsBy(step, echoId).map((ev) => ev.kind);
+    expect(kinds, "the refused Pry never lands").not.toContain("pry");
+    expect(kinds, "the Echo Braces in its place, as the check leaves it").toEqual(["brace"]);
+  });
 });
 
 describe("Echoes in a room, live", () => {
