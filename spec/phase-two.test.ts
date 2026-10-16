@@ -303,15 +303,22 @@ describe("open findings carried into phase two", () => {
       "src/client/door.ts",
     );
     expect(typeof door, "src/client/door.ts exports no door()").toBe("function");
+    // The server's answer is a code the client couldn't guess (re-review N7: a
+    // stub answering the real "RAID" passed a door that hard-coded it).
     const asked: string[] = [];
     const ask = async (path: string) => {
       asked.push(path);
-      return { code: "RAID", battleId: "b-public" };
+      return { code: "QZ7MK", battleId: "b-public" };
     };
-    expect(await door!("", ask), "no code in the address: the public raid's room").toBe("RAID");
+    expect(await door!("", ask), "no code in the address: whatever room the server's default door names").toBe("QZ7MK");
     expect(asked, "found by asking the server's default door, not chosen by the client").toEqual(["/api/raid"]);
     asked.length = 0;
     expect(await door!("?room=k3x9p", ask), "a code in the address: that room").toBe("K3X9P");
     expect(asked, "with a code, the default door isn't asked").toEqual([]);
+    // And the client's boot goes through it: a door module nothing calls is the
+    // fresh-battle client R9 named, still standing (re-review N7).
+    const { readFileSync } = await import("node:fs");
+    const boot = readFileSync(resolve("src/client/main.ts"), "utf8");
+    expect(boot, "src/client/main.ts doesn't take its fight from the door").toMatch(/from\s+["']\.\/door\.ts["']/);
   });
 });
