@@ -60,14 +60,19 @@ export function createApp(root: string, store: Store, table: Table): Hono {
    * Seat the caller in a battle: a battle's join and a room's are this one
    * function. The answer is the seat, or the refusal to send as it is.
    */
-  async function seatIn(c: Context, id: string): Promise<JoinResponse | Response> {
+  /** Seat the cookie's person in the fight `where()` names once the body is read (null: the room went). */
+  async function seatIn(c: Context, where: () => string | null): Promise<JoinResponse | Response> {
     const body = await readJson(c);
     if (!body) return fail(c, 400, "Send a JSON object with a name and a role.");
     const name = cleanName(body.name);
     if (!name) return fail(c, 400, "A name is 1 to 24 characters, with no control characters.");
     if (!isRole(body.role)) return fail(c, 400, `Choose a role: ${ROLE_IDS.slice(0, -1).join(", ")} or ${ROLE_IDS.at(-1)}.`);
 
-    // No awaits from here on: the check and the seat see the same battle.
+    // No awaits from here on: the check and the seat see the same battle. Which
+    // battle is asked only now, after the body: a room's fight can end, and its
+    // next one open, while the body is in flight (breaker Q10).
+    const id = where();
+    if (id === null) return fail(c, 404, "No such room.");
     const battle = table.get(id);
     if (!battle) return store.battle(id) ? fail(c, 409, "This fight is already over.") : fail(c, 404, "No such battle.");
 
@@ -107,8 +112,9 @@ export function createApp(root: string, store: Store, table: Table): Hono {
 
   app.post("/api/battles/:id/join", async (c) => {
     // A private room's fight is joined by its code, never by its id (rule 22; review R4).
-    if (table.behindCode(c.req.param("id"))) return fail(c, 404, "No such battle.");
-    const seat = await seatIn(c, c.req.param("id"));
+    const id = c.req.param("id");
+    if (table.behindCode(id)) return fail(c, 404, "No such battle.");
+    const seat = await seatIn(c, () => id);
     return seat instanceof Response ? seat : c.json(seat);
   });
 
@@ -126,19 +132,23 @@ export function createApp(root: string, store: Store, table: Table): Hono {
   });
 
   app.post("/api/rooms/:code/join", async (c) => {
-    const room = table.room(c.req.param("code"));
+    const code = c.req.param("code");
+    const room = table.room(code);
     if (!room) return fail(c, 404, "No such room.");
-    const seat = await seatIn(c, room.battleId);
+    const seat = await seatIn(c, () => table.room(code)?.battleId ?? null);
     return seat instanceof Response ? seat : c.json({ ...seat, code: room.code } satisfies RoomJoinResponse);
   });
 
   app.post("/api/rooms/:code/echoes", async (c) => {
-    const room = table.room(c.req.param("code"));
-    if (!room) return fail(c, 404, "No such room.");
+    const code = c.req.param("code");
+    if (!table.room(code)) return fail(c, 404, "No such room.");
     const body = await readJson(c);
     if (!body) return fail(c, 400, "Send a JSON object with a role.");
 
-    // No awaits from here on: the check and the seat see the same battle.
+    // No awaits from here on: the check and the seat see the same battle,
+    // the room's fight as it is now the body is in (breaker Q10).
+    const room = table.room(code);
+    if (!room) return fail(c, 404, "No such room.");
     const battle = table.get(room.battleId);
     if (!battle) return fail(c, 409, "This fight is already over.");
     const sid = getCookie(c, COOKIE);
