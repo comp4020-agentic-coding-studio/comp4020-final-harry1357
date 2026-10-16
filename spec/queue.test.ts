@@ -143,8 +143,38 @@ describe("the queue is the truth", () => {
     for (const [label, blank] of [
       ["only a zero-width space", "\u200b"],
       ["only a soft hyphen", "\u00ad"],
+      ["only a Hangul filler", "\u3164"],
+      ["only a halfwidth Hangul filler", "\uffa0"],
+      ["only a Braille blank", "\u2800"],
     ] as const) {
       expect((await join(base, battleId, blank, "mender")).status, `a name of ${label} is no name`).toBe(400);
+    }
+    // Review R4: invisible marks outside Cf, and the same letters composed
+    // differently, are still the same name.
+    for (const [label, twin] of [
+      ["a combining grapheme joiner", `${name}\u034f`],
+      ["a variation selector", `${name}\ufe0f`],
+    ] as const) {
+      expect((await join(base, battleId, twin, "mender")).status, `the same name with ${label} is the same name`).toBe(409);
+    }
+    const composed = `Jos\u00e9-${suffix()}`; // é as one character
+    expect((await join(base, battleId, composed, "warden")).status).toBe(200);
+    expect(
+      (await join(base, battleId, composed.replace("\u00e9", "e\u0301"), "mender")).status,
+      "é written as e plus an accent is the same name as é",
+    ).toBe(409);
+  });
+
+  it("a name is kept as typed: joiners that shape emoji and scripts aren't stripped", async () => {
+    // Review R2: stripping every format character turned 👩‍💻 into two emoji
+    // and broke Persian and Indic spelling, renaming people silently (rule 4).
+    const battleId = await newBattle(base);
+    const s = suffix();
+    for (const name of [`\u{1F469}\u200d\u{1F4BB} ${s}`, `\u0645\u06cc\u200c\u062e\u0648\u0627\u0647\u0645 ${s}`]) {
+      const seat = await join(base, battleId, name, "warden");
+      expect(seat.status, `${JSON.stringify(name)} is a name`).toBe(200);
+      const st = (await (await fetch(new URL(`/api/battles/${battleId}`, base))).json()) as { queue: { id: string; name: string }[] };
+      expect(st.queue.find((t) => t.id === seat.characterId)?.name, "stored and shown exactly as typed").toBe(name.normalize("NFC"));
     }
   });
 });
