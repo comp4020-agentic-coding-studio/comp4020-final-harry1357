@@ -87,6 +87,28 @@ describe("the Orrery's script", () => {
     }
   });
 
+  it("the Lunge that brings Gravity to three isn't lethal; the next one is (the design record's reading)", async () => {
+    const e = await engine();
+    // docs/design/overhaul.md: "At 3 stacks the next Lunge is lethal". The
+    // Lunge that makes the third stack is an ordinary blow.
+    const lungeOn = (stacks: number) => {
+      const b = table(e, ["warden", "striker", "mender"]);
+      const next = structuredClone(b);
+      const w = next.standing.find((f) => f.id === "warden-1")!;
+      w.gravity = stacks;
+      w.hp = w.maxHp; // full, so only lethality can fell them
+      return bossTurn(e, e.announce(next, { intent: "lunge", targetId: "warden-1", amount: 20, countdown: 0 }));
+    };
+    const third = lungeOn(2);
+    expect(fighter(third.battle, "warden-1").hp, "the Lunge that makes three stacks leaves them standing").toBeGreaterThan(0);
+    expect(fighter(third.battle, "warden-1").gravity, "and they now carry three").toBe(3);
+    expect(events(third, "gravity").filter((x) => x.lethal === true), "nothing lethal yet").toEqual([]);
+
+    const fourth = lungeOn(3);
+    const fell = fourth.battle.fallen.some((f) => f.id === "warden-1") || fighter(fourth.battle, "warden-1").hp === 0;
+    expect(fell, "at three stacks, the next Lunge is lethal").toBe(true);
+  });
+
   it("Gravity is lethal at three stacks unless a second Warden Anchors the Lunge", async () => {
     const e = await engine();
     const setUp = () => {
