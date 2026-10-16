@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { counterReset } from "../src/server/ctb.ts";
-import { bossTurn, clock, engine, events, fighter, ring, table, turn } from "./engine.ts";
+import { announced, bossTurn, clock, engine, events, fighter, ring, table, turn } from "./engine.ts";
 
 // The action economy (CLAUDE.md rules 8 and 13-18; docs/adr/006). Every claim
 // is held on the pure engine, so the situation is exact: a weakness hit, a run
@@ -100,10 +100,22 @@ describe("the action economy", () => {
     expect(fighter(b, "warden-1").charge, "four Braces bank three Charge, not four").toBe(3);
     expect(counters[0], "Brace resets as rank 2").toBe(counterReset(fighter(b, "warden-1").agility, "normal", 2));
 
-    // Braced, the next blow lands at half.
+    // Braced, the next blow lands at half. The strip already holds the
+    // Orrery's own opening card, which resolves on the same turn, so the blow
+    // is read from its own event, and the HP has to account for every card
+    // that landed, this one at exactly half.
     const hp = fighter(b, "warden-1").hp;
     const hit = bossTurn(e, e.announce(b, { intent: "eclipse", targetId: "warden-1", amount: 30, countdown: 0 }));
-    expect(hp - fighter(hit.battle, "warden-1").hp, "a 30 blow on a braced Warden takes 15").toBe(15);
+    const blow = events(hit, "eclipse").find((x) => x.targetId === "warden-1" && x.amount !== undefined);
+    expect(blow?.amount, "a 30 blow on a braced Warden takes 15").toBe(15);
+    const landed = hit.effects.events.flatMap((x) =>
+      Array.isArray(x.hits)
+        ? (x.hits as { targetId: string; amount: number }[]).filter((h) => h.targetId === "warden-1").map((h) => h.amount)
+        : x.targetId === "warden-1" && typeof x.amount === "number" && x.actorId === "orrery" ? [x.amount] : [],
+    );
+    expect(hp - fighter(hit.battle, "warden-1").hp, "and every blow that landed came off, that one at half").toBe(
+      landed.reduce((n, a) => n + a, 0),
+    );
   });
 
   it("a timeout Braces for them, banks Charge and dims the portrait", async () => {
@@ -147,7 +159,7 @@ describe("the action economy", () => {
     const e = await engine();
     let b = table(e, ["warden", "striker"]);
     b = e.announce(b, { intent: "eclipse", targetId: "striker-2", amount: 30, countdown: 1 });
-    const card = b.cards[0];
+    const card = announced(b);
     expect(fighter(b, "warden-1").reactionReady, "a Reaction is ready at the start").toBe(true);
 
     // Out of turn: the Orrery or someone else is on the plate, and the Warden still Intercepts.

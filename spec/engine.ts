@@ -167,3 +167,12 @@ export function bossTurn(e: Engine, b: Battle): Step {
 }
 
 export const events = (s: Step, kind: string) => s.effects.events.filter((ev) => ev.kind === kind);
+
+/** The card most recently announced: the one a test just put on the strip.
+ *  The Orrery keeps cards of its own there too, sorted by countdown, so a
+ *  test can't assume its card is first, or the only one of its intent. */
+export function announced(b: Battle): Card {
+  const newest = [...b.cards].sort((x, y) => Number(y.id.replace(/\D/g, "")) - Number(x.id.replace(/\D/g, "")))[0];
+  if (!newest) throw new Error("no card on the strip");
+  return newest;
+}

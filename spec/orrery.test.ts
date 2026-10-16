@@ -1,6 +1,6 @@
 import { afterAll, describe, expect, it } from "vitest";
 import { boot, cleanScratch, scratchDatabase } from "./boot.ts";
-import { bossTurn, engine, events, fighter, ring, table, turn } from "./engine.ts";
+import { announced, bossTurn, engine, events, fighter, ring, table, turn } from "./engine.ts";
 import { boss, join, newBattle, sleep, suffix, type BattleState } from "./raid.ts";
 
 // The Orrery (CLAUDE.md rules 19-20; docs/design/overhaul.md, Priority 3).
@@ -57,7 +57,7 @@ describe("the Orrery's script", () => {
     const e = await engine();
     let b = table(e, ["striker", "breaker", "warden"]);
     b = e.announce(b, { intent: "perihelion", targetId: "party", amount: 40, countdown: 4 });
-    const card = b.cards.find((c) => c.intent === "perihelion");
+    const card = announced(b);
     expect(card?.countdown, "four slots ahead").toBe(4);
     expect(ring(b, "outer").maxPips, "3 pips, plus 1 for the one squad").toBe(4);
   });
@@ -78,7 +78,7 @@ describe("the Orrery's script", () => {
     expect(events(unanswered, "gravity")[0], "and says so").toMatchObject({ targetId: "warden-1", lethal: true, anchoredBy: null });
 
     const b = setUp();
-    const card = b.cards.find((c) => c.intent === "lunge")!;
+    const card = announced(b);
     const anchored = turn(e, b, "warden-2", "anchor", card.id);
     expect(anchored.battle.cards.find((c) => c.id === card.id)?.targetId, "Anchor pulls the Lunge onto the second Warden").toBe("warden-2");
     const after = bossTurn(e, anchored.battle);
@@ -102,8 +102,9 @@ describe("the Orrery's script", () => {
     expect(after, "the next five slots, reversed").toEqual([...before].reverse());
     expect(events(flipped, "retrograde")[0], "the flip is an event").toMatchObject({ flipped: true, cancelledBy: null });
 
-    const card = setUp().cards.find((c) => c.intent === "retrograde")!;
-    const delayed = turn(e, setUp(), "chronist-1", "delay", card.id);
+    const fresh = setUp();
+    const card = announced(fresh);
+    const delayed = turn(e, fresh, "chronist-1", "delay", card.id);
     expect(delayed.battle.cards.find((c) => c.id === card.id)?.countdown, "Delay pushes it back a slot").toBe(1);
   });
 
@@ -113,7 +114,7 @@ describe("the Orrery's script", () => {
     const next = structuredClone(b);
     next.standing.find((f) => f.id === "chronist-1")!.resource = 5;
     b = next;
-    const card = b.cards.find((c) => c.intent === "retrograde")!;
+    const card = announced(b);
     const frozen = turn(e, b, "chronist-1", "stillpoint", card.id);
     expect(frozen.battle.cards.find((c) => c.id === card.id)?.frozen, "Stillpoint freezes the card").toBe(true);
     const order = frozen.battle.standing.map((f) => f.id);
