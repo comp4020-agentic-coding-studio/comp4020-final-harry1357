@@ -243,6 +243,7 @@ describe("nothing crosses between rooms", () => {
     const bSeated = await wb.waitFor((st) => token(st, bob.characterId) !== undefined, "bob on room B's strip", 5_000);
     expect(bSeated.status, "room B is still counting down to its pull").toBe("waiting");
     const bQuiet = wb.messages.length;
+    const bRooms = wb.rooms.length;
 
     const fromA = wa.events.length;
     const struck = await act(base, a.battleId, alice.cookie, "jab");
@@ -251,7 +252,13 @@ describe("nothing crosses between rooms", () => {
     await sleep(750); // several ticks for anything stray to reach room B
 
     expect(wb.messages.length - bQuiet, "room B's socket carried nothing while alice struck: no state, no event, no tick").toBe(0);
+    expect(wb.rooms.length - bRooms, "and no room message either").toBe(0);
     expect(wb.states.at(-1), "room B's fight is exactly as bob's seat left it").toEqual(bSeated);
+    // Read afresh, not only as broadcast (re-review, R17): a change to B made
+    // without a broadcast would show here, in a new socket's first state.
+    const fresh = watching(base, b.code);
+    const now = await fresh.waitFor(() => true, "room B's state, read afresh", 5_000);
+    expect(now, "room B, read afresh after alice struck, is as bob's seat left it").toEqual(bSeated);
     expect(wb.events.some((ev) => ev.actorId === alice.characterId), "nothing alice did ever reached room B").toBe(false);
     expect(wb.states.every((st) => !st.queue.some((t) => t.id === alice.characterId)), "alice never appears on room B's strip").toBe(true);
     expect(wb.states.every((st) => st.battleId === b.battleId), "room B's socket only carried room B's fight").toBe(true);
