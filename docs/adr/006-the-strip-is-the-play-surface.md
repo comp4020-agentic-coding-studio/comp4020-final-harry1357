@@ -79,6 +79,37 @@ favoured, as in WoW's flexible raids, and difficulty comes from the mechanics,
 never from hit points alone. The rules themselves are written into CLAUDE.md
 as things the app must hold to, and each is a spec test before it is code.
 
+## The pull
+
+Setting the Orrery's HP at the pull, from the seats present, has a
+consequence: the fight can't begin the moment the first person sits down, or
+it is always pulled for one. So the room is given time to sit down before the
+HP is fixed.
+
+The countdown starts at the first seat and runs ten seconds. Whenever a new
+seat joins during it, it restarts to ten seconds, so a room arriving together
+is counted together. It never runs past thirty seconds from the first seat:
+after that it pulls regardless, so a steady trickle of arrivals can't hold the
+fight off for ever. A late joiner after the pull takes a seat but doesn't
+change the HP (rule 20); the next fight is pulled for the room as it then is.
+
+The countdown is wall-clock time, not ticks. One tick is 150 ms live
+(`TICK_MS`), so the old 20-tick countdown was three seconds, too short for a
+room to sit down. A tick is also 5 ms in a fast spec, and the countdown has to
+mean ten seconds in both, so it is measured on the clock the caller supplies.
+`spec/pull.test.ts` holds the restart and the cap.
+
+**No timeout-Echo can exist at the pull.** An Echo is a character who has
+timed out three turns in a row, which takes three twelve-second turns of a
+fight already under way. At the pull nobody has had a turn, so every seat
+counts whole. The half-seat rule (rule 20) is for Echoes seated
+deliberately, which arrive in phase one-b as ADR-007. It does not act in this
+phase.
+
+The pull is a state change, so it is shown before it is logged (rule 11): the
+server emits a `pull` event with the seats counted and the HP set, and
+`spec/effects.test.ts` is red for it until the client has a pull card to draw.
+
 ## Cost
 
 - **More rules to teach, without a tutorial.** Ranks, Resonance, Chains,
