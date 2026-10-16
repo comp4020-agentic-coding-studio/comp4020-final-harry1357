@@ -27,6 +27,8 @@ export interface Fighter {
   echo: boolean;
   braced: boolean;
   reactionReady: boolean;
+  /** A Mender's Ward: absorbs the next blow. */
+  warded: boolean;
 }
 
 export interface Ring {
