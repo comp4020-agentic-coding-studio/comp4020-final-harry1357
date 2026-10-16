@@ -562,3 +562,12 @@ worst (6 samples, local).
 - **R2, R8: stand as the gate settled them.** A seated Echo gets no beat,
   because it has nobody to reclaim it; low output is what an Echo deals and
   heals. No change.
+- **R6 (ADR-004): decided.** The amendment now says what happened: ADR-004
+  never adopted a cap; the three-agent figure came from the owner's
+  instructions for phases one and one-b; rule 9 says parallelism isn't
+  capped; and the review gate is not a budget control, the meter read and
+  reset-day scheduling are.
+
+**Open after the owner's decisions, and blocking the merge:** R7 (the README,
+the owner's, landing with the merge; carried red in `spec/owner.test.ts`), and
+the phase-two client findings carried red: R9, R18, N8 and phase one's.

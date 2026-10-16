@@ -1,9 +1,12 @@
 # ADR-004: Model and parallelism
 
-- **Status:** accepted. Amended 2026-10-17: the three-agent cap is lifted,
-  because the review gate (CLAUDE.md, "How to work in here") now catches what
-  the cap was guarding against. The meter is still read before any pass with
-  more than three agents, and a big pass still starts on reset day.
+- **Status:** accepted. Amended 2026-10-17, to say what happened. This
+  record never adopted a cap on parallel agents: capping was option 2 below,
+  and it was rejected. The three-agent figure came from the owner's
+  instructions for phases one and one-b, not from this record. Rule 9 is now
+  worded to say parallelism isn't capped. The review gate is not a budget
+  control; the meter read before any pass with more than three agents, and
+  starting a big pass on reset day, remain the budget controls.
 - **Date:** 2026-10-05
 - **Rule:** the budget rule in CLAUDE.md, under "What the app must never do".
 
