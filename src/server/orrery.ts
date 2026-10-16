@@ -56,8 +56,8 @@
 //   the touched card stays on the strip, pushed or frozen, until the Orrery's
 //   next turn, when it comes apart with cancelledBy naming the Chronist. Any
 //   other card frozen by Stillpoint just skips a cycle.
-// - A single-target card whose target has fallen re-aims when it resolves, by
-//   the rule that aimed it (Eclipse: lowest HP; Lunge: the well).
+// - A single-target card whose target has fallen or left is spent on nobody:
+//   it never re-aims at someone no card named (rule 19; review F8).
 // - A Break pushes the soonest unfrozen card back a slot (Octopath), and a
 //   Break of the outer ring halves the pending Perihelion on the strip, so the
 //   number the room sees is the number that lands.
@@ -396,9 +396,25 @@ function perihelion(ctx: Ctx, card: BossCard): void {
   downTheFallen(ctx);
 }
 
+/**
+ * A card is a promise about who it lands on (rule 19). If that one has fallen
+ * or left, the blow has nobody to land on and is spent: it never re-aims at
+ * someone no card named.
+ */
+function spent(ctx: Ctx, card: BossCard, what: string): void {
+  const named = card.targetId ? (ctx.b.joined[card.targetId] ?? "its mark") : "its mark";
+  ctx.say("boss", BOSS_ID, `${what} finds no one where ${named} stood, and passes over the table.`, {
+    kind: card.intent === "lunge" ? "lunge" : "eclipse",
+    actorId: BOSS_ID,
+    targetId: card.targetId ?? "",
+    amount: 0,
+    ...(card.intent === "lunge" ? { gravity: 0 } : {}),
+  } as Parameters<Ctx["say"]>[3]);
+}
+
 function eclipse(ctx: Ctx, card: BossCard): void {
-  const target = standing(ctx, card.targetId) ?? weakest(ctx);
-  if (!target) return;
+  const target = standing(ctx, card.targetId);
+  if (!target) return spent(ctx, card, "Eclipse");
   const taken = harm(target, card.amount ?? 0);
   ctx.say("boss", BOSS_ID, `Eclipse: the Orrery's shadow falls on ${target.name} for ${taken}.`, {
     kind: "eclipse",
@@ -412,8 +428,8 @@ function eclipse(ctx: Ctx, card: BossCard): void {
 /** A Lunge: damage and a Gravity stack. At GRAVITY_LETHAL stacks it takes everything, unless a Ward takes it first. */
 function lunge(ctx: Ctx, card: BossCard): void {
   const s = script(ctx.b);
-  const target = standing(ctx, card.targetId) ?? wellBody(ctx);
-  if (!target) return;
+  const target = standing(ctx, card.targetId);
+  if (!target) return spent(ctx, card, "The Lunge");
   const aimed = s.aimedAt[card.id];
   const anchoredBy = aimed !== undefined && card.targetId !== aimed && target.id === card.targetId ? target.id : null;
   const gravity = target.gravity + 1;
