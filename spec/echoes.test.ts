@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, inject, it } from "vitest";
-import { clock, engine, fighter, sent, table, type Battle, type Clock, type Engine, type Step } from "./engine.ts";
+import { clock, engine, fighter, sent, table, turn, type Battle, type Clock, type Engine, type Step } from "./engine.ts";
 import {
   createRoom,
   join,
@@ -133,6 +133,39 @@ describe("an Echo is seated on purpose", () => {
     const acted = actionsBy(step, "breaker-1");
     expect(acted.length, "the Echo acts on its turn").toBeGreaterThan(0);
     for (const ev of acted) expect(CATALOGUE.breaker, `the timed-out Breaker's Echo plays a Breaker's action, not ${ev.kind}`).toContain(ev.kind);
+  });
+});
+
+describe("an Echo plays at low output", () => {
+  it("deals and heals the Echo's share of what a person in its seat would", async () => {
+    // Review R8: low output was held only for a Striker's Jab. Output is
+    // potency, as the Chain's is: what an action deals and heals. An Echo's
+    // other effects (a Ward, a Scan, a Delay) are its role's action's own.
+    const e = await echoEngine();
+    const share = (await import("../src/server/tuning.ts")).ECHO_POTENCY;
+    expect(share, "an Echo's share is less than a person's").toBeLessThan(1);
+    const asPerson = (b: Battle, id: string): Battle => {
+      const next = structuredClone(b);
+      next.standing.find((f) => f.id === id)!.echo = false;
+      return next;
+    };
+
+    // A Warden Echo's Counterweight, against the same Counterweight by a person.
+    const w = withEcho(e, "warden");
+    const hp = (b: Battle) => fighter(b, "orrery").hp;
+    const echoBlow = hp(w.b) - hp(echoTurn(e, w.b, w.echoId).battle);
+    const personBlow = hp(w.b) - hp(turn(e, asPerson(w.b, w.echoId), w.echoId, "counterweight").battle);
+    expect(echoBlow, "the Echo's blow is the person's at the Echo's share").toBe(Math.round(personBlow * share));
+
+    // A Mender Echo's Mend on a hurt ally, against the same Mend by a person.
+    const m = withEcho(e, "mender", ["warden"]);
+    const hurt = structuredClone(m.b);
+    hurt.cards = []; // no blow announced, so the policy Mends rather than Wards
+    hurt.standing.find((f) => f.id === "warden-1")!.hp -= 100;
+    const wardenHp = (b: Battle) => fighter(b, "warden-1").hp;
+    const echoHeal = wardenHp(echoTurn(e, hurt, m.echoId).battle) - wardenHp(hurt);
+    const personHeal = wardenHp(turn(e, asPerson(hurt, m.echoId), m.echoId, "mend", "warden-1").battle) - wardenHp(hurt);
+    expect(echoHeal, "the Echo's Mend is the person's at the Echo's share").toBe(Math.round(personHeal * share));
   });
 });
 

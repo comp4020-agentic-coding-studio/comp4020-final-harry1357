@@ -358,7 +358,9 @@ the rules.
     seated in the room seats it on purpose: one per role, at most four per
     room. A seat that times out becomes the same Echo (rule 8). It plays a
     fixed policy for its role, using that role's actions only and reading
-    only the state every client is sent. Every action it takes goes through
+    only the state every client is sent, at low output: what it deals and
+    heals is `ECHO_POTENCY` of a person's, and its other effects are its
+    action's own. Every action it takes goes through
     the same check a person's does: the queue, its role, rule 2 and rule 10's
     refusal. Every state marks it as an Echo, it counts half a seat at the
     pull (rule 20), and its turns are never in anyone's record. *Spec:
