@@ -91,13 +91,33 @@ describe("the action economy", () => {
       seen.push(b.chain.potency);
     }
     expect(b.chain.links, "seven player turns in a row, no boss card between").toBe(7);
-    expect(seen.slice(0, 2).map((p) => Number(p.toFixed(2))), "the first turn starts it; each after adds a link").toEqual([1, 1.1]);
-    expect(Math.max(...seen), "the Chain is capped at +50%").toBeCloseTo(1.5, 5);
+    expect(
+      seen.map((p) => Number(p.toFixed(2))),
+      "the first turn starts it at 1.0, each after adds 10%, and it holds at the +50% cap",
+    ).toEqual([1, 1.1, 1.2, 1.3, 1.4, 1.5, 1.5]);
 
     const broken = bossTurn(e, b);
     expect(broken.battle.chain.links, "any boss action resets the Chain").toBe(0);
     expect(broken.battle.chain.potency).toBe(1);
     expect(events(broken, "chain").some((x) => x.broken === true), "and the break is an event the strip can show").toBe(true);
+  });
+
+  it("the Chain multiplies what an action deals, not only the number on the strip (rule 15)", async () => {
+    const e = await engine();
+    // The same Jab, with no Chain and with a full one.
+    const jabWith = (links: number): number => {
+      const b = table(e, ["striker", "warden"]);
+      const next = structuredClone(b);
+      next.chain = { links, potency: 1 + Math.min(0.5, 0.1 * Math.max(0, links - 1)) };
+      const step = turn(e, next, "striker-1", "jab", "outer");
+      const jab = events(step, "jab")[0];
+      expect(typeof jab?.amount, "a Jab says what it dealt").toBe("number");
+      return jab!.amount as number;
+    };
+    const plain = jabWith(0);
+    const chained = jabWith(6);
+    expect(plain, "a plain Jab deals something, so the ratio means something").toBeGreaterThan(0);
+    expect(chained / plain, "at +50% the same Jab deals 1.5× as much").toBeCloseTo(1.5, 1);
   });
 
   it("an Exposed stack applied by A and spent by B records both", async () => {
