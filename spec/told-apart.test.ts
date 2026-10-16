@@ -290,6 +290,12 @@ describe("who did what, in the logs (docs/adr/008)", () => {
           `the refusals ${who === "none" ? "sent with no cookie" : `${who} sent`}, under ${by[who]}`,
         ).toBe(sent.filter((r) => r.who === who && !r.ok).length);
       }
+      // A's request for B's seat is refused as that, and its line names them
+      // both: A by sid, B by seat. Refused for some other reason (not A's turn,
+      // say), it would name no seat but A's.
+      const forB = refused.filter((l) => l.sid === sid.A && Object.values(l).includes(B));
+      expect(forB, "one refusal line under A's sid names B's seat: A's request to act for B").toHaveLength(1);
+      expect(Object.values(forB[0] ?? {}), "and it names A's own seat too").toContain(A);
       const strangers = refused.filter((l) => l.sid !== sid.A && l.sid !== sid.B && l.sid !== "-");
       expect(strangers, "the forged cookie's refusal, under a sid of its own").toHaveLength(1);
       expect(strangers[0]?.sid, "a forged cookie still gets a short id").toMatch(SID);
