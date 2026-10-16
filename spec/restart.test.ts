@@ -1,6 +1,6 @@
 import { afterAll, describe, expect, it } from "vitest";
 import { boot, cleanScratch, scratchDatabase } from "./boot.ts";
-import { act, battle, battleLog, join, me, newBattle, sleep, suffix } from "./raid.ts";
+import { act, battle, battleLog, createRoom, join, me, newBattle, raid, room, sleep, suffix } from "./raid.ts";
 
 // Characters and battle logs survive a restart; fights don't. A restart can't
 // be done to the app the rest of spec/ runs against: that is somebody else's
@@ -86,4 +86,33 @@ describe("what survives a restart", () => {
       await second.kill();
     }
   }, 90_000);
+
+  it("a private room doesn't survive a restart; the public raid's code does", async () => {
+    // Review R11: rule 26 says rooms live in memory and don't survive a
+    // restart, and ADR-007's cost says the public raid's code doesn't change.
+    // Nothing held either: a room registry kept in SQLite passed every spec.
+    const db = scratchDatabase();
+    const first = await boot(db);
+    let code = "";
+    let publicCode: string | null = null;
+    try {
+      const host = await join(first.base, await newBattle(first.base), `roomer-${suffix()}`, "warden");
+      const made = await createRoom(first.base, host.cookie);
+      expect(made.status, "a seated player makes a room").toBe(201);
+      code = made.code as string;
+      expect((await room(first.base, code)).status, "the room is there before the restart").toBe(200);
+      publicCode = (await raid(first.base)).code;
+    } finally {
+      await first.kill();
+    }
+
+    const second = await boot(db);
+    try {
+      expect((await room(second.base, code)).status, "after a restart the private code finds nothing").toBe(404);
+      expect((await raid(second.base)).code, "the public raid comes back under the same code").toBe(publicCode);
+      expect((await room(second.base, publicCode as string)).status, "and answers by it").toBe(200);
+    } finally {
+      await second.kill();
+    }
+  }, 40_000);
 });
