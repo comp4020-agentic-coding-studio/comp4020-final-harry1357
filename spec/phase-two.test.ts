@@ -228,4 +228,24 @@ describe("open findings carried into phase two", () => {
     expect(anchor?.disabled, "a turn's action stays dark off-turn (rule 2)").toBe(true);
     win.destroy();
   });
+
+  it("F25 (rule 11): each reduced renderer is held to the state change its event means, not any call", async () => {
+    // spec/effects accepts any non-motion call as "shows the state change", so
+    // a renderer drawing the wrong state passes (review F25: the hold renderer
+    // dropping the guard the server just Braced). Phase two declares, per event,
+    // the state its reduced renderer must show: EXPECTED_STATE in the registry,
+    // [method, ...required args] the reduced variant must call. Then this holds
+    // every renderer to it.
+    const mod = await client<{
+      RENDERERS: Record<string, { reduced?: (c: unknown, e: unknown) => unknown }>;
+      EXPECTED_STATE?: Record<string, [string, ...unknown[]][]>;
+    }>("src/client/battle/registry.ts");
+    expect(mod.EXPECTED_STATE, "the registry declares no EXPECTED_STATE per event").toBeDefined();
+    const { EVENT_KINDS } = await client<{ EVENT_KINDS: readonly string[] }>("src/shared/protocol.ts");
+    for (const kind of EVENT_KINDS) {
+      expect(mod.EXPECTED_STATE?.[kind], `no expected state declared for "${kind}"`).toBeDefined();
+    }
+    // The known wrong one: a hold must show the guard up (the server Braced).
+    expect(mod.EXPECTED_STATE?.hold, "a hold's expected state includes the guard going up").toContainEqual(["scene.guard", "me", true]);
+  });
 });
