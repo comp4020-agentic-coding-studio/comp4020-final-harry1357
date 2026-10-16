@@ -388,6 +388,41 @@ describe("rooms expire; logs don't", () => {
     expect(kept.status, "a bare battle with someone in it is still open").toBe(200);
   }, 20_000);
 
+  it("a join still arriving as its room goes is answered for the room as it is then", async () => {
+    // Breaker Q10: the room's fight was looked up before the body was read, so
+    // a join in flight across a change of fight was answered for the fight it
+    // started against ("already over"), not the room as it then was. The
+    // re-review showed the window can be held open: stream the body, and let
+    // the room expire before the last byte. A room gone mid-join is gone.
+    server = await boot(scratchDatabase(), { TICK_MS: "20", ROOM_EMPTY_MS: "800" });
+    const host = await seatedPlayer(server.base);
+    const made = await madeRoom(server.base, host.cookie);
+    const encode = (text: string) => new TextEncoder().encode(text);
+    let push: (text: string) => void = () => {};
+    let finish: () => void = () => {};
+    const body = new ReadableStream<Uint8Array>({
+      start(stream) {
+        push = (text) => stream.enqueue(encode(text));
+        finish = () => stream.close();
+      },
+    });
+    const pending = fetch(new URL(`/api/rooms/${made.code}/join`, server.base), {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body,
+      duplex: "half",
+    } as RequestInit);
+    push(`{"name":"slow-${suffix()}",`);
+    await sleep(2_000); // past the window: the room expires with the body half sent
+    expect((await room(server.base, made.code)).status, "the room has gone while the join was in flight").toBe(404);
+    push(`"role":"mender"}`);
+    finish();
+    const res = await pending;
+    expect(res.status, "the join is answered for the room as it is now: gone").toBe(404);
+    expect(((await res.json()) as { error: string }).error, "not as the fight it started against").toBe("No such room.");
+    expect(res.headers.getSetCookie(), "and it mints no session").toEqual([]);
+  }, 20_000);
+
   it("an expired room leaves no fight behind", async () => {
     // Review R3, breaker Q8: closing an expired room's fight opened a successor
     // for the room it had just removed: a waiting fight nobody could reach,
