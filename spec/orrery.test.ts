@@ -44,19 +44,25 @@ describe("the Orrery's script", () => {
   it("announces every boss attack on the strip as a card before it resolves", async () => {
     const e = await engine();
     const b = table(e, ["warden", "striker"]);
+    const MOVES = ["revolution", "eclipse", "lunge", "perihelion", "retrograde", "alignment"];
+    // Exactly the cards that were due resolve: one move per card at countdown
+    // 0 and not frozen, each of that card's intent. Nothing extra lands, and
+    // nothing not yet due goes off early.
+    const due = b.cards.filter((c) => c.countdown === 0 && !c.frozen).map((c) => c.intent).sort();
+    expect(due.length, "a card was due on the Orrery's turn").toBeGreaterThan(0);
     const step = bossTurn(e, b);
-    const resolved = step.effects.events.filter((x) => ["revolution", "eclipse", "lunge", "perihelion", "retrograde", "alignment"].includes(x.kind));
-    expect(resolved.length, "the Orrery did something on its turn").toBeGreaterThan(0);
-    for (const hit of resolved) {
-      expect(b.cards.some((c) => c.intent === hit.kind), `"${hit.kind}" resolved without its card on the strip beforehand`).toBe(true);
-    }
-    const cards = [...b.cards, ...events(step, "card").map((c) => c.card as { intent: string; targetId: unknown; countdown: unknown })];
-    expect(cards.length, "the Orrery keeps at least one card on the strip").toBeGreaterThan(0);
-    for (const card of cards) {
-      expect(card, "a card carries an intent, a target and a countdown").toMatchObject({
-        intent: expect.any(String),
-        countdown: expect.any(Number),
-      });
+    const resolved = step.effects.events.filter((x) => MOVES.includes(x.kind)).map((x) => x.kind).sort();
+    expect(resolved, "the moves resolved are exactly the cards that were due, by intent").toEqual(due);
+
+    // Every card the Orrery put up this turn was announced with a card event,
+    // carrying its intent, target and countdown.
+    const before = new Set(b.cards.map((c) => c.id));
+    const added = step.battle.cards.filter((c) => !before.has(c.id));
+    const announcedIds = new Set(events(step, "card").map((x) => (x.card as { id: string }).id));
+    expect(added.length, "the Orrery keeps the strip filled with cards").toBeGreaterThan(0);
+    for (const card of added) {
+      expect(announcedIds.has(card.id), `card ${card.id} (${card.intent}) went up without a card event`).toBe(true);
+      expect(card, "a card carries an intent, a target and a countdown").toMatchObject({ intent: expect.any(String), countdown: expect.any(Number) });
       expect("targetId" in card, "a card names its target (or null)").toBe(true);
     }
   });
