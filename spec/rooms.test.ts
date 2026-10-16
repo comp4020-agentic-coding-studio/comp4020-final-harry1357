@@ -199,6 +199,10 @@ describe("nothing crosses between rooms", () => {
     const a = await madeRoom(base, host.cookie);
     const b = await madeRoom(base, host.cookie);
     const inA = await joinRoom(base, a.code, host.name, host.role, host.cookie);
+    // One character, so one name and one role (review R1, R15): seated in room
+    // A, it can't sit down in room B as someone else.
+    expect((await joinRoom(base, b.code, `other-${suffix()}`, host.role, host.cookie)).status, "not under another name").toBe(409);
+    expect((await joinRoom(base, b.code, host.name, "mender", host.cookie)).status, "not as another role").toBe(409);
     const inB = await joinRoom(base, b.code, host.name, host.role, host.cookie);
     expect([inA.status, inB.status], "one character sits down in both rooms").toEqual([200, 200]);
     expect(inA.characterId, "as the same character in room A").toBe(host.characterId);
@@ -227,6 +231,7 @@ describe("nothing crosses between rooms", () => {
     // One record: both turns land in it.
     const record = (await me(base, host.cookie)).character;
     expect(record?.id, "one character behind both seats").toBe(id);
+    expect([record?.name, record?.role], "under the name and role it sat down with").toEqual([host.name, host.role]);
     expect(record?.turns, "both seats' turns are in the one record").toBe(turnsBefore + 2);
   }, 45_000);
 });

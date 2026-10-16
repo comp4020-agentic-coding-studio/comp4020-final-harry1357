@@ -181,6 +181,15 @@ export function createTable(store: Store, turnMs: number, tickMs: number, beatMs
       sessions.set(who.sessionId, who.id);
     },
 
+    /** Whether this character holds a seat (standing or fallen) in a live fight other than this one (rule 24). */
+    seatedElsewhere(characterId: string, battleId: string): boolean {
+      for (const b of battles.values()) {
+        if (b.id === battleId || isEnded(b)) continue;
+        if ([...b.standing, ...b.fallen].some((f) => f.id === characterId)) return true;
+      }
+      return false;
+    },
+
     /** The character behind a hashed session, if they've been seated since boot. */
     characterFor(sessionId: string): string | undefined {
       return sessions.get(sessionId);

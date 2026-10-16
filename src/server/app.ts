@@ -23,7 +23,8 @@ import type {
 } from "../shared/protocol.ts";
 import { newId, type Store } from "./db.ts";
 import { mountPages } from "./pages.ts";
-import { checkAction, checkJoin, checkSeatEcho, cleanName, isRole } from "./rules.ts";
+import { ROLES } from "../shared/protocol.ts";
+import { checkAction, checkJoin, checkSeatEcho, cleanName, isRole, nameKey } from "./rules.ts";
 import type { Table } from "./table.ts";
 
 const COOKIE = "raid_sid";
@@ -72,14 +73,23 @@ export function createApp(root: string, store: Store, table: Table): Hono {
 
     const sid = getCookie(c, COOKIE);
     const known = sid ? store.characterBySession(sessionKey(sid)) : null;
-    const check = checkJoin(battle, known?.id ?? null, name);
+    // A character (name, role, record) persists across rooms (rule 24): seated
+    // at another live table, it sits down here as the same name and role, or
+    // not at all, never as someone else (review R1). Seated nowhere, a person
+    // may come back under a new name or role, and the character takes it.
+    const elsewhere = known !== null && table.seatedElsewhere(known.id, id);
+    if (known && elsewhere && (nameKey(name) !== nameKey(known.name) || body.role !== known.role)) {
+      return fail(c, 409, `You're seated at another table as ${known.name} the ${ROLES[known.role].label}; sit down here as them.`);
+    }
+    const seatName = known && elsewhere ? known.name : name;
+    const check = checkJoin(battle, known?.id ?? null, seatName);
     if (check === "already" && known) return { battleId: id, characterId: known.id, character: known };
     if (check && check !== "already") return fail(c, check.status, check.error);
 
     // A cookie the database doesn't know is never adopted: mint a fresh one.
     const session = known && sid ? sid : randomBytes(32).toString("base64url");
     const characterId = known?.id ?? newId();
-    table.seat(id, { id: characterId, sessionId: sessionKey(session), name, role: body.role });
+    table.seat(id, { id: characterId, sessionId: sessionKey(session), name: seatName, role: body.role });
 
     if (session !== sid) {
       setCookie(c, COOKIE, session, {
