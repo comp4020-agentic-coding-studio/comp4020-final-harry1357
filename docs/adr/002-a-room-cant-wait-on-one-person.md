@@ -1,7 +1,8 @@
 # ADR-002: A room can't wait on one person
 
-- **Status:** accepted. The hold rule stands; the Orrery's scaling is
-  temporary, to be replaced in week 10 (crit 9, "All at once").
+- **Status:** accepted. Partly superseded by ADR-006 (timeouts now Brace and
+  can Echo; nobody leaves on a timeout). The twenty-second figure and the
+  reason a room can't wait on one person still stand.
 - **Date:** 2026-10-01
 - **Builds on:** ADR-001 (one process, one tick).
 
