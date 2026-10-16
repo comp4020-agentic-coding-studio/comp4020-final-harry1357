@@ -65,4 +65,20 @@ describe("the Echo's beat", () => {
     const line = step.battle.log.findLast((l) => l.actorId === "striker-1");
     expect(line?.text, "the log says it was the Echo").toMatch(/Echo/);
   });
+
+  it("an Echo seat at the end isn't credited the win or the loss", async () => {
+    // Review F4 (re-review): Echo turns are never counted in the person's
+    // record, and the outcome is the record's clearest line. A seat that is an
+    // Echo when the fight ends didn't see it through.
+    const e = await engine();
+    let b = table(e, ["striker", "warden"]);
+    const next = structuredClone(b);
+    next.standing.find((f) => f.id === "striker-1")!.echo = true;
+    next.standing.find((f) => f.id === "orrery")!.hp = 1; // one blow from the end
+    b = next;
+    const won = e.act(e.plate(b, "warden-2", clock(T0)), "warden-2", "counterweight", "outer", clock(T0));
+    expect(won.battle.status, "the Warden's blow ends the fight").toBe("won");
+    expect(won.effects.stats["warden-2"]?.wins, "the person who saw it through wins").toBe(1);
+    expect(won.effects.stats["striker-1"]?.wins ?? 0, "the Echo seat is credited no win").toBe(0);
+  });
 });
