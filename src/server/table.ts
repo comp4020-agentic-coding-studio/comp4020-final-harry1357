@@ -134,14 +134,15 @@ export function createTable(store: Store, turnMs: number, tickMs: number, beatMs
   }
 
   /**
-   * A live fight in a private room: reachable only through the room's code
-   * (rule 22, "the code is the only key"; review R4), never by its battle id.
-   * The public raid isn't a secret, and a fight that's over is readable by id
-   * (rule 26), so neither is behind a code.
+   * A fight of a private room that is still open: reachable only through the
+   * room's code (rule 22, "the code is the only key"; review R4), never by its
+   * battle id. That holds for the room's finished fights too, whose state
+   * carries the open room's code (re-review N1). The public raid isn't a
+   * secret, and once a room is gone its fights are readable by id (rule 26).
    */
   function behindCode(battleId: string): boolean {
     const b = battles.get(battleId);
-    return !!b && b.room !== null && !b.isPublic && !isEnded(b);
+    return !!b && b.room !== null && !b.isPublic && rooms.get(b.room) !== null;
   }
 
   /** The state of a battle: live from memory, or what the database keeps of one that's over. */

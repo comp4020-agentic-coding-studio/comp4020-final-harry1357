@@ -341,8 +341,9 @@ the rules.
     when a seated player (a session with a character) asks for one. Nothing
     lists rooms, nothing owns one, and no password, invite or account stands
     behind a code (rule 3). A wrong code is refused (404), never guessed at or
-    redirected to another room. While a private room's fight lasts, its code
-    is the only way in: it isn't joined, watched or read by its battle id.
+    redirected to another room. While a private room is open, its code is
+    the only way in: none of its fights, live or finished, is joined, watched
+    or read by battle id.
     *Spec: `spec/rooms.test.ts`.*
 23. **The public raid always exists, and it is the default door.** It is a
     permanent room, always open and never expiring. `/api/raid` names it, and

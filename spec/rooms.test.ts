@@ -338,6 +338,10 @@ describe("rooms expire; logs don't", () => {
     // The room's next fight has nobody in it. Inside the window, the room is still there.
     await sleep(WINDOW_MS / 3);
     expect((await room(at, made.code)).status, "a room isn't gone before its window is up").toBe(200);
+    // Re-review N1: the finished fight, read by its id, carried the code of the
+    // room, still open. While the room is open, its fights stay behind the code.
+    expect((await fetch(new URL(`/api/battles/${made.battleId}`, at))).status, "the finished fight isn't read by id while its room is open").toBe(404);
+    expect((await fetch(new URL(`/api/battles/${made.battleId}/log`, at))).status, "nor its log, yet").toBe(404);
 
     // Past the window, it is.
     await sleep(WINDOW_MS + 1_500);
