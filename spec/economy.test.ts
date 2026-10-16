@@ -25,6 +25,48 @@ describe("the action economy", () => {
     expect(jump[0], "it says the rank it came from and went to").toMatchObject({ actorId: "striker-2", from: 3, to: 2 });
   });
 
+  it("a hit on a Broken ring refunds a rank too, even with its weakness hidden", async () => {
+    const e = await engine();
+    let b = table(e, ["striker", "warden"]);
+    // Break the outer ring without Scanning it, so only Broken can resonate.
+    const next = structuredClone(b);
+    const outer = next.rings.find((r) => r.id === "outer")!;
+    outer.pips = 0;
+    outer.broken = true;
+    outer.weakness = null;
+    b = next;
+    const striker = fighter(b, "striker-1");
+    const step = turn(e, b, "striker-1", "cleave", "outer");
+    expect(fighter(step.battle, "striker-1").counter, "Cleave on a Broken ring resets as rank 2, not 3").toBe(
+      counterReset(striker.agility, "normal", 2),
+    );
+    expect(events(step, "resonance")[0], "and the portrait jumps").toMatchObject({ actorId: "striker-1", from: 3, to: 2 });
+  });
+
+  it("Haste halves the reset, never the rate (rule 13)", async () => {
+    const e = await engine();
+    let b = table(e, ["chronist", "striker"]);
+    b = turn(e, b, "chronist-1", "haste", "striker-2").battle;
+    const striker = fighter(b, "striker-2");
+    // A hasted rank-3 action resets to half of a plain one.
+    const step = turn(e, b, "striker-2", "cleave", "middle");
+    expect(fighter(step.battle, "striker-2").counter, "a hasted reset is tickSpeed × rank × ½").toBe(
+      counterReset(striker.agility, "haste", 3),
+    );
+    expect(counterReset(striker.agility, "haste", 3), "which is half a plain one, so the test can tell").toBeLessThan(
+      counterReset(striker.agility, "normal", 3),
+    );
+    // The rate: one tick still takes every counter down by exactly 1, the
+    // hasted Striker's included. Nobody is on the plate, so the clock runs.
+    const before = step.battle.standing.map((f) => [f.id, f.counter] as const);
+    expect(before.every(([, c]) => c > 0), "nobody is on the plate, so the next step is a tick").toBe(true);
+    const ticked = e.advance(step.battle, clock())?.battle;
+    expect(ticked, "the clock ticked").toBeDefined();
+    for (const [id, c] of before) {
+      expect(fighter(ticked!, id).counter, `${id} dropped by exactly 1 in a tick, hasted or not`).toBe(c - 1);
+    }
+  });
+
   it("never refunds below rank 1, and a refund of nothing isn't a jump", async () => {
     const e = await engine();
     let b = table(e, ["breaker", "striker"]);
