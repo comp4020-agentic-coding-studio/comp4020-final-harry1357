@@ -198,10 +198,16 @@ export interface Ctx {
 
 export const nameKey = (name: string): string => name.trim().toLowerCase();
 
-/** A trimmed name of 1–NAME_MAX characters with no control characters, or null. */
+/**
+ * A trimmed name of 1–NAME_MAX characters with no control characters, or null.
+ * Format characters (zero-width spaces and joiners, the soft hyphen, bidi
+ * overrides, the byte-order mark: Unicode \p{Cf}) are stripped first: they draw
+ * nothing, so a name can't be made unique, or empty, with ones nobody sees
+ * (rule 4; review breaker Q1). What's stored is what's compared and shown.
+ */
 export function cleanName(raw: unknown): string | null {
   if (typeof raw !== "string") return null;
-  const name = raw.trim();
+  const name = raw.replace(/\p{Cf}/gu, "").trim();
   const length = [...name].length;
   if (length < 1 || length > NAME_MAX || /\p{Cc}/u.test(name)) return null;
   return name;
