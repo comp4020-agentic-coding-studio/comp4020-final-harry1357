@@ -41,8 +41,9 @@
 //   Perihelion is a fresh Break check. Middle and inner, once Broken, stay so.
 // - Weaknesses: outer ember, middle frost, inner aether, hidden until a
 //   Breaker Scans (roles.ts counts a weakness only once it's revealed).
-// - Lethal Gravity: a Lunge that brings its target to GRAVITY_LETHAL stacks or
-//   more takes all their HP; Brace doesn't halve it. A Ward still takes it
+// - Lethal Gravity: a Lunge on someone already carrying GRAVITY_LETHAL stacks
+//   takes all their HP ("at 3 stacks the next Lunge is lethal"); the Lunge
+//   that makes the third stack is an ordinary blow. Brace doesn't halve it. A Ward still takes it
 //   (and the Ward is spent): the Mender's answer is to read the strip. The
 //   stack lands either way.
 // - The well holds one body at a time: when a Lunge lands, everyone else's
@@ -432,8 +433,11 @@ function lunge(ctx: Ctx, card: BossCard): void {
   if (!target) return spent(ctx, card, "The Lunge");
   const aimed = s.aimedAt[card.id];
   const anchoredBy = aimed !== undefined && card.targetId !== aimed && target.id === card.targetId ? target.id : null;
+  // "At 3 stacks the next Lunge is lethal" (docs/design/overhaul.md): lethal
+  // only on someone already carrying GRAVITY_LETHAL; the Lunge that makes the
+  // third stack is an ordinary blow (review F21).
   const gravity = target.gravity + 1;
-  let lethal = gravity >= GRAVITY_LETHAL;
+  let lethal = target.gravity >= GRAVITY_LETHAL;
   let taken: number;
   if (lethal && target.warded) {
     target.warded = false;
