@@ -429,6 +429,15 @@ describe("Echoes in a room, live", () => {
     expect(w.messages[at - 1]?.state.activeId, "it acted on its own turn: it was on the plate").toBe(echoId);
   }, 50_000);
 
+  it("nobody can take an Echo's name, so nobody can keep a role's Echo out", async () => {
+    // Breaker Q6: a person sitting down as "mender echo" stopped that table
+    // ever seating a Mender Echo, because two at a table can't share a name.
+    const { code, cookie } = await hostedRoom();
+    const squatter = await joinRoom(base, code, " mender ECHO ", "striker");
+    expect(squatter.status, "an Echo's name, however it's cased or padded, is kept for the Echo").toBe(409);
+    expect((await seatEcho(base, code, cookie, "mender")).status, "so the Mender Echo can still be seated").toBe(201);
+  }, 20_000);
+
   it("a fifth Echo is refused", async () => {
     const { code, cookie, w } = await hostedRoom();
     expect((await seatEcho(base, code, cookie, "warden")).status, "a Warden Echo").toBe(201);

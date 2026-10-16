@@ -266,6 +266,10 @@ export function checkJoin(b: Battle, characterId: string | null, name: string): 
     return { status: 409, error: "You fell in this fight; you can't take your seat again." };
   }
   const key = nameKey(name);
+  // An Echo's name is kept for the Echo, or a person under it could keep that
+  // role's Echo from ever being seated at the table (rule 25; breaker Q6).
+  const kept = ROLE_IDS.find((role) => nameKey(echoName(role)) === key);
+  if (kept) return { status: 409, error: `"${echoName(kept)}" is kept for the ${ROLES[kept].label}'s Echo; choose another name.` };
   for (const [id, taken] of Object.entries(b.joined)) {
     if (id !== characterId && nameKey(taken) === key) {
       return { status: 409, error: "Someone at this table already goes by that name." };

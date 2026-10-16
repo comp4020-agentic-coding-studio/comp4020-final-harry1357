@@ -360,7 +360,8 @@ the rules.
     fixed policy for its role, using that role's actions only and reading
     only the state every client is sent, at low output: what it deals and
     heals is `ECHO_POTENCY` of a person's, and its other effects are its
-    action's own. Every action it takes goes through
+    action's own. Its name ("Warden Echo") is kept for it: no person sits
+    down under it. Every action it takes goes through
     the same check a person's does: the queue, its role, rule 2 and rule 10's
     refusal. Every state marks it as an Echo, it counts half a seat at the
     pull (rule 20), and its turns are never in anyone's record. *Spec:
