@@ -361,8 +361,10 @@ the rules.
 26. **Rooms expire. Logs and characters don't.** A room whose fight has had
     no person seated in it for fifteen minutes (`ROOM_EMPTY_MS`) is gone, and
     its code with it. The public raid never expires. A finished fight's log
-    stays readable by its battle id after its room is gone. Rooms live in
-    memory like fights and don't survive a restart; characters do (rule 6).
+    stays readable by its battle id after its room is gone. A bare battle
+    (`POST /api/battles`, a fight with no room, kept until the client moves
+    onto rooms) goes the same way on the same window. Rooms live in memory
+    like fights and don't survive a restart; characters do (rule 6).
     *Spec: `spec/rooms.test.ts`.*
 
 ## How to work in here

@@ -282,6 +282,24 @@ describe("rooms expire; logs don't", () => {
     expect(lines.some((l) => l.kind === "end"), "with its log, to the last line").toBe(true);
   }, 130_000);
 
+  it("a bare battle nobody sits in goes the same way", async () => {
+    // Breaker B1: POST /api/battles, which needs no cookie, made a fight that
+    // nobody could find without its id and that never went away: a private
+    // room with no code, no seated player behind it, and no expiry (rules 22,
+    // 26). A bare battle with no person seated is closed on the room window.
+    server = await boot(scratchDatabase(), { TICK_MS: "20", ROOM_EMPTY_MS: "800" });
+    const empty = await newBattle(server.base);
+    const host = await seatedPlayer(server.base);
+    await sleep(2_500);
+    const late = await join(server.base, empty, `late-${suffix()}`, "mender");
+    expect(late.status, "an empty bare battle past the window seats nobody").toBe(409);
+    const log = await battleLog(server.base, empty);
+    expect(log.status, "it was closed").toBe("abandoned");
+    expect((log.entries as { kind: string }[]).some((l) => l.kind === "end"), "with a line saying so").toBe(true);
+    const kept = await join(server.base, host.battleId, `second-${suffix()}`, "striker");
+    expect(kept.status, "a bare battle with someone in it is still open").toBe(200);
+  }, 20_000);
+
   it("an expired room leaves no fight behind", async () => {
     // Review R3, breaker Q8: closing an expired room's fight opened a successor
     // for the room it had just removed: a waiting fight nobody could reach,

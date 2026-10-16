@@ -24,6 +24,8 @@ export function createTable(store: Store, turnMs: number, tickMs: number, beatMs
   /** Hashed session → character, for everyone seated since boot. Only they can be standing. */
   const sessions = new Map<string, string>();
   const rooms = createRooms();
+  /** Bare battle → since when it has had no person seated (breaker B1). Rooms keep their own. */
+  const bareEmptySince = new Map<string, number>();
 
   const clock = (): Clock => ({ now: Date.now(), turnMs, beatMs });
   const timing = { tickMs, turnMs, beatMs };
@@ -84,6 +86,29 @@ export function createTable(store: Store, turnMs: number, tickMs: number, beatMs
       }
       hub.expired(room.code);
       console.log(`room ${room.code} closed after ${roomEmptyMs}ms empty`);
+    }
+    // A bare battle (POST /api/battles) is a fight with no code, and goes the
+    // same way: one with no person seated for the room window is closed, or it
+    // would be a private space nobody minted and nothing ever clears (rule 26;
+    // breaker B1).
+    for (const b of battles.values()) {
+      if (b.room !== null || isEnded(b)) {
+        bareEmptySince.delete(b.id);
+        continue;
+      }
+      if (hasPerson(b)) {
+        bareEmptySince.delete(b.id);
+        continue;
+      }
+      const since = bareEmptySince.get(b.id) ?? now;
+      bareEmptySince.set(b.id, since);
+      if (now - since < roomEmptyMs) continue;
+      bareEmptySince.delete(b.id);
+      try {
+        apply(close(b, "The fight closed: nobody had been seated at the table for too long.", clock()));
+      } catch (err) {
+        console.error(`battle ${b.id}: closing it failed`, err);
+      }
     }
   }
 
