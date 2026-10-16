@@ -198,33 +198,38 @@ describe("nothing crosses between rooms", () => {
     const b = await madeRoom(base, host.cookie);
     const s = suffix();
     const alice = await joinRoom(base, a.code, `alice-${s}`, "striker");
-    const bob = await joinRoom(base, b.code, `bob-${s}`, "breaker");
-    expect([alice.status, bob.status], "one person sits in each room").toEqual([200, 200]);
+    expect(alice.status, "alice sits in room A").toBe(200);
 
     // Two clients, one in each room, both probed.
     const wa = watching(base, a.code);
     const wb = watching(base, b.code);
     await Promise.all([wa.opened, wb.opened]);
-    await wb.waitFor((st) => token(st, bob.characterId) !== undefined, "bob on room B's strip", 5_000);
 
     // Room A pulls ten seconds after its last seat (docs/adr/006); then it's Alice's turn.
     await wa.waitFor((st) => st.activeId === alice.characterId, "alice's turn in room A", 25_000);
-    const bBefore = wb.states.at(-1) as BattleState;
-    const bFrom = wb.events.length;
+
+    // Bob sits in room B only now, so room B is in its pull's countdown while
+    // Alice strikes: a waiting room's clock moves nothing and broadcasts
+    // nothing. Anything room B's socket carries from here on came from
+    // somewhere else (review R17: comparing B's members alone passed if A's
+    // action moved B's counters or order).
+    const bob = await joinRoom(base, b.code, `bob-${s}`, "breaker");
+    expect(bob.status, "bob sits in room B").toBe(200);
+    const bSeated = await wb.waitFor((st) => token(st, bob.characterId) !== undefined, "bob on room B's strip", 5_000);
+    expect(bSeated.status, "room B is still counting down to its pull").toBe("waiting");
+    const bQuiet = wb.messages.length;
+
     const fromA = wa.events.length;
     const struck = await act(base, a.battleId, alice.cookie, "jab");
     expect(struck.status, "alice strikes in room A").toBe(200);
     await eventFrom(wa, (ev) => ev.kind === "jab" && ev.actorId === alice.characterId, "alice's Jab on room A's socket", 5_000, fromA);
     await sleep(750); // several ticks for anything stray to reach room B
 
-    const members = (st: BattleState): string[] => st.queue.map((t) => t.id).sort();
-    expect(wb.events.slice(bFrom).some((ev) => ev.actorId === alice.characterId), "nothing alice did reached room B").toBe(false);
-    expect(wb.events.some((ev) => ev.kind === "jab"), "no Jab was ever broadcast in room B, where only a Breaker sits").toBe(false);
+    expect(wb.messages.length - bQuiet, "room B's socket carried nothing while alice struck: no state, no event, no tick").toBe(0);
+    expect(wb.states.at(-1), "room B's fight is exactly as bob's seat left it").toEqual(bSeated);
+    expect(wb.events.some((ev) => ev.actorId === alice.characterId), "nothing alice did ever reached room B").toBe(false);
     expect(wb.states.every((st) => !st.queue.some((t) => t.id === alice.characterId)), "alice never appears on room B's strip").toBe(true);
     expect(wb.states.every((st) => st.battleId === b.battleId), "room B's socket only carried room B's fight").toBe(true);
-    for (const st of wb.states.filter((x) => x.version > bBefore.version)) {
-      expect(members(st), `room B's queue at v${st.version} holds who it held before alice struck`).toEqual(members(bBefore));
-    }
 
     // A seat acts only in its own room.
     const cross = await act(base, b.battleId, alice.cookie, "jab");
