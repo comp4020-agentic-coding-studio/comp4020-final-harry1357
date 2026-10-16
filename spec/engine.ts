@@ -129,9 +129,10 @@ export function table(e: Engine, roles: string[], now = 1_000_000): Battle {
   roles.forEach((role, i) => {
     b = e.join(b, { id: `${role}-${i + 1}`, name: `${role} ${i + 1}`, role }, clock(now)).battle;
   });
-  // The pull: the clock runs a short countdown after the first seat, then sets
-  // the Orrery's HP from whoever is there (rule 20).
-  for (let i = 0; i < 500 && b.status !== "fighting"; i++) b = e.advance(b, clock(now))?.battle ?? b;
+  // The pull: a countdown in wall-clock time after the seats (docs/adr/006),
+  // then the Orrery's HP is set from whoever is there (rule 20). Run the clock
+  // past it, as a real room's would; thirty seconds is the cap.
+  for (let at = now; at <= now + 31_000 && b.status !== "fighting"; at += 500) b = e.advance(b, clock(at))?.battle ?? b;
   if (b.status !== "fighting") throw new Error(`the battle never pulled (still ${b.status})`);
   return b;
 }
