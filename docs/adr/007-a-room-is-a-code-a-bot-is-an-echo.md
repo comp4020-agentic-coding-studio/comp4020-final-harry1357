@@ -71,6 +71,14 @@ on purpose by whoever's in the room.**
 - Its turns are the Echo's, logged as the Echo's and never counted in anyone's
   record (ADR-006).
 
+**A seated Echo waits for nobody.** ADR-006 gives a timed-out seat's Echo a
+three-second beat on the plate so its person can come back, and accepted that
+cost for that reason alone (ADR-002 rejected a timeout that "keeps costing the
+table one full timeout every cycle"). A seated Echo has no person, so it gets
+no beat: it is played on the next tick, and the client is told its window is
+nothing (review R2). One person with four seated Echoes would otherwise wait
+twelve seconds a cycle for nobody.
+
 It plays a fixed, deterministic policy for its role, using only that role's
 own actions and reading only the state every client is sent. It never sees a
 weakness nobody has Scanned or the Orrery's script. A seat that times out

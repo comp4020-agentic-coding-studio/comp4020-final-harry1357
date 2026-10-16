@@ -255,9 +255,11 @@ around it.
    damage they take and banks a Charge. Their portrait dims (drifting). Three
    timeouts **in a row** and the character becomes an automated *Echo*
    (rule 25), playing its role's policy at low output, until the person acts
-   again, which ends the Echo at once. When an Echo reaches the plate it waits a three-second beat
-   (`ECHO_BEAT_MS`): an action from its person in that window is an ordinary
-   turn that ends the Echo; otherwise the server plays it. Nothing happens
+   again, which ends the Echo at once. When a timed-out seat's Echo reaches
+   the plate it waits a three-second beat (`ECHO_BEAT_MS`): an action from its
+   person in that window is an ordinary turn that ends the Echo; otherwise the
+   server plays it. An Echo seated on purpose has no person to wait for, so it
+   gets no beat and is played on the next tick (ADR-007). Nothing happens
    off-turn, so rule 2 stands. An Echo's turns are the Echo's: logged as the
    Echo's, never counted in the person's record. Acting resets the count. A
    timeout never decides *order*: the auto-Brace takes a turn the clock

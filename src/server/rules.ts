@@ -178,8 +178,13 @@ export interface Clock {
   beatMs?: number;
 }
 
-/** How long whoever is on the plate has: a person the turn's time, an Echo its beat. */
-export const plateMs = (f: Fighter, clock: Clock): number => (f.echo ? (clock.beatMs ?? ECHO_BEAT_MS) : clock.turnMs);
+/**
+ * How long whoever is on the plate has: a person the turn's time; a timed-out
+ * seat's Echo a beat for its person to come back (rule 8); an Echo seated on
+ * purpose nothing, because it has no person to wait for (ADR-007; review R2).
+ */
+export const plateMs = (f: Fighter, clock: Clock): number =>
+  !f.echo ? clock.turnMs : f.seatedBy !== null ? 0 : (clock.beatMs ?? ECHO_BEAT_MS);
 
 export interface Refusal {
   status: 400 | 403 | 409;
@@ -787,8 +792,9 @@ function settle(b: Battle, fx: Effects, clock: Clock): void {
     b.turnDeadline = null;
   } else if (b.activeId !== up.id) {
     b.activeId = up.id;
-    // A person gets the turn's full time; an Echo gets a short beat for its
-    // person to reclaim the seat before the server plays it (rule 8).
+    // A person gets the turn's full time; a timed-out seat's Echo a short beat
+    // for its person to reclaim the seat (rule 8); a seated Echo none, so it is
+    // played on the next tick.
     b.turnDeadline = up.kind !== "character" ? null : clock.now + plateMs(up, clock);
     fx.events.push({ kind: "plate", actorId: up.id, tick: b.tick });
   }

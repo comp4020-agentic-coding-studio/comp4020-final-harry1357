@@ -136,6 +136,27 @@ describe("an Echo is seated on purpose", () => {
   });
 });
 
+describe("an Echo seated on purpose waits for nobody", () => {
+  it("is played on the next tick, with no reclaim beat", async () => {
+    // Review R2: ADR-006 gives a timed-out seat's Echo a three-second beat so
+    // its person can come back (and accepted that cost for it alone, ADR-002).
+    // A seated Echo has no person, so a beat would stop the table for nobody:
+    // one person and four Echoes would wait twelve seconds a cycle.
+    const e = await echoEngine();
+    const { b, echoId } = withEcho(e, "breaker");
+    const onPlate = e.plate(b, echoId, clock(T0));
+    expect(sent(e, onPlate).plateMs, "the client is told the seat's window is nothing").toBe(0);
+    const step = e.advance(onPlate, clock(T0 + 1));
+    expect(step, "a millisecond on, the server has played it").not.toBeNull();
+    expect(actionsBy(step!, echoId).length, "and the Echo acted").toBeGreaterThan(0);
+    // A timed-out seat still waits for its person (spec/echo.test.ts).
+    const timedOut = structuredClone(b);
+    const f = timedOut.standing.find((x) => x.id === "mender-1")!;
+    f.echo = true;
+    expect(e.advance(e.plate(timedOut, "mender-1", clock(T0)), clock(T0 + 1)), "a timed-out seat's Echo still waits its beat").toBeNull();
+  });
+});
+
 describe("an Echo gets no favours", () => {
   it("an Echo's out-of-turn action is refused exactly as a human's is", async () => {
     const e = await echoEngine();
