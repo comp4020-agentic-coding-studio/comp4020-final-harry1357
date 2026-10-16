@@ -90,7 +90,20 @@ export interface Engine {
   announce(b: Battle, card: Omit<Card, "id" | "frozen">): Battle;
   /** Put the active fighter on the plate, the way the clock does, without running it there. */
   plate(b: Battle, id: string, clock: Clock): Battle;
+  /** What every client is sent: the state on the wire, not the engine's own. */
+  view(b: Battle, timing: { tickMs: number; turnMs: number }): Sent;
 }
+
+/** The state a client is sent, as far as the specs read it. */
+export interface Sent {
+  queue: { id: string; [field: string]: unknown }[];
+  rings: { id: string; exposed: { appliedBy: string }[] }[];
+  /** Exposed stacks once spent, with who set and who spent each (rule 16). */
+  spentExposed?: { ringId: string; appliedBy: string; spentBy: string }[];
+  [field: string]: unknown;
+}
+
+export const sent = (e: Engine, b: Battle): Sent => e.view(b, { tickMs: 150, turnMs: 12_000 });
 
 const REQUIRED = [
   "createBattle",
@@ -102,6 +115,7 @@ const REQUIRED = [
   "seatsOf",
   "announce",
   "plate",
+  "view",
 ] as const;
 
 /** The engine, or a failure naming what it doesn't export yet. */

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { counterReset } from "../src/server/ctb.ts";
-import { announced, bossTurn, clock, engine, events, fighter, ring, table, turn } from "./engine.ts";
+import { announced, bossTurn, clock, engine, events, fighter, ring, sent, table, turn } from "./engine.ts";
 
 // The action economy (CLAUDE.md rules 8 and 13-18; docs/adr/006). Every claim
 // is held on the pure engine, so the situation is exact: a weakness hit, a run
@@ -77,11 +77,16 @@ describe("the action economy", () => {
     expect(ring(feint.battle, "outer").exposed, "Feint spends one, and the other is still Breaker's").toEqual([
       { appliedBy: "breaker-1" },
     ]);
-    expect(feint.battle.spentExposed, "the spent stack records who set it and who spent it").toContainEqual({
+    // Rule 16: both are "in the state the client is sent", so read what view()
+    // sends, not the engine's own battle.
+    expect(sent(e, feint.battle).spentExposed, "the state a client is sent records who set the spent stack and who spent it").toContainEqual({
       ringId: "outer",
       appliedBy: "breaker-1",
       spentBy: "striker-2",
     });
+    expect(sent(e, feint.battle).rings.find((r) => r.id === "outer")?.exposed, "and the stack still waiting, with who set it").toEqual([
+      { appliedBy: "breaker-1" },
+    ]);
     expect(events(feint, "exposed").find((x) => x.spentBy === "striker-2"), "and the spend is an event naming both").toMatchObject({
       appliedBy: "breaker-1",
     });
