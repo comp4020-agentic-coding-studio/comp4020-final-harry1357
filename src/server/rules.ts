@@ -122,6 +122,9 @@ export interface Battle {
   spentExposed: { ringId: RingId; appliedBy: string; spentBy: string }[];
   /** A Bastion stands against the next raid-wide card. */
   bastion: boolean;
+  /** The Orrery's script's memory between turns (its rotation, who touched which
+   *  card). Opaque here; orrery.ts alone reads and writes it. Never sent. */
+  orreryScript: unknown;
 }
 
 export interface StatDelta {
@@ -310,6 +313,7 @@ export function createBattle(id: string, isPublic: boolean, now: number): Battle
     chain: { links: 0, potency: 1 },
     spentExposed: [],
     bastion: false,
+    orreryScript: null,
   };
 }
 

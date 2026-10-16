@@ -66,10 +66,9 @@
 //
 // What the script remembers between turns (its place in the rotation, who
 // touched which card, how far the Alignment has come) is carried on the
-// battle under `orreryScript`, so it survives each step's structuredClone.
-// view() builds the wire state field by field, so it is never sent. GAP for
-// the integrator: if a declared home is preferred, it wants `script` on
-// Battle in rules.ts, or `aimedAt`/`touchedBy` on BossCard in protocol.ts.
+// battle's declared `orreryScript` (rules.ts), so it survives each step's
+// structuredClone. view() builds the wire state field by field, so it is
+// never sent.
 
 import { BOSS_ID, type BossCard, type Intent, type RingId } from "../shared/protocol.ts";
 import * as roles from "./roles.ts";
@@ -302,12 +301,10 @@ interface Script {
   touchedBy: Record<string, string>;
 }
 
-type Scripted = Battle & { orreryScript?: Script };
-
+/** The script's memory, on the battle's declared `orreryScript` (rules.ts), so it survives each step's clone. */
 function script(b: Battle): Script {
-  const carried = b as Scripted;
-  carried.orreryScript ??= { played: 0, phase: 1, periheliaFor: 0, lastPerihelion: 0, aligned: 0, aimedAt: {}, touchedBy: {} };
-  return carried.orreryScript;
+  b.orreryScript ??= { played: 0, phase: 1, periheliaFor: 0, lastPerihelion: 0, aligned: 0, aimedAt: {}, touchedBy: {} };
+  return b.orreryScript as Script;
 }
 
 function forget(s: Script, cardId: string): void {
