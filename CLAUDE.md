@@ -212,8 +212,10 @@ around it.
    counter, never predicts the next actor, and never enables an action because
    *it* thinks a counter reached zero. It renders the `queue` and `activeId`
    the server sent, in the order sent; the turn strip is that queue drawn as
-   portraits. Animating between two server states is drawing, not deciding. *Spec: two clients in one battle receive
-   identical queues. Judged in `src/client/`.*
+   portraits. Animating between two server states is drawing, not deciding.
+   *Spec: two clients in one battle receive identical queues
+   (`spec/queue.test.ts`), and the strip draws the queue in the order sent,
+   never re-sorted (`spec/strip-order.test.ts`).*
 2. **An action is never queued.** An action arriving while the actor's counter
    isn't zero is rejected (409) and dropped. It is not buffered, not deferred to
    their next turn, and not retried by the client. The client holds no pending
