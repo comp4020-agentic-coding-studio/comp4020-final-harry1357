@@ -404,13 +404,13 @@ function perihelion(ctx: Ctx, card: BossCard): void {
  */
 function spent(ctx: Ctx, card: BossCard, what: string): void {
   const named = card.targetId ? (ctx.b.joined[card.targetId] ?? "its mark") : "its mark";
-  ctx.say("boss", BOSS_ID, `${what} finds no one where ${named} stood, and passes over the table.`, {
-    kind: card.intent === "lunge" ? "lunge" : "eclipse",
-    actorId: BOSS_ID,
-    targetId: card.targetId ?? "",
-    amount: 0,
-    ...(card.intent === "lunge" ? { gravity: 0 } : {}),
-  } as Parameters<Ctx["say"]>[3]);
+  const text = `${what} finds no one where ${named} stood, and passes over the table.`;
+  const targetId = card.targetId ?? "";
+  if (card.intent === "lunge") {
+    ctx.say("boss", BOSS_ID, text, { kind: "lunge", actorId: BOSS_ID, targetId, amount: 0, gravity: 0, spent: true });
+  } else {
+    ctx.say("boss", BOSS_ID, text, { kind: "eclipse", actorId: BOSS_ID, targetId, amount: 0, spent: true });
+  }
 }
 
 function eclipse(ctx: Ctx, card: BossCard): void {

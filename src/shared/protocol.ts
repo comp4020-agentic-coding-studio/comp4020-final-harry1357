@@ -352,8 +352,10 @@ export type BattleEvent =
   | Boss<"phase", { phase: 2 | 3 }>
   | Boss<"break", { ringId: RingId; by: string }>
   | Boss<"revolution", { hits: Hit[] }>
-  | Boss<"eclipse", { targetId: string; amount: number }>
-  | Boss<"lunge", { targetId: string; amount: number; gravity: number }>
+  // `spent`: the card's target had fallen or left, so it landed on nobody and
+  // passes over (rule 19; review F8, R1). Drawn as passing, never as a hit.
+  | Boss<"eclipse", { targetId: string; amount: number; spent?: true }>
+  | Boss<"lunge", { targetId: string; amount: number; gravity: number; spent?: true }>
   | Boss<"gravity", { targetId: string; anchoredBy: string | null; lethal: boolean }>
   | Boss<"perihelion", { hits: Hit[]; broken: boolean }>
   | Boss<"retrograde", { flipped: boolean; cancelledBy: string | null }>
