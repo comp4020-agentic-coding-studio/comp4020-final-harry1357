@@ -219,9 +219,12 @@ around it.
 2. **An action is never queued.** An action arriving while the actor's counter
    isn't zero is rejected (409) and dropped. It is not buffered, not deferred to
    their next turn, and not retried by the client. The client holds no pending
-   action either: the command window stays disabled until the server says it
-   is your turn. *Spec: an early action is rejected, and nothing fires when the
-   turn comes.*
+   action either. The turn's actions stay disabled until the server says it
+   is your turn. A Reaction is different: it is live only while the server
+   says one is ready for you (reactionReady) and only against the card the
+   server names, and it is the one thing the command window offers off-turn.
+   The client decides nothing about when either is available. *Spec: an early
+   action is rejected, and nothing fires when the turn comes.*
 3. **No accounts.** A person is a session cookie, plus a name, plus a role.
    Nothing else: no email, password, OAuth or profile page. The server mints
    the cookie (HttpOnly). Identity always comes from the cookie, never from a
