@@ -91,6 +91,11 @@ describe("the Orrery's script", () => {
       const step = bossTurn(e, b);
       const struck = events(step, intent).filter((x) => x.targetId !== undefined && x.targetId !== "striker-1");
       expect(struck, `a ${intent} aimed at a fallen striker struck someone else instead`).toEqual([]);
+      // Review R1: and the event says it landed on nobody, so the screen can
+      // draw it passing over rather than as a hit on the fallen.
+      const passed = events(step, intent).find((x) => x.targetId === "striker-1");
+      expect(passed, `the spent ${intent} is still announced`).toBeDefined();
+      expect(passed?.spent, `the spent ${intent} says it was spent, not a hit`).toBe(true);
       for (const id of ["warden-2", "mender-3"]) {
         const took = (before[id] ?? 0) - fighter(step.battle, id).hp;
         const named = step.effects.events

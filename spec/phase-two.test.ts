@@ -111,6 +111,20 @@ describe("open findings carried into phase two", () => {
     ).toBe(true);
   });
 
+  it("R1 (rule 11): a spent card is drawn passing over, not as a hit on the fallen", async () => {
+    const { RENDERERS } = await client<{ RENDERERS: Record<string, { reduced?: (c: unknown, e: unknown) => unknown }> }>(
+      "src/client/battle/registry.ts",
+    );
+    for (const kind of ["eclipse", "lunge"]) {
+      const calls: string[] = [];
+      const api = (ns: string) =>
+        new Proxy({}, { get: (_t, p) => (p === "then" ? undefined : (..._a: unknown[]) => (calls.push(`${ns}.${String(p)}`), Promise.resolve())) });
+      const ctx = { scene: api("scene"), strip: api("strip"), audio: api("audio"), reduced: true, wait: () => Promise.resolve(), state: stateWithCard() };
+      await RENDERERS[kind]?.reduced?.(ctx, { kind, actorId: "orrery", targetId: "me", amount: 0, gravity: 0, spent: true, tick: 10, seq: 4 });
+      expect(calls.filter((c) => c === "scene.hit" || c === "scene.number"), `a spent ${kind} draws a hit or a number on its fallen target`).toEqual([]);
+    }
+  });
+
   it("F7 (ADR-006): a card-target action offers the strip's boss cards, and sends a card id", async () => {
     const { mountCommandWindow } = await client<{
       mountCommandWindow: (root: HTMLElement, o: Record<string, unknown>) => { setEnabled(on: boolean): void; destroy(): void };
