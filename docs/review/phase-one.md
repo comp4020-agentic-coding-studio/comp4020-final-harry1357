@@ -270,4 +270,101 @@ phase-two target (`sprites` ×2, `effects`, `shown`, `phase-two` ×4).
 
 ## Re-review
 
-(The reviewer, run again on the fixes, on a fresh context.)
+The reviewer, run again on a fresh context against `0e5c564..34f0780`, checked
+each disposition against the code and reviewed the fixes as new code. Its Bash
+was held to `git diff` and `pnpm check`. `pnpm check`: typecheck and stylelint
+clean; vitest 91 passed, 8 failed, matching the roster above.
+
+**The disposition table above overstated three findings as fixed.** The
+re-review is right on each, and it was confirmed by hand: F4 (an Echo seat is
+still credited a win or loss, and the economy.ts header still says its turn
+and damage are credited), F10 (the hook still passes `--config`, which runs any
+script, and `--clearCache`), and F12 (healing still ignores potency untested).
+
+### (A) The original findings, re-checked
+
+| Finding | Re-review | Note |
+| --- | --- | --- |
+| F1 | carried red correctly | fails on the line appended for an unrendered `pull` |
+| F2 | carried red correctly | but its target is weak (R9) |
+| F3 | resolved on the server | the client side of the beat is wrong (R8) |
+| F4 | **not fully resolved** | wins and losses still credited to an Echo seat (`rules.ts:677-684`), untested; `economy.ts:29-31` comment says the opposite of the fix |
+| F5 | resolved | |
+| F6 | carried red correctly (the guard) | its drifting check passes a wrong implementation (R5) |
+| F7 | **carried red only in part** | covers Delay, not Anchor or Stillpoint; and Intercept / every Reaction still can't be sent from the app (`main.ts:130-131` keeps the window dark off-turn), neither fixed nor carried |
+| F8 | resolved on the server | the spent card is drawn as a hit (R1) |
+| F9 | resolved | `assets.test.ts:6` imports the shim statically, so deleting it in phase two breaks rule 12's licence checks |
+| F10 | **not resolved** | `--config <script>` runs any script; `--reporter=blob` writes; `--clearCache` deletes |
+| F11 | resolved | |
+| F12 | **partly resolved** | damage reads potency; healing (`roles.ts:254`) untested; the ratio is loose (R10) |
+| F13 | resolved | |
+| F14 | resolved | CLAUDE.md rule 1 still says "Judged in src/client/" |
+| F15–F18 | resolved | |
+| F19 | resolved for the turn it samples | samples one phase-I turn (R11) |
+| F20 | resolved as stated | but event-only (R6) |
+| F21–F24 | resolved | F21 a real bug fix |
+| F25 | **carried red wrongly** | the named test holds one renderer; the general weakness (`effects.test.ts:69-70`, any non-motion call counts) is what all 30 phase-two renderers will be judged by, and no red test carries it |
+| F26 | carried red correctly | masks a regression check (R7) |
+| Q1 | **partly resolved** | other invisible characters and unnormalised forms pass (R4); stripping renames some names (R2) |
+| Q2 | not resolved, by recorded judgement | no rule requires it |
+
+### (B) New findings
+
+**Violations of a rule or an ADR**
+
+- **R1, rule 11 (and rule 19's intent).** `src/server/orrery.ts:405-414` emits a
+  spent card as an ordinary `eclipse` or `lunge` with the fallen target's id,
+  `amount: 0` and a made-up `gravity: 0`; the registered renderer
+  (`effects/orrery.ts:13-37`) draws a bolt, a hurt frame and a harm number on the
+  fallen sprite while the log says it "passes over the table". The cast
+  `as Parameters<Ctx["say"]>[3]` hides the shape from tsc; the protocol has no
+  field for "spent"; no test covers what a spent card draws.
+- **R2, rule 4 ("never suffixed or silently renamed").** `rules.ts:211` strips
+  all `\p{Cf}`, including ZWJ U+200D and ZWNJ U+200C, which shape emoji
+  sequences and Persian and Indic spelling: such a name is stored and shown
+  differently from what was typed, silently.
+- **R3, ADR-002 §Options 3 against ADR-006 §The Echo.** The beat stops the
+  table's clock 3 s on every Echo turn for as long as the person is gone:
+  ADR-002's rejected option 3 ("keeps costing the table one full timeout every
+  cycle, forever"). ADR-006 records a cost for the record but none for this.
+
+**Tests that would pass under a wrong implementation, and rules with no test**
+
+- **R4, rule 4 / Q1.** `queue.test.ts:128-149` tries only Cf characters: an
+  invisible twin with U+034F or U+FE0F (Mn), a blank name of U+3164, U+FFA0 or
+  U+2800, and NFC against NFD "José" all pass `cleanName`. It would also pass
+  if Cf were stripped only for comparison and the raw name stored.
+- **R5, rule 8 "Their portrait dims" and ADR-006 "shown as the Echo's on the
+  strip".** `phase-two.test.ts:108-111` goes green with a one-off
+  `strip.flag(id, "drifting")` stamp that clears in 1.1 s; nothing holds a
+  persistent mark (`strip.ts:166-195` reads neither `drifting` nor `echo`); a
+  client connecting mid-fight gets no past events, so an event-driven mark never
+  shows to it.
+- **R6, ADR-006 §Decision.** `economy.test.ts:324` checks only that each action
+  emits its event: it passes if Quicken never cuts a wait, Ward never absorbs,
+  Bastion never blunts, Relay never hands on, Pry or Shatter never strip pips or
+  push a card, Restore never revives, or Finisher never doubles on a Broken
+  ring. Quicken and a Break pushing a card back have no effect test anywhere.
+- **R7, rule 11 (server side), masked.** `shown.test.ts:52-93`, the only check
+  that the server raises nothing undeclared, sits behind the red registry loop
+  and doesn't run; when it does, its idle Chronist becomes an Echo and every
+  Echo turn waits a fixed 3 s no env can shorten: an estimated 20+ Echo turns
+  overrun its 60 s budget, so it would go red for the wrong reason.
+- **R8, ADR-006 §The Echo ("its person's portrait lights for them").** Not
+  implemented or tested: `turnMs` is documented as the plate's time, the beat is
+  `ECHO_BEAT_MS` and isn't sent, so `main.ts:132-134` and `:205-210` draw the
+  beat as a turn already 75% gone and sound the hold warning at once.
+- **R9, rule 19.** `phase-two.test.ts:91-93` checks only a card's id and intent;
+  a card with no target and no countdown passes.
+- **R10, rule 15.** `economy.test.ts:105-121` uses a Jab of 6, so any potency
+  from about 1.35 to 1.54 rounds to 9 and passes `toBeCloseTo(1.5, 1)`.
+- **R11, rule 19.** `orrery.test.ts:44-68` samples one phase-I turn, whose only
+  due card is a Revolution: a Retrograde, Perihelion or Alignment resolving
+  unannounced later passes.
+
+**Events with no renderer:** none new. `leave` is declared and rendered but no
+longer raised.
+
+### What was done about the re-review
+
+(Added as each is fixed, carried, or put to the owner.)
