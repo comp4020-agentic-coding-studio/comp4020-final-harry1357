@@ -323,6 +323,14 @@ the rules.
 
 ## How to work in here
 
+- **No phase merges without the review gate: reviewer and breaker run on a
+  fresh context after integration, their findings are fixed in commits that
+  name them, and the gate's reports are kept in docs/review/<phase>.md.** The
+  two agents are `.claude/agents/reviewer.md` (reads the diff from main against
+  this file, every ADR and every spec; read-only, its Bash held to `git diff`
+  and the test runner by `.claude/agents/reviewer-bash.sh`) and
+  `.claude/agents/breaker.md` (attacks a running local instance through the
+  API, the WebSocket and Chrome; never the live deploy). Neither can approve.
 - Commit when the checks pass. Never commit a red state, **with one
   exception**: a `spec/` test that is red because the feature isn't built yet
   is a *target*, not a regression. Those are committed red on purpose, and the

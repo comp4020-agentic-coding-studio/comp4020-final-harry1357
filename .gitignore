@@ -18,8 +18,11 @@ mise.local.toml
 
 # Claude Code's project directory is machine-local: settings in here can hold
 # your course API key, and this repo goes public when you ship. Your tracked
-# harness is CLAUDE.md (and any AGENTS.md), not this directory.
-.claude/
+# harness is CLAUDE.md (and any AGENTS.md), not this directory. The one
+# exception is the review gate's agents (CLAUDE.md, "the review gate"), which
+# are part of the harness: .claude/agents/ is tracked, nothing else in here is.
+.claude/*
+!.claude/agents/
 
 # local database when running the server outside Docker
 .data/
