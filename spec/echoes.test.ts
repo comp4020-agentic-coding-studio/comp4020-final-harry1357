@@ -136,6 +136,132 @@ describe("an Echo is seated on purpose", () => {
   });
 });
 
+describe("each role's policy, branch by branch", () => {
+  // Review R12: every policy test passed if all but the Striker always Braced,
+  // since Brace is in every catalogue. Here each branch of ADR-007's policies
+  // gets a state built for it, and the exact move it must make.
+
+  /** The Echo's move on its turn: its action, and what it aimed at. */
+  const moveOf = (e: Engine, b: Battle, id: string) => {
+    const ev = actionsBy(echoTurn(e, b, id), id)[0];
+    return ev ? { kind: ev.kind, ring: ev.ringId, target: ev.targetId ?? ev.toId, card: ev.cardId } : null;
+  };
+  /** A clone with no boss cards, then these announced (rule 19), so a test knows exactly what's on the strip. */
+  const withCards = (e: Engine, b: Battle, cards: { intent: string; targetId: string | null; countdown: number }[]): Battle => {
+    let next = structuredClone(b);
+    next.cards = [];
+    for (const c of cards) next = e.announce(next, { ...c, amount: c.intent === "retrograde" ? null : 10 });
+    return next;
+  };
+  const edit = (b: Battle, change: (b: Battle) => void): Battle => {
+    const next = structuredClone(b);
+    change(next);
+    return next;
+  };
+  const scanned = (b: Battle) => {
+    for (const r of b.rings) r.weakness = r.element;
+  };
+
+  it("Warden: Anchors a blow on an ally one Lunge from lethal, else Counterweights; off its turn, Intercepts a blow about to land", async () => {
+    const e = await echoEngine();
+    const { b, echoId } = withEcho(e, "warden", ["mender", "striker"]);
+    const heavy = edit(withCards(e, b, [{ intent: "lunge", targetId: "mender-1", countdown: 1 }]), (x) => {
+      x.standing.find((f) => f.id === "mender-1")!.gravity = 2;
+    });
+    expect(moveOf(e, heavy, echoId), "a Lunge on an ally at two Gravity: Anchor it").toMatchObject({ kind: "anchor", card: heavy.cards[0].id });
+    const light = withCards(e, b, [{ intent: "lunge", targetId: "mender-1", countdown: 1 }]);
+    expect(moveOf(e, light, echoId), "the same Lunge at no Gravity: Counterweight").toMatchObject({ kind: "counterweight" });
+
+    // Off its turn: the Mender is on the plate, a blow at the Mender resolves next.
+    const due = e.plate(withCards(e, b, [{ intent: "eclipse", targetId: "mender-1", countdown: 0 }]), "mender-1", clock(T0));
+    const step = e.advance(due, clock(T0 + 10));
+    expect(step, "the clock gives the Warden Echo its Reaction while the Mender decides").not.toBeNull();
+    expect(step!.effects.events.find((ev) => ev.kind === "intercept"), "it Intercepts the blow meant for the Mender").toMatchObject({
+      actorId: echoId,
+      protectedId: "mender-1",
+    });
+    expect(step!.battle.activeId, "and the Mender's turn is still the Mender's").toBe("mender-1");
+  });
+
+  it("Mender: Wards the one a blow is aimed at, else Mends the lowest, else Quickens the next player", async () => {
+    const e = await echoEngine();
+    const { b, echoId } = withEcho(e, "mender", ["warden", "striker"]);
+    const aimed = withCards(e, b, [{ intent: "eclipse", targetId: "striker-2", countdown: 1 }]);
+    expect(moveOf(e, aimed, echoId), "a blow announced at the Striker: Ward the Striker").toMatchObject({ kind: "ward", target: "striker-2" });
+    const hurt = edit(withCards(e, b, []), (x) => {
+      x.standing.find((f) => f.id === "warden-1")!.hp -= 20; // 150/170
+      x.standing.find((f) => f.id === "striker-2")!.hp -= 30; // 80/110, the lowest share
+    });
+    expect(moveOf(e, hurt, echoId), "no blow announced: Mend the lowest by share").toMatchObject({ kind: "mend", target: "striker-2" });
+    const whole = withCards(e, b, []);
+    const next = sent(e, e.plate(whole, echoId, clock(T0))).queue.find((t) => t.kind === "character" && t.id !== echoId)!.id;
+    expect(moveOf(e, whole, echoId), "nobody hurt: Quicken the next player on the strip").toMatchObject({ kind: "quicken", target: next });
+  });
+
+  it("Striker: Finishes a Broken ring with Momentum, else Jabs", async () => {
+    const e = await echoEngine();
+    const { b, echoId } = withEcho(e, "striker");
+    const broken = edit(b, (x) => {
+      x.rings[1].broken = true;
+      x.rings[1].pips = 0;
+      x.standing.find((f) => f.id === echoId)!.resource = 3;
+    });
+    expect(moveOf(e, broken, echoId), "a Broken middle ring and Momentum: Finish it").toMatchObject({ kind: "finisher", ring: "middle" });
+    const empty = edit(broken, (x) => {
+      x.standing.find((f) => f.id === echoId)!.resource = 0;
+    });
+    expect(moveOf(e, empty, echoId), "no Momentum: Jab").toMatchObject({ kind: "jab" });
+  });
+
+  it("Breaker: Scans the unknown, Shatters at two pips, Marks a bare ring, else Pries", async () => {
+    const e = await echoEngine();
+    const { b, echoId } = withEcho(e, "breaker");
+    expect(moveOf(e, b, echoId), "every weakness unknown: Scan the outer ring").toMatchObject({ kind: "scan", ring: "outer" });
+    const thin = edit(b, (x) => {
+      scanned(x);
+      x.rings[1].pips = 2;
+      x.standing.find((f) => f.id === echoId)!.resource = 3;
+    });
+    expect(moveOf(e, thin, echoId), "all Scanned, the middle ring at two pips, Insight for it: Shatter it").toMatchObject({ kind: "shatter", ring: "middle" });
+    const bare = edit(b, (x) => {
+      scanned(x);
+      x.rings[0].exposed = [{ appliedBy: "mender-1" }];
+    });
+    expect(moveOf(e, bare, echoId), "all Scanned, none thin: Mark the outermost ring with no stack").toMatchObject({ kind: "mark", ring: "middle" });
+    const marked = edit(b, (x) => {
+      scanned(x);
+      for (const r of x.rings) r.exposed = [{ appliedBy: "mender-1" }];
+    });
+    expect(moveOf(e, marked, echoId), "every ring Marked: Pry the outermost toward Shatter's range").toMatchObject({ kind: "pry", ring: "outer" });
+  });
+
+  it("Chronist: Delays a boss card within two slots, else Relays", async () => {
+    const e = await echoEngine();
+    const { b, echoId } = withEcho(e, "chronist", ["warden"]);
+    const near = withCards(e, b, [
+      { intent: "revolution", targetId: "party", countdown: 2 },
+      { intent: "eclipse", targetId: "warden-1", countdown: 1 },
+    ]);
+    const soon = near.cards.find((c) => c.countdown === 1)!;
+    expect(moveOf(e, near, echoId), "a card one slot out: Delay it").toMatchObject({ kind: "delay", card: soon.id });
+    const far = withCards(e, b, [{ intent: "revolution", targetId: "party", countdown: 2 }]);
+    expect(moveOf(e, far, echoId), "nothing within two slots: Relay").toMatchObject({ kind: "relay" });
+  });
+
+  it("a timed-out seat's Echo makes the same move as a seated Echo in its place", async () => {
+    const e = await echoEngine();
+    for (const role of ROLES) {
+      const { b, echoId } = withEcho(e, role, ["warden", "striker"]);
+      // The same seat, timed out instead of seated on purpose.
+      const timedOut = edit(b, (x) => {
+        const f = x.standing.find((t) => t.id === echoId)!;
+        (f as unknown as { seatedBy: string | null }).seatedBy = null;
+      });
+      expect(moveOf(e, timedOut, echoId), `a ${role}: one policy, whoever's seat it is`).toEqual(moveOf(e, b, echoId));
+    }
+  });
+});
+
 describe("an Echo plays at low output", () => {
   it("deals and heals the Echo's share of what a person in its seat would", async () => {
     // Review R8: low output was held only for a Striker's Jab. Output is
