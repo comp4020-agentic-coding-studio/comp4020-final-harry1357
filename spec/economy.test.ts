@@ -208,13 +208,20 @@ describe("the action economy", () => {
     }
     expect(fighter(b, "striker-1").echo, "the third timeout in a row makes an Echo").toBe(true);
 
-    // An Echo's turn is taken by the server, at once, with a real action.
-    const hp = fighter(b, "orrery").hp;
-    const echoTurn = e.advance(e.plate(b, "striker-1", clock()), clock())!;
+    // An Echo's turn is taken by the server, at once, with a real action, at
+    // low output (rule 8): the role's plain blow at half strength. Measured
+    // with no Chain, so only the Echo's share is in it.
+    const calm = structuredClone(b);
+    calm.chain = { links: 0, potency: 1 };
+    const hp = fighter(calm, "orrery").hp;
+    const echoTurn = e.advance(e.plate(calm, "striker-1", clock()), clock())!;
     const acted = echoTurn.effects.events.filter((x) => x.actorId === "striker-1" && x.kind !== "plate");
-    expect(acted.length, "an Echo acts on its turn rather than waiting it out").toBeGreaterThan(0);
     expect(acted.some((x) => x.kind === "hold"), "an Echo's turn isn't another timeout").toBe(false);
-    expect(fighter(echoTurn.battle, "orrery").hp <= hp, "an Echo's action is a real one").toBe(true);
+    const dealt = hp - fighter(echoTurn.battle, "orrery").hp;
+    const power = (await import("../src/server/roles.ts")).STATS.striker.power;
+    const share = (await import("../src/server/tuning.ts")).ECHO_POTENCY;
+    expect(share, "an Echo is low output: less than a whole person").toBeLessThan(1);
+    expect(dealt, "an Echo deals the Striker's plain blow at the Echo's share, no more and no less").toBe(Math.round(power * share));
 
     // The person comes back: acting ends the Echo.
     const back = turn(e, echoTurn.battle, "striker-1", "jab", "outer");
