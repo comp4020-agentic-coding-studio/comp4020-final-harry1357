@@ -3,10 +3,18 @@ import { join, relative } from "node:path";
 import { describe, expect, inject, it } from "vitest";
 import { contentBox, crop, decodePng, type Image } from "../scripts/png.ts";
 import { ROLE_IDS } from "../src/shared/protocol.ts";
+import { spriteFor } from "../src/client/sprites.ts";
 
 // The party's art is complete and licensed (CLAUDE.md rule 12, and the Design
 // block). Read off the files themselves and the app that serves them, not off
 // what the manifest claims.
+//
+// These hold the art the app actually draws: each role's sprite through
+// src/client/sprites.ts, which in phase one is a shim that lends the five new
+// roles the old four sprites (two roles share the Herald). That a role borrows
+// another's sprite at all is held red by spec/sprites.test.ts, in one place;
+// these hold that whatever is drawn is whole and distinct.
+const DRAWN = [...new Set(ROLE_IDS.map((r) => spriteFor(r) ?? r))];
 const base = inject("baseUrl");
 const ASSETS = "src/assets";
 const REQUIRED = ["idle", "attack", "hurt", "down"] as const;
@@ -39,7 +47,7 @@ function cellOf(role: Role, anim: Animation, index: number): Image {
 
 describe("the party's sprites", () => {
   it("every sprite has every required frame (idle, attack, hurt, down)", async () => {
-    for (const roleId of ROLE_IDS) {
+    for (const roleId of DRAWN) {
       const role = manifest.roles[roleId];
       expect(role, `sprites.json has no ${roleId}`).toBeTruthy();
       for (const name of REQUIRED) {
@@ -59,11 +67,11 @@ describe("the party's sprites", () => {
     }
   });
 
-  it("tells the four roles apart in silhouette at 24px", () => {
+  it("tells every sprite the app draws apart in silhouette at 24px", () => {
     // Each idle pose, trimmed, scaled to 24px tall by box-averaging its alpha,
     // and compared pair by pair. Two roles that overlap this much are one
     // shape to a glance.
-    const silhouettes = ROLE_IDS.map((roleId) => {
+    const silhouettes = DRAWN.map((roleId) => {
       const role = manifest.roles[roleId];
       const cell = cellOf(role, role.animations.idle, role.animations.idle.frames[0]);
       const box = contentBox(cell, 0) as { x: number; y: number; w: number; h: number };
