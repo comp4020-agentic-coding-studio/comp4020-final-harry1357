@@ -8,13 +8,14 @@ import type { Registry } from "./api.ts";
 import * as orrery from "./effects/orrery.ts";
 import * as party from "./effects/party.ts";
 import * as table from "./effects/table.ts";
+import { SHIM_RENDERERS } from "../sprites.ts";
 
 export const RENDERERS: Registry = {
+  // Phase-one stand-ins that borrow another event's animation (src/client/sprites.ts).
+  ...SHIM_RENDERERS,
   join: { full: table.join, reduced: table.joinReduced },
-  jab: { full: party.jab, reduced: party.jabReduced },
   brace: { full: party.brace, reduced: party.braceReduced },
   mend: { full: party.mend, reduced: party.mendReduced },
-  haste: { full: party.haste, reduced: party.hasteReduced },
   hold: { full: table.hold, reduced: table.holdReduced },
   leave: { full: table.leave, reduced: table.leaveReduced },
   down: { full: table.down, reduced: table.downReduced },

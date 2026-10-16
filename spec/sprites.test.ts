@@ -2,12 +2,13 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { expect, it } from "vitest";
 
-// Every role is drawn with its own sprite. Phase one of the overhaul
-// (docs/adr/006) brought in five roles while the art still has the old four,
-// so the client borrows: src/client/sprites.ts maps each role onto a sprite
-// that belongs to someone else. That table is a shim, marked for removal in
-// phase two, and this test is what stops phase two forgetting it. It is red
-// on purpose until every role has art of its own (CLAUDE.md, "How to work in
+// Nothing in phase one's shim survives phase two. Phase one of the overhaul
+// (docs/adr/006) brought in five roles and new events while the client still
+// has the old art and animations, so src/client/sprites.ts carries two
+// stand-ins: each role borrows another role's sprite, and the Jab and Haste
+// renderers borrow the old Strike and Hasten animations. Both are marked for
+// removal in phase two, and these tests are what stop phase two forgetting
+// them. They are red on purpose until it's done (CLAUDE.md, "How to work in
 // here": a spec red because the feature isn't built is a target).
 //
 // The roles are the design record's (docs/design/overhaul.md, Priority 2),
@@ -34,4 +35,19 @@ it("every role is drawn with its own sprite, not another role's", async () => {
   const manifest = JSON.parse(readFileSync("src/assets/sprites.json", "utf8")) as { roles?: Record<string, unknown> };
   const missing = ROLES.filter((r) => !manifest.roles?.[r]);
   expect(missing, "these roles have no sprite of their own in src/assets/sprites.json").toEqual([]);
+});
+
+it("no renderer is a shim borrowing another event's animation", async () => {
+  // The shim may be gone by phase two; then nothing is borrowed.
+  let shims: Record<string, unknown> = {};
+  try {
+    const shim = (await import(resolve("src/client/sprites.ts"))) as { SHIM_RENDERERS?: Record<string, unknown> };
+    if (shim.SHIM_RENDERERS) shims = shim.SHIM_RENDERERS;
+  } catch {
+    // no shim: nothing is borrowed
+  }
+  expect(
+    Object.keys(shims).sort(),
+    "these events are still drawn by a phase-one shim that borrows another event's animation (src/client/sprites.ts)",
+  ).toEqual([]);
 });
