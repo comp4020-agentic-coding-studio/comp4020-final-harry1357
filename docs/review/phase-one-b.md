@@ -508,3 +508,45 @@ None new.
 - The fixes touch nothing in `src/shared/`, `src/client/` or `scripts/`: `git diff bc68247...HEAD` on those paths is empty.
 - The server diff raises no new event kind. Closing a bare battle raises `end` (`rules.ts:668`), which is declared (`protocol.ts:276`) and rendered (`registry.ts:26`).
 - **Already tracked:** `seat` is still unrendered (R18, carried red). `shown.test.ts:48` and `effects.test.ts:61` both stop on it in this run.
+
+### What was done about the re-review
+
+| Finding | What was done | Where |
+| --- | --- | --- |
+| N1 a finished private fight, read by id, hands out the open room's code | Fixed: a private room's fights, live or finished, stay behind its code while the room is open; rule 22 says so | `361dc82` |
+| N2 a character keeps its name and role only while seated elsewhere | **Open, the owner's reading.** Today a person seated nowhere may come back under a new name or role and the character takes it (the phase-one behaviour); seated at another table, it can't (R1). Whether rule 24's "persists" also forbids the first is the owner's to say; either way it is a one-line change in `app.ts` and a test | — |
+| N3 ADR-006 contradicted without a note | Fixed: ADR-006's status names ADR-007's two amendments; `spec/echo.test.ts`'s header corrected | `6c219dc` |
+| N4 the by-id socket checked before anything broadcast | Fixed: checked across a broadcast; mutation-checked (a silent subscription fails it) | `a4aa6e6` |
+| N5 the bare battle's expiry not checked inside the window | Fixed; mutation-checked (closing at once fails it) | `fa73463` |
+| N6 R7's README test passes on one word | Fixed: it also needs "there's one fight" gone, a room joined by a code, and the visitor on their own. Still red, carried | `6bd2a5f` |
+| N7 R9's door test passes a hard-coded "RAID" or an unused door | Fixed: the stub's code can't be guessed, and the client's boot must take its fight from the door. Still red, carried | `eecdf68` |
+| N8 the carried countdown test has no window of nothing | Fixed: plateMs 0 must draw 0, never NaN. Still red, carried | `56a92dc` |
+| N9 three residuals in the Echo tests | Fixed: the Warden's line at Gravity 1, every script field, the exact move | `6429208` |
+
+And where the first disposition overstated:
+
+| Finding | Correction | Where |
+| --- | --- | --- |
+| R2, R8 | Both left a call to the owner (whether a seated Echo waits the beat; whether "low output" covers effects with no magnitude). This gate settled both by making the code and rules match what was already written (ADR-006 justifies the beat by reclaim alone; potency is what the economy calls output), and says so in rule 8, rule 25 and ADR-007. The owner may reverse either: a beat for seated Echoes is one line in `plateMs`, and a wider low output is a rule-25 decision with tests | `fe02e16`, `2a37431` |
+| R6 | "The owner's words": the reason in ADR-004's amendment was given in the owner's instruction for this phase, quoted. It isn't the gate's to replace with another reason. Open for the owner | — |
+| R7, R9 | Their carried tests are tightened (N6, N7) | `6bd2a5f`, `eecdf68` |
+| R17 | Room B is now also read afresh on a new socket, and its room messages counted; mutation-checked (a silent tick elsewhere fails it). Left as a limit: a tick for every battle on each action is a no-op on a waiting fight, and on a running one looks like that fight's own clock, so no observer of B can tell it apart | `67bd6ab` |
+| Q2 | The second reason was wrong: the bare battle a client sits in to get a character has a person in it, so it doesn't expire, and the room gate reads the durable character row. A client that has sat down once can make rooms indefinitely. No change still stands, on the first reason alone: rule 22 defines a seated player as a session with a character | — |
+| Q9 | Corrected: not everything expires. The `sessions` map and the `characters`, `battles` and log rows grow with every request (durable by design, rules 6 and 26), and a fight with a person in it lasts as long as its fight. No written rule requires rate limiting, so no change; it is recorded here as a risk for the deploy | — |
+| Q10 | "No test" was wrong: a streamed body holds the window open. Tested; mutation-checked (the fight from before the body answers 409 and fails it) | `2293874` |
+
+The re-review's fixes were not themselves re-reviewed.
+
+### Open, and blocking the merge
+
+- **Owner:** R6 (ADR-004's stated reason), R7 (the README, carried red in
+  `spec/owner.test.ts`), N2 (whether a character may be renamed between
+  fights). R2 and R8 stand as settled unless the owner reverses them.
+- **Phase-two client, carried red:** R9 (a door to the public raid's room),
+  R18 (the `seat` renderer, held by `shown` and `effects`), N8 (a window of
+  nothing), and phase one's carried findings, unchanged.
+
+**Roster after the re-review's fixes:** 136 green, 16 red: phase one's 14
+carried client findings, R7 and R9. Typecheck and lint clean. The propagation
+probe on this code: another browser sees a strike in 4.1 ms median, 4.9 ms
+worst (6 samples, local).
