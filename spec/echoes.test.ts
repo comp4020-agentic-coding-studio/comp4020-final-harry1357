@@ -98,7 +98,9 @@ describe("an Echo is seated on purpose", () => {
       expect(fighter(step.battle, echoId).echo, `and is still an Echo after it`).toBe(true);
       const credited = step.effects.stats[echoId] ?? { turns: 0, damage: 0, healing: 0 };
       expect([credited.turns, credited.damage, credited.healing], `the ${role} Echo's turn is in nobody's record`).toEqual([0, 0, 0]);
-      expect(step.effects.stats[seatedBy]?.turns ?? 0, "not even the record of whoever seated it").toBe(0);
+      // Review R14: turns alone passed if the Echo's damage or healing went to the seater.
+      const seater = step.effects.stats[seatedBy] ?? { turns: 0, damage: 0, healing: 0 };
+      expect([seater.turns, seater.damage, seater.healing], "not even the record of whoever seated it").toEqual([0, 0, 0]);
     }
   });
 
