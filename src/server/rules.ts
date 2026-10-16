@@ -37,9 +37,11 @@ import {
 } from "../shared/protocol.ts";
 import { ATTACK_RANK, counterReset } from "./ctb.ts";
 import { ECHO_BEAT_MS, ECHO_MAX } from "./tuning.ts";
+import * as echoes from "./echoes.ts";
 import * as economy from "./economy.ts";
 import * as orrery from "./orrery.ts";
 import * as roles from "./roles.ts";
+import { view } from "./view.ts";
 
 /** How many log lines the live state carries; the full log is in SQLite. */
 const LOG_TAIL = 50;
@@ -435,6 +437,13 @@ export function advance(b: Battle, clock: Clock): Step | null {
     return finish(ctx);
   }
   if (b.status !== "fighting") return null;
+  // A Reaction is legal off-turn (rule 18): an Echo whose policy has one takes it now.
+  const state = view(b, { tickMs: 0, turnMs: clock.turnMs });
+  for (const f of b.standing) {
+    if (f.kind !== "character" || !f.echo || f.id === b.activeId || !echoes.offTurn(state, f.id)) continue;
+    const step = echoMove(b, f.id, clock);
+    if ("battle" in step) return step;
+  }
   const up = b.standing.find((f) => f.counter === 0);
   if (up) {
     const ctx = context(structuredClone(b), clock);
@@ -448,6 +457,9 @@ export function advance(b: Battle, clock: Clock): Step | null {
     // An Echo waits out its beat for its person (rule 8); then the server plays it.
     if (f.echo) {
       if (b.turnDeadline !== null && clock.now <= b.turnDeadline) return null;
+      const played = echoMove(b, f.id, clock);
+      if ("battle" in played) return played;
+      // Never leave the plate stuck on an Echo: fall back to the plain blow.
       economy.echoTurn(ctx, f);
       return finish(ctx);
     }
@@ -606,10 +618,34 @@ export function seatEcho(b: Battle, who: { id: string; role: RoleId; seatedBy: s
  * its place would get. Area (b) builds this.
  */
 export function echoMove(b: Battle, echoId: string, clock: Clock): Step | Refusal {
-  void b;
-  void echoId;
-  void clock;
-  throw new Error("echoMove isn't built yet (phase one-b, area b: Echo policies)");
+  const state = view(b, { tickMs: 0, turnMs: clock.turnMs });
+  const mine = b.activeId === echoId;
+  // Off its turn it takes its Reaction if its policy has one, else it proposes
+  // its turn's move, so the refusal is the one a person would get.
+  const move = (mine ? null : echoes.offTurn(state, echoId)) ?? echoes.onTurn(state, echoId);
+  let checked = checkAction(b, echoId, move.action, move.targetId);
+  if ("status" in checked && mine) checked = checkAction(b, echoId, "brace", null);
+  if ("status" in checked) return checked;
+
+  const ctx = context(structuredClone(b), clock);
+  const actor = ctx.fighter(echoId);
+  // The log reads as the Echo's: a seat that timed out narrates as "The Echo of <name>".
+  const name = actor.name;
+  if (actor.seatedBy === null) actor.name = `The Echo of ${name}`;
+  try {
+    if (ACTIONS[checked.action].reaction) {
+      economy.react(ctx, actor, checked.action, checked.targetId, { byPerson: false });
+    } else {
+      economy.beforeTurn(ctx, actor, { byPerson: false });
+      const { rank } = roles.perform(ctx, actor, checked.action, checked.targetId);
+      economy.afterTurn(ctx, actor, checked.action, rank);
+    }
+  } finally {
+    actor.name = name;
+  }
+  // An Echo's turns, damage and healing are credited to nobody.
+  delete ctx.fx.stats[echoId];
+  return finish(ctx);
 }
 
 /** Close a fight that isn't over, as abandoned, with a line saying why: a room that went away (rule 26). */

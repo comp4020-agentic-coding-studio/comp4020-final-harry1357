@@ -180,10 +180,17 @@ export function checkReaction(b: Battle, actor: Fighter, action: ActionId, cardI
  * Take a Reaction out of turn (rule 18). It spends the Reaction and takes no
  * turn: no reset, no Chain link, no turn in the stats.
  */
-export function react(ctx: Ctx, actor: Fighter, action: ActionId, cardId: string | null): void {
+export function react(
+  ctx: Ctx,
+  actor: Fighter,
+  action: ActionId,
+  cardId: string | null,
+  how: { byPerson: boolean } = { byPerson: true },
+): void {
   const card = ctx.b.cards.find((c) => c.id === cardId);
   if (!card) throw new Error(`a Reaction against card ${cardId}, which checkReaction should have refused`);
-  present(ctx, actor);
+  // An Echo reacting for itself is not its person coming back: it stays an Echo.
+  if (how.byPerson) present(ctx, actor);
   actor.reactionReady = false;
   ctx.say("system", actor.id, `${actor.name} reacts out of turn with ${ACTIONS[action].label}, against the Orrery's ${card.intent}.`, {
     kind: "reaction",
