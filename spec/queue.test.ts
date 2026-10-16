@@ -124,4 +124,27 @@ describe("the queue is the truth", () => {
     const elsewhere = await newBattle(base);
     expect((await join(base, elsewhere, name, "warden")).status, "unique within a battle, not across them").toBe(200);
   });
+
+  it("a name can't be made unique, or empty, with characters nobody can see", async () => {
+    // Breaker Q1 (docs/review/phase-one.md): zero-width and bidi characters
+    // made "Dup" and "Dup" plus an invisible mark two names that render as one.
+    const battleId = await newBattle(base);
+    const name = `dup-${suffix()}`;
+    expect((await join(base, battleId, name, "warden")).status).toBe(200);
+    for (const [label, twin] of [
+      ["a zero-width space", `${name}\u200b`],
+      ["a zero-width joiner", `${name}\u200d`],
+      ["a soft hyphen", `${name}\u00ad`],
+      ["a right-to-left override", `\u202e${name}`],
+      ["a byte-order mark", `\ufeff${name}`],
+    ] as const) {
+      expect((await join(base, battleId, twin, "mender")).status, `the same name with ${label} is the same name`).toBe(409);
+    }
+    for (const [label, blank] of [
+      ["only a zero-width space", "\u200b"],
+      ["only a soft hyphen", "\u00ad"],
+    ] as const) {
+      expect((await join(base, battleId, blank, "mender")).status, `a name of ${label} is no name`).toBe(400);
+    }
+  });
 });
