@@ -1,12 +1,14 @@
 // The live table: every battle in progress, held in this one process, the one
 // clock that moves them, and the sockets watching them. Every change goes the
 // same way through apply(): write its durable consequences to SQLite, then
-// commit the new state to memory, bump the version, and broadcast. A failed
-// write throws before anything is committed or seen.
+// commit the new state to memory, bump the version, and broadcast, then log
+// what happened (src/server/log.ts). A failed write throws before anything is
+// committed, seen or logged.
 
 import type { WSContext } from "hono/ws";
 import type { ActionId, BattleEvent, BattleState, ServerMessage } from "../shared/protocol.ts";
 import { newId, type CharacterWrite, type Store } from "./db.ts";
+import { emitted } from "./log.ts";
 import { act, advance, createBattle, isEnded, join, view, type Battle, type Clock, type Step } from "./rules.ts";
 
 /** How long an ended battle stays in memory before only the database has it. */
@@ -24,17 +26,15 @@ export function createTable(store: Store, turnMs: number, tickMs: number) {
   const clock = (): Clock => ({ now: Date.now(), turnMs });
   const timing = { tickMs, turnMs };
 
-  function apply(step: Step, character: CharacterWrite | null = null): Battle {
+  /** `by` is the seat whose request made this step, or null when the clock did. */
+  function apply(step: Step, by: string | null, character: CharacterWrite | null = null): Battle {
     const next = step.battle;
     if (step.durable || character) store.writeStep(next.id, step.effects, Date.now(), character);
     next.version += 1;
     battles.set(next.id, next);
     broadcast(next, step.effects.events);
-    if (step.effects.status && isEnded(next)) {
-      const seated = Object.keys(next.joined).length;
-      console.log(`battle ${next.id} ended ${next.status} at tick ${next.tick} (${seated} seated)`);
-      if (next.id === publicId) open(true);
-    }
+    emitted(next, step.effects, by, character);
+    if (step.effects.status && isEnded(next) && next.id === publicId) open(true);
     return next;
   }
 
@@ -76,7 +76,7 @@ export function createTable(store: Store, turnMs: number, tickMs: number) {
           continue;
         }
         const step = advance(b, c);
-        if (step) apply(step);
+        if (step) apply(step, null);
       } catch (err) {
         console.error(`battle ${b.id}: the clock failed to move it`, err);
       }
@@ -125,7 +125,7 @@ export function createTable(store: Store, turnMs: number, tickMs: number) {
     seat(battleId: string, who: CharacterWrite): void {
       const b = battles.get(battleId);
       if (!b) throw new Error(`no live battle ${battleId}`);
-      apply(join(b, { id: who.id, name: who.name, role: who.role }, clock()), who);
+      apply(join(b, { id: who.id, name: who.name, role: who.role }, clock()), who.id, who);
       sessions.set(who.sessionId, who.id);
     },
 
@@ -138,7 +138,7 @@ export function createTable(store: Store, turnMs: number, tickMs: number) {
     act(battleId: string, actorId: string, action: ActionId, targetId: string | null): number {
       const b = battles.get(battleId);
       if (!b) throw new Error(`no live battle ${battleId}`);
-      return apply(act(b, actorId, action, targetId, clock())).tick;
+      return apply(act(b, actorId, action, targetId, clock()), actorId).tick;
     },
 
     state,

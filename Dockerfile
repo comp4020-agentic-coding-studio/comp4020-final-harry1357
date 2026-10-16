@@ -43,5 +43,9 @@ COPY --from=build /app/docs /app/docs
 
 ENV PORT=8080
 ENV DATABASE_PATH=/data/raid.db
+# the commit this image was built from, for the process-start log line; the
+# image has no .git (.dockerignore), so the deploy passes it in
+ARG GIT_SHA=unknown
+ENV GIT_SHA=$GIT_SHA
 EXPOSE 8080
 CMD ["node", "src/server/main.ts"]
