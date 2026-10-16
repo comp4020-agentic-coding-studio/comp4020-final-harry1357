@@ -331,3 +331,180 @@ planted fault turns it red), and the commit says against what.
 **Roster after the fixes:** 135 green, 16 red. The 16 are phase one's 14
 carried client findings, unchanged, plus R7 and R9, carried red here.
 Typecheck and lint clean.
+
+## Re-review
+
+The reviewer again, on a fresh context with no part in building the work or
+in the first review, reading the fixes (`git diff bc68247...HEAD`) against the
+disposition above. Kept as given.
+
+### What was read and run
+
+The reviewer (`.claude/agents/reviewer.md`), on a fresh context with no part in building the work or in the first review. Bash was held to `git diff` and vitest by the brief.
+
+**Read in full:**
+- CLAUDE.md, ADRs 001–007, and this file.
+- Every file in `spec/`, helpers included.
+- `git diff bc68247...HEAD` (12 files) and every changed file: `app.ts`, `rooms.ts`, `rules.ts`, `table.ts`, `echoes.test.ts`, `rooms.test.ts`, `restart.test.ts`, `owner.test.ts`, `phase-two.test.ts`, CLAUDE.md and ADR-007.
+- For context: `view.ts`, `hub.ts`, `echoes.ts`, `orrery.ts`, `tuning.ts`, `db.ts`, `main.ts`, the blow path in `roles.ts`, `registry.ts`, `EVENT_KINDS` in `protocol.ts`, and the client's `findBattle`.
+
+**Commits:** I couldn't read commit messages, because `git log` and `git show` are outside the brief. `git diff --stat <c>^ <c>` for six of the cited commits (4bc463c, fe02e16, 71e00df, bde8f94, 810650b, 28625d5) shows each one touches the files its row implies.
+
+**Ran:** `APP_URL=http://localhost:8090 npx vitest run`: **135 passed, 16 failed**, as the disposition says.
+- The 16 are `owner` R7 ×1, `sprites` ×2, `effects` ×1, `shown` ×1, and `phase-two` ×11 (phase one's 10, plus R9).
+- `effects` and `shown` both stop on `"seat"`.
+
+Typecheck and lint were not run.
+
+### (A) The original findings, re-checked
+
+**Count:** 24 hold, 5 are overstated (R7, R9, R17, Q9, Q10), and none is unfixed.
+
+#### The reviewer's findings
+
+- **R1: holds.**
+  - While a character holds a seat in another live fight (`table.ts:196-202`), a join under another name or role is refused with 409 (`app.ts:85-88`). An allowed join takes the stored name (`app.ts:89,97`).
+  - `rooms.test.ts:268-269` was 200/200 under the old code, so it fails there. `:298` reads the name and role back.
+  - Residual: a character can still be renamed between fights (N2).
+- **R2: holds.**
+  - `plateMs` is 0 for an Echo with a `seatedBy` (`rules.ts:186-187`). Its deadline is the moment it reaches the plate, so the next tick plays it (`rules.ts:469-470`, `:804`).
+  - `echoes.test.ts:306-325` fails both ways. With a beat for every Echo, there's no step at T0+1. With a beat for none, the timed-out seat's step at T0+1 isn't null.
+  - Rule 8 (CLAUDE.md:258-262) and ADR-007 (:74-80) record the change.
+  - Notes: R2 left this conflict "the owner's to settle", and the disposition doesn't say the owner settled it. ADR-006 isn't marked as amended (N3).
+- **R3: holds.**
+  - A successor fight opens only while `rooms.get(next.room)` still finds the room (`table.ts:52`), and `expire()` removes the room before it closes the fight (`:80-83`).
+  - `rooms.test.ts:372-396` reads the killed server's database. Under the old code it fails: there are two extra `waiting` fights, and the bare-battle sweep skips them because they carry a room code (`table.ts:95`).
+- **R4: holds, as the table describes it.**
+  - While a private room's fight is live, `behindCode` (`table.ts:142-145`) turns away join (`app.ts:116`, checked before the body is read), state (`:165`), log (`:194`) and the battle socket (`table.ts:229`).
+  - `rooms.test.ts:152-160` fails under the old routes. Rule 22 now says so (CLAUDE.md:344-345).
+  - Gaps: once the fight ends, its id hands out the code of a room that's still open (N1). The socket check also passes if the socket is subscribed silently (N4).
+- **R5: holds for rule 8.** CLAUDE.md:262-264 now allows an Echo's Reaction off its turn. ADR-006:132-133 still says "Nothing happens off-turn", with no amendment note (N3).
+- **R6: holds as open, and blocks the merge.**
+  - Its reason, "the owner's words", has no basis in CLAUDE.md. The owner's files are README.md, PROCESS.md and `reflections/` (CLAUDE.md:397-398), and ADRs aren't among them.
+  - No red test carries it, and none could: it's the reasoning behind a judged rule (rule 9).
+- **R7: overstated.** It is carried red in `spec/owner.test.ts`, but that test can go green with the finding still open. Its rooms half already passes on today's README, and its Echo half passes on a single word (N6).
+- **R8: holds.**
+  - `echoes.test.ts:273-304` pins a Warden Echo's Counterweight and a Mender Echo's Mend at `round(person × ECHO_POTENCY)`. A full-strength Echo fails both (Counterweight 12 vs 6, Mend 36 vs 18).
+  - Every blow goes through `aim()` → `economy.potency` (`roles.ts:512-514`). Finisher, the only other dealing move a policy makes, takes the same path.
+  - Note: R8 left it to the owner whether a full-strength Relay, Ward or Quicken breaks "low output". The fix settled it by rewording rule 25 (CLAUDE.md:361-363), and the disposition doesn't say the owner made that call.
+- **R9: overstated.**
+  - It is carried red at `spec/phase-two.test.ts:289-311`, but that test can go green while the wrong implementation R9 named still stands: a client that opens a fresh battle for visitors with no code.
+  - It also can't tell a client that uses the server's answer from one that hard-codes "RAID" (N7).
+- **R10: holds.**
+  - `rooms.test.ts:170-176`: `GET /api/rooms` answers 404, and a room's fields are exactly `battleId, code, isPublic`.
+  - Inherent limit: the test can't see a listing at any other path, or an owner field on the state's `room` object (`view.ts:69`) or in `POST /api/rooms`'s answer.
+- **R11: holds.** `restart.test.ts:90-117` fails if a private code survives a restart. It also checks that the public raid keeps its code and still answers by it.
+- **R12: holds.** `echoes.test.ts:147-271`:
+  - pins each branch of the five policies to its exact move and target (`echoes.ts:43-100`);
+  - plays the Warden's off-turn Intercept through the clock (`:183-191`). If `offTurn` returned null, `advance` would return null and the test would fail;
+  - pins the Chronist's boundary at countdown 1 vs 2;
+  - compares a timed-out seat's move with a seated Echo's, for every role (`:259-270`).
+
+  An Echo that always Braces fails every branch. Minor residuals are in N9.
+- **R13: holds.**
+  - In `echoes.test.ts:366-385`, the rings show weaknesses that aren't their elements. The Breaker's policy proposes a Pry (`echoes.ts:79-80`), `checkAction` refuses it (`roles.ts:16`), and the Echo Braces (`rules.ts:639-640`).
+  - Played without the check, the result isn't a lone `brace`, so the test would fail.
+- **R14: holds.** `echoes.test.ts:101-103` checks the seater's turns, damage and healing are all 0.
+- **R15: holds**, fixed with R1 (`rooms.test.ts:268-269,298`).
+- **R16: holds.**
+  - The twin now differs in `orreryScript` too (`echoes.test.ts:118-123`). `played` at 7 instead of 2 changes the next card in the rotation, so a policy that read the script would fail.
+  - Minor residual in N9.
+- **R17: overstated.**
+  - The new test (`rooms.test.ts:233-251`) has room B counting down while Alice acts, and B's socket must carry nothing. That catches anything broadcast into B.
+  - But the wrong implementation R17 named, a tick for every battle on each action, is a no-op on a waiting fight (`rules.ts:442-443`), so the test still passes under it.
+  - The test only compares what B's socket received. It never reads B's state afresh after the strike (for example, a new room socket on B, whose first message is B's current state, `hub.ts:63-64`). So a change to B's counters with no broadcast also passes.
+  - `wb.messages` counts only `type: "state"` messages (`raid.ts:264-274`), so a stray `room` message into B isn't counted.
+- **R18: holds.** Open, and carried by `shown.test.ts:47-49` and `effects.test.ts:59-61`; both were red on `seat` in this run.
+
+#### The breaker's findings
+
+- **B1: holds.**
+  - A bare battle with no person seated for `roomEmptyMs` is closed, with an `end` line (`table.ts:94-112`). Rule 26 says so (CLAUDE.md:372-374).
+  - `rooms.test.ts:354-370` fails without the sweep: the late join would get 200.
+  - A bare battle with a person seated doesn't expire on the window, which is how rule 26 treats rooms too. A test residual is in N5.
+- **Q1: holds.** A code must match `/^[A-Za-z0-9]{1,16}$/` and is then upper-cased (`rooms.ts:32`). `rooms.test.ts:114-116` fails under the old `trim().toUpperCase()`.
+- **Q2: holds on its first reason.**
+  - Rule 22 defines a seated player as "a session with a character" (CLAUDE.md:341).
+  - The second reason isn't true. The bare battle used to get a character has that person seated in it, so it never expires empty (`table.ts:99-101`). The room gate reads only the durable character row (`app.ts:124`), which outlives every battle. So a client that has sat down once can make rooms indefinitely.
+- **Q3: holds.** The refusal is built from `ROLE_IDS` (`app.ts:69`), held by `rooms.test.ts:128-142`.
+- **Q4: holds.** One-per-role is now checked before the cap (`rules.ts:583-584`). `echoes.test.ts:327-339` fails under the old order.
+- **Q5: holds.** `fail()` (`app.ts:37-38`) answers only the requester, as JSON. Refusals are neither logged nor broadcast.
+- **Q6: holds.** All five Echo names are refused, compared through `nameKey` (`rules.ts:271-272`). Rule 25 says so (CLAUDE.md:363-364), held by `echoes.test.ts:432-439`.
+- **Q7: holds.** Rule 25's limits attach to Echoes seated on purpose (CLAUDE.md:357-359), and so does ADR-007's list (:61-64).
+- **Q8: holds**, fixed with R3.
+- **Q9: overstated.**
+  - "Everything an unauthenticated client can mint expires on the room window" is true only for empty bare battles and rooms held in memory.
+  - Each join without a cookie adds an entry to `sessions`, which is never pruned (`table.ts:25`, `:192`), and a `characters` row (`db.ts:107-113`).
+  - Each `POST /api/battles` adds a `battles` row (`db.ts:94-96`) and, once swept, a log line. All of it is durable by design (rules 6 and 26).
+  - A bare battle or room with a person seated lasts as long as its fight, not the window.
+  - So memory and the database still grow with every request, as Q9 said. No written rule requires rate limiting, so "no change" breaks nothing.
+- **Q10: the fix holds, but "no test" is overstated.**
+  - The room's fight is now looked up after the body is read (`app.ts:74-75`, `:138`, `:150-151`).
+  - The race window is the time the body is in flight, and a test can hold that open by streaming the body (a `ReadableStream` with `duplex: "half"`). On a scratch server with a short `ROOM_EMPTY_MS`, finish the body after the room has expired: the new code answers 404 "No such room.", the old one 409 "This fight is already over."
+  - For the half where the room moves to its next fight: `rooms.test.ts:310-352` already plays a room's fight to the end in seconds.
+
+### (B) New findings
+
+#### 1. Violations of a rule or an ADR
+
+- **N1 (rule 22; ADR-007 §Decision): a finished private-room fight, read or watched by its battle id, hands out the code of the room, which is still open.**
+  - When a room's fight is won or lost, the room moves on to a new fight (`table.ts:52-55`). The old battle stays in memory for `DROP_AFTER_MS`, ten minutes (`table.ts:18`, dropped at `:121-126`).
+  - Once a fight has ended, `behindCode` is false (`table.ts:142-145`). So `GET /api/battles/<old id>` (`app.ts:164-167`) and `/ws?battle=<old id>` (`table.ts:228-231` → `hub.ts:68-75`) both serve `view()` of it, which carries `room: { code, isPublic }` (`view.ts:69`).
+  - Anyone holding the old id, for example from a `?battle=` link (the exposure R4 described), gets the code, and the code seats them in the room's current fight.
+  - This breaks "The code is the only key" (ADR-007:49) and "its code is the only way in" (CLAUDE.md:344-345).
+  - Only the archived state drops the code (`view.ts:95`). Untested: `rooms.test.ts:144-177` checks only the live fight.
+- **N2 (rule 24; ADR-007 §Decision): a character keeps its name and role only while it's seated at another live table.**
+  - Otherwise a join's name and role overwrite the character row (`app.ts:85-89,97`; `db.ts:107-113`).
+  - Example: "Ada the Warden" plays room A to the end, then sits in room B as "Bo the Striker". The one record both rooms fed is now Bo's.
+  - Rule 24 says "A character (name, role, record) persists across rooms" (CLAUDE.md:354). ADR-007 says "A character is the session's name, role and record" (:55-56).
+  - The comment at `app.ts:83-84` ("Seated nowhere, a person may come back under a new name or role, and the character takes it") records a decision that neither the rule nor the ADR makes.
+  - Untested either way: `rooms.test.ts:261-300` covers only two seats held at once. Which reading is meant is the owner's to say.
+- **N3 (ADR-006 §The Echo; low): ADR-006's text is now contradicted twice, with no amendment note.**
+  - It still says, without qualification, "when an Echo reaches the plate it waits a three-second beat" (:129-130) and "Nothing happens off-turn" (:132-133).
+  - After R2 and R5, a seated Echo gets no beat (`rules.ts:186-187`), and any Echo can take a Reaction off its turn (`rules.ts:449-457`).
+  - Rule 8 (CLAUDE.md:258-264) and ADR-007 (:66-67, :74-80) record both, but ADR-006's status line (:3) says nothing of ADR-007. ADR-001 (:6-7), ADR-002 (:3-8) and ADR-003 (:5) each name what amends them.
+  - `spec/echo.test.ts:8` repeats "Nothing happens off-turn".
+
+#### 2. Rules with no test
+
+None found beyond the untested halves of N1 and N2. Each sentence the fixes added or reworded in CLAUDE.md has a test that fails if it is broken:
+
+| Rule sentence | Held by |
+| --- | --- |
+| Rule 8: a seated Echo gets no beat | `echoes.test.ts:306-325` |
+| Rule 8: an Echo's off-turn Reaction | `echoes.test.ts:173-192` and `:341-364` |
+| Rule 22: no way in by battle id while the fight lasts | `rooms.test.ts:144-177` |
+| Rule 25: low output | `echoes.test.ts:273-304`, `economy.test.ts:202-237` |
+| Rule 25: Echo names are kept | `echoes.test.ts:432-439` |
+| Rule 26: a bare battle expires on the room window | `rooms.test.ts:354-370` |
+
+#### 3. Tests that would pass under a wrong implementation
+
+- **N4 (rule 22): `rooms.test.ts:157-160`, "nobody watches it by battle id".**
+  - It checks only that no state arrived in 750 ms. Nobody sits in that fight until the front-door seat at `:162`, which comes after the check, and a waiting fight with nobody seated broadcasts nothing (`rules.ts:442-443`).
+  - So it passes if the battle socket is subscribed to the private fight and only its first state is held back; every later broadcast would reach it.
+  - Moving the check after `:162`'s seat would catch that.
+- **N5 (rule 26): `rooms.test.ts:354-370`, the bare battle's expiry.**
+  - It checks only 2.5 s after a 0.8 s window. Unlike the room test (`:339-340`), it never checks the battle is still open inside the window.
+  - So a sweep that closes an empty bare battle immediately, or after any window under 2.5 s, passes.
+- **N6 (ADR-007 §Cost; tracked red): `owner.test.ts:15-16`.**
+  - The rooms assertion already passes on today's README: "Rooms and lobbies: there's one fight, and you're in it" (README.md:62), which says the opposite of ADR-007.
+  - The Echo assertion passes on any single use of the word.
+  - So the test goes green on a README that adds "Echo" anywhere without ADR-007's sentence, "a solo visitor gets a fight worth playing, not the game at its best" (:117-118).
+- **N7 (rule 23; tracked red): `phase-two.test.ts:302-310`.**
+  - The stub answers `code: "RAID"`, which is the real public code (`rooms.ts:12`). A `door()` that asks `/api/raid` and then returns its own hard-coded "RAID" passes: the test can't tell the server deciding the door from the client deciding it.
+  - It tests `src/client/door.ts` on its own. A client whose boot never calls `door()` (`src/client/main.ts:175-188` today) passes as soon as the module exists, which is the wrong implementation R9 named.
+- **N8 (ADR-007 §Decision; tracked red): `phase-two.test.ts:133-141`.**
+  - After R2, the server sends `plateMs: 0` for a seated Echo (`rules.ts:186-187`, `view.ts:52-55`). ADR-007 (:78-79) says "the client is told its window is nothing".
+  - The carried client test for drawing the plate's window has only a 3000 ms case. A `countdownFraction` that divides by `plateMs`, giving NaN or Infinity at 0, passes it.
+- **N9 (minor): `echoes.test.ts`.**
+  - `:176-181` tests the Warden at Gravity 2 vs 0, so a policy that Anchors at Gravity 1 or more passes (`echoes.ts:52`).
+  - `:118-123` changes only `played` and `aligned`, two of the script's seven fields (`orrery.ts:290-303`), so a policy reading `aimedAt` or `touchedBy` would pass. This is a backstop: by construction, policies get only the client's view (`rules.ts:634`).
+  - `:318` uses `toBeGreaterThan(0)` where the exact move is known: a Breaker Echo with every weakness hidden Scans the outer ring, as `:227` pins.
+
+#### 4. Events with no renderer
+
+None new.
+- The fixes touch nothing in `src/shared/`, `src/client/` or `scripts/`: `git diff bc68247...HEAD` on those paths is empty.
+- The server diff raises no new event kind. Closing a bare battle raises `end` (`rules.ts:668`), which is declared (`protocol.ts:276`) and rendered (`registry.ts:26`).
+- **Already tracked:** `seat` is still unrendered (R18, carried red). `shown.test.ts:48` and `effects.test.ts:61` both stop on it in this run.
