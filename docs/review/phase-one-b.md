@@ -280,3 +280,54 @@ What else was checked here:
 - A *downed* person keeping a room alive. Only the timed-out case was run (H27).
 - A person's two Reactions in one boss turn.
 - Browser and command-window checks.
+
+## Disposition
+
+Every finding is fixed in a commit that names it, carried as a red test, or
+left with a reason. Per the gate (CLAUDE.md), the branch does not merge to main
+while any finding below is **open**. "Green on arrival" marks a test that holds
+behaviour already right; each of those that could be was mutation-checked (a
+planted fault turns it red), and the commit says against what.
+
+### The reviewer's findings
+
+| Finding | What was done | Where |
+| --- | --- | --- |
+| R1 a character's name and role don't persist across rooms | Fixed: seated at another live table, a character sits down elsewhere as the same name and role or is refused (409) | `4bc463c` |
+| R2 a seated Echo waits a reclaim beat for nobody | Fixed: no beat for a seated Echo (`plateMs` 0, played next tick); rule 8 and ADR-007 record why | `fe02e16` |
+| R3 every expiry opens a successor fight nobody can reach | Fixed: a room's next fight opens only while the room exists | `71e00df` |
+| R4 a private room's fight reachable by battle id | Fixed: while it lasts, join, state, log and battle socket by id answer as if there were no such battle; rule 22 says so | `bde8f94` |
+| R5 rule 8 says nothing happens off an Echo's turn | Fixed: rule 8 admits an Echo's Reaction (rule 18) | `1defdc7` |
+| R6 ADR-004's amendment gives a reason the ADR contradicts | **Open, the owner's.** The amendment's reason is the owner's words; this gate doesn't rewrite them | — |
+| R7 README says nothing of rooms or Echoes | **Open, carried red** (the owner's file) | `spec/owner.test.ts` R7, `70d0a91` |
+| R8 low output untested beyond a Striker's Jab | Fixed: an Echo's Counterweight and Mend are pinned at the Echo's share; rule 25 says low output is what it deals and heals | `2a37431` |
+| R9 "anyone arriving without a code is sent there" untested | **Open, carried red** (phase-two client: a door) | `spec/phase-two.test.ts` R9, `a12bb1a` |
+| R10 "nothing lists rooms, nothing owns one" untested | Fixed: no listing route, a room's fields pinned (with R4's test) | `bde8f94` |
+| R11 rooms not surviving a restart untested | Fixed: test; the public raid's code survives | `fe91080` |
+| R12 policy tests pass if Echoes Brace | Fixed: every policy branch pinned to its exact move; off-turn Intercept, timed-out vs seated, within two slots | `e7b5508` |
+| R13 nothing shows the clock's Echo turn uses checkAction | Fixed: a state play can't reach makes the policy propose a refused Pry; the Echo Braces | `3a5f6c4` |
+| R14 seater's damage and healing unchecked | Fixed: turns, damage and healing all zero | `94282d3` |
+| R15 the two-rooms test can't see a rename | Fixed with R1: another name or role in room B is refused | `4bc463c` |
+| R16 the hidden-state twin doesn't hide the Orrery's script | Fixed: the twin differs in the script too | `ede3c24` |
+| R17 isolation compares B's members only | Fixed: room B is in its countdown while A acts, and its socket must carry nothing | `28625d5` |
+| R18 `seat` has no renderer | **Open, carried red** (phase-two client; already held by `shown` and `effects`) | `spec/shown.test.ts`, `spec/effects.test.ts` |
+
+### The breaker's findings
+
+| Finding | What was done | Where |
+| --- | --- | --- |
+| B1 a bare battle is an unexpiring private fight anyone can make | Fixed: a bare battle with no person seated closes on the room window; rule 26 says so. The route stays for today's client and the probe until phase two | `810650b` |
+| Q1 code lookup trims and Unicode-folds | Fixed: a code is ASCII letters and digits, any case, nothing else | `a71e3bb` |
+| Q2 the seated gate on room creation is reachable from nothing | No change: "a session with a character" is rule 22's definition of a seated player, and B1's fix means the bare battle used to get one now expires empty | — |
+| Q3 the role refusal names the old roles | Fixed | `62932bc` |
+| Q4 a duplicate role at the cap gets the cap's message | Fixed: one per role is checked first | `b8f4115` |
+| Q5 errors echo client input | No change: the text goes back, JSON-encoded, only to the client that sent it, so nothing is disclosed | — |
+| Q6 a person can block an Echo role by taking its name | Fixed: the five Echo names are kept; rule 25 says so | `b153b5e` |
+| Q7 a timed-out seat isn't counted toward the Echo limits | No change: rule 25's limit is on Echoes seated on purpose. A timed-out seat is a person's, which its person can reclaim; counting it would refuse an Echo because someone stepped away | — |
+| Q8 expiry may leave an orphan fight | Fixed with R3 (confirmed in the breaker's database: ten expiries, ten orphans) | `71e00df` |
+| Q9 nothing is rate-limited | No change: the app has no rate limiting anywhere, and that is beyond this phase. After B1 and R3, everything an unauthenticated client can mint expires on the room window, so it's bounded in time, not in rate | — |
+| Q10 a join can miss a room's next fight | Fixed: the room's fight is asked again once the body is read. No test: the window can't be opened on purpose | `5b5443f` |
+
+**Roster after the fixes:** 135 green, 16 red. The 16 are phase one's 14
+carried client findings, unchanged, plus R7 and R9, carried red here.
+Typecheck and lint clean.
