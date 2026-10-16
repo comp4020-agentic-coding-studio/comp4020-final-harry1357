@@ -197,20 +197,37 @@ export interface Ctx {
 
 // --- validation -------------------------------------------------------------
 
-export const nameKey = (name: string): string => name.trim().toLowerCase();
+// Names (rule 4). Two separate questions, deliberately: what a name is stored
+// and shown as, and whether two names are the same. Stripping everything
+// invisible from what's stored renamed people (the joiner in 👩‍💻, the ZWNJ
+// in Persian and Indic spelling; review R2), so the stored name keeps what
+// carries meaning and loses only what can deceive. The comparison folds away
+// everything that draws nothing, so an invisible mark can't make a name
+// unique (review breaker Q1, R4).
+
+/** Invisibles that only deceive: bidi overrides and isolates, the byte-order
+ *  mark, the soft hyphen, zero-width space and no-break, word joiner. */
+const DECEIVING = /[\u00ad\u061c\u180e\u200b\u200e\u200f\u202a-\u202e\u2060-\u2064\u2066-\u2069\ufeff]/gu;
+/** Everything that draws nothing, for comparing: default-ignorable code points
+ *  (ZWJ and ZWNJ included), combining grapheme joiner, variation selectors,
+ *  Hangul fillers, the Braille blank, and every space. */
+const INVISIBLE = /[\p{Default_Ignorable_Code_Point}\u034f\ufe00-\ufe0f\u3164\uffa0\u115f\u1160\u2800\s]/gu;
+
+/** Whether two names are the same name: compatibility-folded, case-folded, with nothing invisible. */
+export const nameKey = (name: string): string => name.normalize("NFKC").toLowerCase().replace(INVISIBLE, "");
 
 /**
- * A trimmed name of 1–NAME_MAX characters with no control characters, or null.
- * Format characters (zero-width spaces and joiners, the soft hyphen, bidi
- * overrides, the byte-order mark: Unicode \p{Cf}) are stripped first: they draw
- * nothing, so a name can't be made unique, or empty, with ones nobody sees
- * (rule 4; review breaker Q1). What's stored is what's compared and shown.
+ * A name of 1–NAME_MAX characters, stored and shown as typed (composed, NFC),
+ * with control characters refused and only the deceiving invisibles removed;
+ * or null. A name with nothing visible in it is no name.
  */
 export function cleanName(raw: unknown): string | null {
   if (typeof raw !== "string") return null;
-  const name = raw.replace(/\p{Cf}/gu, "").trim();
+  if (/\p{Cc}/u.test(raw.trim())) return null;
+  const name = raw.normalize("NFC").replace(DECEIVING, "").trim();
   const length = [...name].length;
-  if (length < 1 || length > NAME_MAX || /\p{Cc}/u.test(name)) return null;
+  if (length < 1 || length > NAME_MAX) return null;
+  if (nameKey(name) === "") return null; // nothing anyone could see
   return name;
 }
 
