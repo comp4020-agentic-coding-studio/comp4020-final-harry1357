@@ -2,8 +2,8 @@ import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
 import { describe, expect, inject, it } from "vitest";
 import { contentBox, crop, decodePng, type Image } from "../scripts/png.ts";
+import { resolve } from "node:path";
 import { ROLE_IDS } from "../src/shared/protocol.ts";
-import { spriteFor } from "../src/client/sprites.ts";
 
 // The party's art is complete and licensed (CLAUDE.md rule 12, and the Design
 // block). Read off the files themselves and the app that serves them, not off
@@ -14,7 +14,17 @@ import { spriteFor } from "../src/client/sprites.ts";
 // roles the old four sprites (two roles share the Herald). That a role borrows
 // another's sprite at all is held red by spec/sprites.test.ts, in one place;
 // these hold that whatever is drawn is whole and distinct.
-const DRAWN = [...new Set(ROLE_IDS.map((r) => spriteFor(r) ?? r))];
+// Loaded defensively: phase two deletes the shim, and then every role draws
+// its own sprite by name. A static import would stop this file loading, and
+// with it rule 12's licence checks below (review F9).
+let spriteFor = (role: string): string => role;
+try {
+  const shim = (await import(resolve("src/client/sprites.ts"))) as { spriteFor?: (r: string) => string | undefined };
+  if (shim.spriteFor) spriteFor = (r) => shim.spriteFor?.(r) ?? r;
+} catch {
+  // no shim: each role is its own sprite
+}
+const DRAWN = [...new Set(ROLE_IDS.map((r) => spriteFor(r)))];
 const base = inject("baseUrl");
 const ASSETS = "src/assets";
 const REQUIRED = ["idle", "attack", "hurt", "down"] as const;
