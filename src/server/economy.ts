@@ -133,9 +133,10 @@ export function timeout(ctx: Ctx, f: Fighter): void {
  * and never `beforeTurn(byPerson)`, which would end the Echo.
  */
 export function echoTurn(ctx: Ctx, f: Fighter): void {
-  beforeTurn(ctx, f, { byPerson: false });
+  // An Echo's turn is the Echo's (ADR-006, "The Echo"): it never counts in the
+  // person's record, so neither the turn nor the damage is credited to them.
+  f.braced = false;
   const dealt = wound(ctx, STATS[f.role as RoleId].power * potency(ctx, f));
-  ctx.stat(f.id).damage += dealt;
   const ring = ctx.b.rings.find((r) => !r.broken) ?? ctx.b.rings.at(-1);
   ctx.say("action", f.id, `The Echo of ${f.name} strikes the Orrery for ${dealt}.`, {
     kind: "jab",

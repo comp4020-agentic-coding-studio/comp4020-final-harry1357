@@ -14,6 +14,9 @@ export const TURN_MS = 12_000;
 export const TIMEOUTS_TO_ECHO = 3;
 /** Rule 8: an Echo's output, as a share of a person's. Ours. */
 export const ECHO_POTENCY = 0.5;
+/** Rule 8 (ADR-006, "The Echo"): an Echo on the plate waits this long for its
+ *  person to reclaim the seat before the server plays it. */
+export const ECHO_BEAT_MS = 3_000;
 
 /** Rule 15: +10% per link, capped at +50%. */
 export const CHAIN_STEP = 0.1;

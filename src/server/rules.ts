@@ -34,6 +34,7 @@ import {
   type Token,
 } from "../shared/protocol.ts";
 import { ATTACK_RANK, counterReset } from "./ctb.ts";
+import { ECHO_BEAT_MS } from "./tuning.ts";
 import * as economy from "./economy.ts";
 import * as orrery from "./orrery.ts";
 import * as roles from "./roles.ts";
@@ -414,7 +415,9 @@ export function advance(b: Battle, clock: Clock): Step | null {
       reset(ctx.b, ctx.orrery(), ATTACK_RANK);
       return finish(ctx);
     }
+    // An Echo waits out its beat for its person (rule 8); then the server plays it.
     if (f.echo) {
+      if (b.turnDeadline !== null && clock.now <= b.turnDeadline) return null;
       economy.echoTurn(ctx, f);
       return finish(ctx);
     }
@@ -534,7 +537,7 @@ export function plate(b: Battle, id: string, clock: Clock): Battle {
   next.tick += Math.max(0, lead);
   next.standing.sort((x, y) => x.counter - y.counter || x.seat - y.seat);
   next.activeId = id;
-  next.turnDeadline = target.kind === "character" ? clock.now + clock.turnMs : null;
+  next.turnDeadline = target.kind !== "character" ? null : clock.now + (target.echo ? ECHO_BEAT_MS : clock.turnMs);
   return next;
 }
 
@@ -658,7 +661,9 @@ function settle(b: Battle, fx: Effects, clock: Clock): void {
     b.turnDeadline = null;
   } else if (b.activeId !== up.id) {
     b.activeId = up.id;
-    b.turnDeadline = up.kind === "character" && !up.echo ? clock.now + clock.turnMs : null;
+    // A person gets the turn's full time; an Echo gets a short beat for its
+    // person to reclaim the seat before the server plays it (rule 8).
+    b.turnDeadline = up.kind !== "character" ? null : clock.now + (up.echo ? ECHO_BEAT_MS : clock.turnMs);
     fx.events.push({ kind: "plate", actorId: up.id, tick: b.tick });
   }
 }
