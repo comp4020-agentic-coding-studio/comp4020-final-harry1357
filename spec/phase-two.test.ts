@@ -138,6 +138,11 @@ describe("open findings carried into phase two", () => {
     const now = 5_000_000;
     const beat = stateWithCard({ turnMs: 12_000, plateMs: 3_000, turnDeadline: now + 1_500 });
     expect(mod.countdownFraction?.(beat, now), "half the Echo's 3 s beat is left, not an eighth of 12 s").toBeCloseTo(0.5, 2);
+    // Phase one-b (re-review N8): a seated Echo's window is nothing (plateMs 0,
+    // ADR-007), and its deadline is the moment it reached the plate. Nothing is
+    // left to count down, and it is never NaN or Infinity from dividing by 0.
+    const none = stateWithCard({ turnMs: 12_000, plateMs: 0, turnDeadline: now });
+    expect(mod.countdownFraction?.(none, now), "a seated Echo's window is drawn empty, not divided by zero").toBe(0);
   });
 
   it("R1 (rule 11): a spent card is drawn passing over, not as a hit on the fallen", async () => {
