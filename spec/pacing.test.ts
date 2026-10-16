@@ -16,6 +16,7 @@ afterAll(cleanScratch);
 interface Line {
   kind: string;
   actorId: string | null;
+  text?: string;
 }
 
 interface Seat extends Token {
@@ -74,7 +75,7 @@ describe("a room can't wait on one person", () => {
     }
   }, 30_000);
 
-  it("only counts timeouts in a row: acting resets the count and ends an Echo", async () => {
+  it("only counts timeouts in a row: acting resets the count", async () => {
     const server = await fastServer();
     try {
       const battleId = await newBattle(server.base);
@@ -91,6 +92,28 @@ describe("a room can't wait on one person", () => {
       await until(server.base, battleId, (t) => timeoutsBy(t.log, id) === 3, "a third timeout, after acting");
       const later = await table(server.base, battleId);
       expect(seat(later, id)?.echo, "three timeouts that weren't in a row make no Echo").toBe(false);
+    } finally {
+      await server.kill();
+    }
+  }, 45_000);
+
+  it("a person reclaims their Echo by acting in its beat on the plate, live", async () => {
+    // Review F3/F16: with no beat an Echo was played the instant it reached
+    // the plate, so a person could never reclaim it in a running fight.
+    const server = await fastServer();
+    try {
+      const battleId = await newBattle(server.base);
+      const mine = await join(server.base, battleId, `gone-${suffix()}`, "striker");
+      expect(mine.status).toBe(200);
+      const id = mine.characterId;
+
+      await until(server.base, battleId, (t) => seat(t, id)?.echo === true, "the Echo");
+      // The Echo's next turn: on the plate, waiting out its beat for me.
+      await until(server.base, battleId, (t) => t.activeId === id && seat(t, id)?.echo === true, "my Echo on the plate");
+      expect((await act(server.base, battleId, mine.cookie, "jab")).status, "I act inside the beat").toBe(200);
+      const back = await table(server.base, battleId);
+      expect(seat(back, id)?.echo, "acting in the beat ends the Echo").toBe(false);
+      expect(back.log.findLast((l) => l.actorId === id && l.kind === "action")?.text ?? "", "and the turn played was mine, not the Echo's").not.toMatch(/Echo/);
     } finally {
       await server.kill();
     }

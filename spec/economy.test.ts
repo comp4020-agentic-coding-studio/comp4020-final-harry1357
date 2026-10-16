@@ -214,7 +214,8 @@ describe("the action economy", () => {
     const calm = structuredClone(b);
     calm.chain = { links: 0, potency: 1 };
     const hp = fighter(calm, "orrery").hp;
-    const echoTurn = e.advance(e.plate(calm, "striker-1", clock()), clock())!;
+    // Past the Echo's three-second beat, so the server plays it (rule 8).
+    const echoTurn = e.advance(e.plate(calm, "striker-1", clock()), clock(1_000_000 + 3_500))!;
     const acted = echoTurn.effects.events.filter((x) => x.actorId === "striker-1" && x.kind !== "plate");
     expect(acted.some((x) => x.kind === "hold"), "an Echo's turn isn't another timeout").toBe(false);
     const dealt = hp - fighter(echoTurn.battle, "orrery").hp;
