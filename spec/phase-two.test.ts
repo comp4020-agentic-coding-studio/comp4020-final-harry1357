@@ -90,7 +90,10 @@ describe("open findings carried into phase two", () => {
     createStrip(root, { manifest, orrerySvg: "<svg></svg>" }).render(stateWithCard(), "me");
     const card = root.querySelector('[data-card-id="card-7"]');
     expect(card, "no boss card drawn on the strip for card-7").not.toBeNull();
+    // Rule 19 and ADR-006: an intent icon, a target and a countdown (review R9).
     expect(card?.getAttribute("data-intent"), "the card shows its intent").toBe("eclipse");
+    expect(card?.getAttribute("data-target"), "the card names its target").toBe("me");
+    expect(card?.getAttribute("data-countdown"), "the card shows its countdown").toBe("1");
   });
 
   it("F6 (rules 8, 11): a timeout shows the server's Brace, and a drifting portrait is drawn dim", async () => {
@@ -105,10 +108,36 @@ describe("open findings carried into phase two", () => {
     const guards = calls.filter(([m]) => m === "scene.guard").map(([, a]) => a[1]);
     expect(guards, "the hold renderer drops the guard, but the server just Braced for them").not.toContain(false);
     expect(guards, "it should show the Brace the server took").toContain(true);
-    expect(
-      calls.some(([m, a]) => m === "strip.flag" && a[1] === "drifting"),
-      "and mark the portrait as drifting (dimmed), as rule 8 says",
-    ).toBe(true);
+  });
+
+  it("R5 (rule 8, ADR-006): drifting and Echo seats are drawn from the state, and stay drawn", async () => {
+    // A mark the strip reads from each token, not a one-off stamp from an event
+    // a late-joining client never saw (review R5).
+    const { createStrip } = await client<{ createStrip: (root: HTMLElement, o: unknown) => { render(s: unknown, me: string | null): void } }>(
+      "src/client/strip/strip.ts",
+    );
+    const root = document.createElement("aside");
+    document.body.append(root);
+    const st = stateWithCard();
+    st.queue[0] = { ...st.queue[0], drifting: true };
+    st.queue.push({ ...st.queue[0], id: "echo-seat", name: "Gone", drifting: false, echo: true, seat: 2 });
+    const strip = createStrip(root, { manifest: { facing: "left", required: [], roles: {} }, orrerySvg: "<svg></svg>" });
+    strip.render(st, null);
+    await new Promise((r) => setTimeout(r, 1500)); // longer than any flag's stamp
+    const me = root.querySelector('[data-token-id="me"]');
+    const echo = root.querySelector('[data-token-id="echo-seat"]');
+    expect(me?.getAttribute("data-drifting"), "a drifting seat is drawn dimmed, and still is after a beat").toBe("true");
+    expect(echo?.getAttribute("data-echo"), "an Echo seat is drawn as the Echo's").toBe("true");
+  });
+
+  it("R8 (ADR-006): the countdown is drawn against the plate's real window", async () => {
+    // An Echo's beat is plateMs, not the person's turnMs (review R8). Phase two
+    // provides the arithmetic as countdownFraction(state, now) in the command module.
+    const mod = await client<{ countdownFraction?: (state: unknown, now: number) => number | null }>("src/client/command/window.ts");
+    expect(typeof mod.countdownFraction, "src/client/command/window.ts exports no countdownFraction").toBe("function");
+    const now = 5_000_000;
+    const beat = stateWithCard({ turnMs: 12_000, plateMs: 3_000, turnDeadline: now + 1_500 });
+    expect(mod.countdownFraction?.(beat, now), "half the Echo's 3 s beat is left, not an eighth of 12 s").toBeCloseTo(0.5, 2);
   });
 
   it("R1 (rule 11): a spent card is drawn passing over, not as a hit on the fallen", async () => {
@@ -145,6 +174,58 @@ describe("open findings carried into phase two", () => {
     key("Enter");
     key("Enter");
     expect(chosen.at(-1), "Delay aimed at an ally id; it must aim at a boss card").toEqual(["delay", "card-7"]);
+    win.destroy();
+  });
+
+  it("F7 (ADR-006): Anchor and Stillpoint aim at boss cards too", async () => {
+    const { mountCommandWindow } = await client<{
+      mountCommandWindow: (root: HTMLElement, o: Record<string, unknown>) => { setEnabled(on: boolean): void; destroy(): void };
+    }>("src/client/command/window.ts");
+    for (const action of ["anchor", "stillpoint"]) {
+      const root = document.createElement("div");
+      document.body.append(root);
+      const chosen: [string, string | null][] = [];
+      const win = mountCommandWindow(root, {
+        actions: [action],
+        allies: () => [{ id: "me", name: "Me" }],
+        cards: () => [{ id: "card-7", name: "Eclipse on Me" }],
+        onTarget: () => {},
+        onChoose: (a: string, t: string | null) => chosen.push([a, t]),
+      });
+      win.setEnabled(true);
+      root.querySelector<HTMLElement>(`button[data-action="${action}"]`)?.focus();
+      const key = (k: string) => (document.activeElement ?? root).dispatchEvent(new KeyboardEvent("keydown", { key: k, bubbles: true }));
+      key("Enter");
+      key("Enter");
+      expect(chosen.at(-1), `${action} must aim at a boss card`).toEqual([action, "card-7"]);
+      win.destroy();
+    }
+  });
+
+  it("F7 (rule 18): a Reaction can be sent off-turn while the server says one is ready", async () => {
+    // The turn's commands stay dark off-turn (rule 2), but Intercept answers a
+    // card already on the strip, out of turn (rule 18). The server says when:
+    // reactionReady and a card. The window exposes setReactionReady for it.
+    const { mountCommandWindow } = await client<{
+      mountCommandWindow: (root: HTMLElement, o: Record<string, unknown>) => { setEnabled(on: boolean): void; setReactionReady?: (on: boolean) => void; destroy(): void };
+    }>("src/client/command/window.ts");
+    const root = document.createElement("div");
+    document.body.append(root);
+    const chosen: [string, string | null][] = [];
+    const win = mountCommandWindow(root, {
+      actions: ["intercept", "anchor"],
+      allies: () => [{ id: "me", name: "Me" }],
+      cards: () => [{ id: "card-7", name: "Eclipse on an ally" }],
+      onTarget: () => {},
+      onChoose: (a: string, t: string | null) => chosen.push([a, t]),
+    });
+    win.setEnabled(false); // not my turn
+    expect(typeof win.setReactionReady, "the window takes the server's word that a Reaction is ready").toBe("function");
+    win.setReactionReady?.(true);
+    const intercept = root.querySelector<HTMLButtonElement>('button[data-action="intercept"]');
+    const anchor = root.querySelector<HTMLButtonElement>('button[data-action="anchor"]');
+    expect(intercept?.disabled, "Intercept is live off-turn while a Reaction is ready").toBe(false);
+    expect(anchor?.disabled, "a turn's action stays dark off-turn (rule 2)").toBe(true);
     win.destroy();
   });
 });
