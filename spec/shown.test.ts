@@ -51,7 +51,9 @@ describe("the fight is shown", () => {
 
     // And the other side: what the server actually broadcasts in a whole fight,
     // with every role acting and one person who never does, is all declared.
-    const server = await boot(scratchDatabase(), { TICK_MS: "5", TURN_TIMEOUT_MS: "250" });
+    // A short Echo beat too: the idle seat becomes an Echo, and a whole fight
+    // of 3 s beats would overrun the budget (review R7).
+    const server = await boot(scratchDatabase(), { TICK_MS: "5", TURN_TIMEOUT_MS: "250", ECHO_BEAT_MS: "100" });
     try {
       const battleId = await newBattle(server.base);
       const w = watch(server.base, battleId);

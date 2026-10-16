@@ -79,7 +79,8 @@ describe("the Echo's beat", () => {
     const onPlate = e.plate(b, "striker-1", fast);
     expect(e.advance(onPlate, { ...fast, now: T0 + 150 }), "inside a 200 ms beat the server still waits").toBeNull();
     expect(e.advance(onPlate, { ...fast, now: T0 + 250 }), "past it, the server plays the Echo").not.toBeNull();
-    const sent = e.view(onPlate, { tickMs: 150, turnMs: 12_000 }) as { plateMs?: number };
+    // view() is handed the same timing the server runs on, beat included.
+    const sent = e.view(onPlate, { tickMs: 150, turnMs: 12_000, beatMs: 200 } as { tickMs: number; turnMs: number }) as { plateMs?: number };
     expect(sent.plateMs, "the client is sent the Echo's beat, not the person's twelve seconds").toBe(200);
   });
 

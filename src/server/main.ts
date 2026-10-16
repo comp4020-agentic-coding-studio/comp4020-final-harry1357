@@ -25,11 +25,13 @@ function intEnv(name: string, fallback: number): number {
 const port = process.env.PORT === "0" ? 0 : intEnv("PORT", 8080);
 const tickMs = intEnv("TICK_MS", 150);
 const turnMs = intEnv("TURN_TIMEOUT_MS", 12_000);
+// An Echo's beat on the plate (rule 8); short in a fast spec so Echo turns don't cost seconds each.
+const beatMs = intEnv("ECHO_BEAT_MS", 3_000);
 const databasePath = resolve(process.env.DATABASE_PATH || "/data/raid.db");
 
 const store = openStore(databasePath, join(ROOT, "drizzle"));
 const closed = store.closeLiveBattles(Date.now());
-const table = createTable(store, turnMs, tickMs);
+const table = createTable(store, turnMs, tickMs, beatMs);
 const app = createApp(ROOT, store, table);
 
 const server = serve(

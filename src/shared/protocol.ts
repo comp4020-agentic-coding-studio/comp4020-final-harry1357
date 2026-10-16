@@ -213,8 +213,12 @@ export interface BattleState {
   tick: number;
   /** How long one tick is on this server, in ms: what "within one tick" means here. */
   tickMs: number;
-  /** How long a character on the strike plate has before the server holds their turn, in ms. */
+  /** How long a person on the strike plate has before the server Braces for them, in ms. */
   turnMs: number;
+  /** How long whoever is on the plate now has, in ms: a person's turnMs, or an
+   *  Echo's short beat for its person to reclaim the seat (rule 8). Null when no
+   *  character is on the plate. Draw the countdown against this, not turnMs. */
+  plateMs: number | null;
   status: BattleStatus;
   /** Whose turn it is, or null while the clock is running. Only the server sets this. */
   activeId: string | null;

@@ -14,15 +14,15 @@ const DROP_AFTER_MS = 10 * 60 * 1000;
 
 export type Table = ReturnType<typeof createTable>;
 
-export function createTable(store: Store, turnMs: number, tickMs: number) {
+export function createTable(store: Store, turnMs: number, tickMs: number, beatMs?: number) {
   const battles = new Map<string, Battle>();
   const watchers = new Map<string, Set<WSContext>>();
   /** Hashed session → character, for everyone seated since boot. Only they can be standing. */
   const sessions = new Map<string, string>();
   let publicId: string | null = null;
 
-  const clock = (): Clock => ({ now: Date.now(), turnMs });
-  const timing = { tickMs, turnMs };
+  const clock = (): Clock => ({ now: Date.now(), turnMs, beatMs });
+  const timing = { tickMs, turnMs, beatMs };
 
   function apply(step: Step, character: CharacterWrite | null = null): Battle {
     const next = step.battle;
@@ -96,6 +96,7 @@ export function createTable(store: Store, turnMs: number, tickMs: number) {
       tick: log.at(-1)?.tick ?? 0,
       tickMs,
       turnMs,
+      plateMs: null,
       status: row.status,
       activeId: null,
       turnDeadline: null,
