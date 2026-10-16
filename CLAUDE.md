@@ -253,9 +253,9 @@ around it.
    has 12 seconds to decide (`TURN_TIMEOUT_MS`, 12000). On a timeout the
    server Braces for them: the one safe action, at rank 2, which halves the
    damage they take and banks a Charge. Their portrait dims (drifting). Three
-   timeouts **in a row** and the character becomes an automated *Echo*,
-   acting at low output, until the person acts again, which ends the Echo at
-   once. When an Echo reaches the plate it waits a three-second beat
+   timeouts **in a row** and the character becomes an automated *Echo*
+   (rule 25), playing its role's policy at low output, until the person acts
+   again, which ends the Echo at once. When an Echo reaches the plate it waits a three-second beat
    (`ECHO_BEAT_MS`): an action from its person in that window is an ordinary
    turn that ends the Echo; otherwise the server plays it. Nothing happens
    off-turn, so rule 2 stands. An Echo's turns are the Echo's: logged as the
@@ -266,7 +266,7 @@ around it.
    in your name), on purpose: the overhaul's design record (ADR-006) chose an
    auto-Brace and an Echo over removal, so a room keeps its seats.
    *Spec: `spec/pacing.test.ts`, `spec/economy.test.ts`, `spec/echo.test.ts`.
-   Why: `docs/adr/002`, `docs/adr/006`.*
+   Why: `docs/adr/002`, `docs/adr/006`, `docs/adr/007`.*
 9. **Parallel agents aren't capped; the meter is read instead. Before any
    pass with more than three parallel agents, the weekly budget is read at
    /api/me, and passes expected to cost more than half of what remains start
@@ -331,6 +331,39 @@ the rules.
     spec test before it is code, and every event it emits gets a renderer
     before it reaches a player (rule 11). *Spec: `spec/shown.test.ts`,
     `spec/effects.test.ts`.*
+
+### Rooms and Echoes (ADR-007)
+
+22. **A room is a code, and nothing more.** The server mints a short code
+    when a seated player (a session with a character) asks for one. Nothing
+    lists rooms, nothing owns one, and no password, invite or account stands
+    behind a code (rule 3). A wrong code is refused (404), never guessed at or
+    redirected to another room. *Spec: `spec/rooms.test.ts`.*
+23. **The public raid always exists, and it is the default door.** It is a
+    permanent room, always open and never expiring. `/api/raid` names it, and
+    anyone arriving without a code is sent there. *Spec:
+    `spec/rooms.test.ts`.*
+24. **Nothing crosses between rooms except the character.** Each room has its
+    own fight, queue and broadcast. An action in one room changes nothing in
+    another's queue, and a seat acts only in its own room. A character (name,
+    role, record) persists across rooms and the seat is per room, so one
+    character in two rooms is two seats and one record. *Spec:
+    `spec/rooms.test.ts`.*
+25. **An Echo is a seat the server plays, and it gets no favours.** Someone
+    seated in the room seats it on purpose: one per role, at most four per
+    room. A seat that times out becomes the same Echo (rule 8). It plays a
+    fixed policy for its role, using that role's actions only and reading
+    only the state every client is sent. Every action it takes goes through
+    the same check a person's does: the queue, its role, rule 2 and rule 10's
+    refusal. Every state marks it as an Echo, it counts half a seat at the
+    pull (rule 20), and its turns are never in anyone's record. *Spec:
+    `spec/echoes.test.ts`.*
+26. **Rooms expire. Logs and characters don't.** A room whose fight has had
+    no person seated in it for fifteen minutes (`ROOM_EMPTY_MS`) is gone, and
+    its code with it. The public raid never expires. A finished fight's log
+    stays readable by its battle id after its room is gone. Rooms live in
+    memory like fights and don't survive a restart; characters do (rule 6).
+    *Spec: `spec/rooms.test.ts`.*
 
 ## How to work in here
 
