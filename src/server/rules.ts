@@ -40,8 +40,13 @@ import * as roles from "./roles.ts";
 
 /** How many log lines the live state carries; the full log is in SQLite. */
 const LOG_TAIL = 50;
-/** Ticks between the first seat and the pull, so a room can sit down before the Orrery's HP is set (rule 20). */
-export const PULL_TICKS = 20;
+// The pull (docs/adr/006): the Orrery's HP is set once, from the seats present,
+// so a room gets a moment to sit down first. The countdown is wall-clock time,
+// not ticks (a tick is 150 ms live and 5 ms in a fast spec). It starts at the
+// first seat, restarts to PULL_RESTART_MS whenever a new seat joins, and never
+// runs past PULL_CAP_MS from the first seat.
+export const PULL_RESTART_MS = 10_000;
+export const PULL_CAP_MS = 30_000;
 
 export interface Fighter {
   id: string;
@@ -106,8 +111,10 @@ export interface Battle {
   endedAt: number | null;
 
   // --- the overhaul's state (docs/adr/006) ---
-  /** Ticks left before the pull while waiting; null once pulled. */
-  pullIn: number | null;
+  /** When the pull will happen if nobody else sits down (epoch ms); null before the first seat and once pulled. */
+  pullAt: number | null;
+  /** The latest the pull can happen: thirty seconds from the first seat (epoch ms). */
+  pullCap: number | null;
   /** Seats counted at the pull (an Echo ½); 0 before it (rule 20). */
   pullSeats: number;
   phase: 1 | 2 | 3;
@@ -303,7 +310,8 @@ export function createBattle(id: string, isPublic: boolean, now: number): Battle
     joined: {},
     createdAt: now,
     endedAt: null,
-    pullIn: null,
+    pullAt: null,
+    pullCap: null,
     pullSeats: 0,
     phase: 1,
     rings: orrery.rings(),
@@ -340,8 +348,12 @@ export function join(b: Battle, who: { id: string; name: string; role: RoleId },
     seat: next.nextSeat++,
   });
   next.joined[who.id] = who.name;
-  // The pull's countdown starts on the first seat; the HP is set when it ends (rule 20).
-  if (next.status === "waiting" && next.pullIn === null) next.pullIn = PULL_TICKS;
+  // The pull's countdown starts on the first seat and restarts on each new one,
+  // never past the cap; the HP is set when it ends (rule 20).
+  if (next.status === "waiting") {
+    next.pullCap ??= clock.now + PULL_CAP_MS;
+    next.pullAt = Math.min(clock.now + PULL_RESTART_MS, next.pullCap);
+  }
   fx.member = { characterId: who.id, name: who.name, role: who.role };
   ctx.say(
     "join",
@@ -380,13 +392,8 @@ export function act(b: Battle, actorId: string, action: ActionId, targetId: stri
  */
 export function advance(b: Battle, clock: Clock): Step | null {
   if (b.status === "waiting") {
-    if (b.pullIn === null) return null;
+    if (b.pullAt === null || clock.now < b.pullAt) return null;
     const ctx = context(structuredClone(b), clock);
-    if (ctx.b.pullIn !== null && ctx.b.pullIn > 0) {
-      ctx.b.pullIn -= 1;
-      ctx.b.tick += 1;
-      return finish(ctx);
-    }
     pull(ctx);
     return finish(ctx);
   }
@@ -420,7 +427,8 @@ export function advance(b: Battle, clock: Clock): Step | null {
 /** The pull: the fight begins, and the Orrery's HP is set from the seats present (rule 20). */
 function pull(ctx: Ctx): void {
   const { b } = ctx;
-  b.pullIn = null;
+  b.pullAt = null;
+  b.pullCap = null;
   b.pullSeats = seatsOf(b);
   const boss = ctx.orrery();
   boss.maxHp = orrery.orreryHp(b.pullSeats);
