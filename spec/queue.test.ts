@@ -35,8 +35,10 @@ describe("the queue is the truth", () => {
     const byVersion = (w: Watcher): Map<number, BattleState> => new Map(w.states.map((st) => [st.version, st]));
     const common = (): number[] => [...byVersion(wa).keys()].filter((v) => byVersion(wb).has(v));
 
-    for (const deadline = Date.now() + 8_000; common().length < 5; await sleep(50)) {
-      if (Date.now() > deadline) throw new Error(`only ${common().length} broadcast(s) reached both clients in 8s`);
+    // A room waits for the pull before anything moves: ten seconds after the
+    // last seat (docs/adr/006), so the window has to outlast that.
+    for (const deadline = Date.now() + 20_000; common().length < 5; await sleep(50)) {
+      if (Date.now() > deadline) throw new Error(`only ${common().length} broadcast(s) reached both clients in 20s`);
     }
 
     const left = byVersion(wa);
@@ -55,7 +57,7 @@ describe("the queue is the truth", () => {
     expect(ids).toContain(a.characterId);
     expect(ids).toContain(b.characterId);
     expect(boss(last), "the Orrery is on the rail too").toBeDefined();
-  }, 15_000);
+  }, 30_000);
 
   it("an action from a character whose counter isn't zero is rejected", async () => {
     const battleId = await newBattle(base);
