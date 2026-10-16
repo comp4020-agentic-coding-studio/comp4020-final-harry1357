@@ -67,6 +67,44 @@ describe("the Orrery's script", () => {
     }
   });
 
+  it("holds the card rule on every turn of a long fight, through all three phases", async () => {
+    // Review R11: one phase-I turn sees only a Revolution. Here the Orrery is
+    // walked down through phases II and III, and on every one of its turns
+    // exactly the due cards resolve and every new card is announced.
+    const e = await engine();
+    let b = table(e, ["warden", "striker", "mender", "breaker", "chronist"]);
+    const MOVES = ["revolution", "eclipse", "lunge", "perihelion", "retrograde", "alignment"];
+    const seen = new Set<string>();
+    const phases = new Set<number>();
+    for (let turnNo = 0; turnNo < 60 && b.status === "fighting"; turnNo++) {
+      // Keep the party standing, and walk the Orrery's HP down a little each turn.
+      const next = structuredClone(b);
+      for (const f of next.standing) if (f.kind === "character") f.hp = f.maxHp;
+      const o = next.standing.find((f) => f.id === "orrery")!;
+      o.hp = Math.max(1, Math.round(o.maxHp * (1 - (turnNo + 1) / 70)));
+      if (o.hp < o.maxHp * 0.7 && next.phase < 2) next.phase = 2;
+      if (o.hp < o.maxHp * 0.35 && next.phase < 3) next.phase = 3;
+      b = next;
+      phases.add(b.phase);
+
+      const due = b.cards.filter((c) => c.countdown === 0 && !c.frozen).map((c) => c.intent).sort();
+      const before = new Set(b.cards.map((c) => c.id));
+      const step = bossTurn(e, b);
+      const resolved = step.effects.events.filter((x) => MOVES.includes(x.kind)).map((x) => x.kind).sort();
+      expect(resolved, `turn ${turnNo} (phase ${b.phase}): the moves resolved are exactly the cards that were due`).toEqual(due);
+      for (const k of resolved) seen.add(k);
+      const announcedIds = new Set(events(step, "card").map((x) => (x.card as { id: string }).id));
+      for (const card of step.battle.cards.filter((c) => !before.has(c.id))) {
+        expect(announcedIds.has(card.id), `turn ${turnNo}: card ${card.id} (${card.intent}) went up without a card event`).toBe(true);
+      }
+      b = step.battle;
+    }
+    expect([...phases].sort(), "the walk reached all three phases").toEqual([1, 2, 3]);
+    for (const move of ["revolution", "eclipse", "lunge", "perihelion", "retrograde", "alignment"]) {
+      expect(seen.has(move), `the walk saw a ${move} resolve, so the rule was held for it`).toBe(true);
+    }
+  });
+
   it("Perihelion is announced four slots ahead, with 3 + squads shield pips on the outer ring (one squad)", async () => {
     const e = await engine();
     let b = table(e, ["striker", "breaker", "warden"]);
