@@ -1,3 +1,4 @@
+import Database from "better-sqlite3";
 import { afterAll, afterEach, describe, expect, inject, it } from "vitest";
 import { boot, cleanScratch, scratchDatabase, type Booted } from "./boot.ts";
 import {
@@ -48,9 +49,10 @@ function watching(at: string, code: string): Watcher {
 /** A session that has sat down somewhere, and so has a character: a seated player (rule 22). */
 async function seatedPlayer(at: string, role = "warden") {
   const name = `host-${suffix()}`;
-  const seat = await join(at, await newBattle(at), name, role);
+  const battleId = await newBattle(at);
+  const seat = await join(at, battleId, name, role);
   if (seat.status !== 200 || !seat.characterId) throw new Error(`a bare battle refused a seat (${seat.status})`);
-  return { ...seat, name, role, characterId: seat.characterId };
+  return { ...seat, name, role, characterId: seat.characterId, battleId };
 }
 
 /** A room made by a seated player, or a failure saying what the server answered. */
@@ -279,4 +281,30 @@ describe("rooms expire; logs don't", () => {
     const lines = log.entries as { kind: string }[];
     expect(lines.some((l) => l.kind === "end"), "with its log, to the last line").toBe(true);
   }, 130_000);
+
+  it("an expired room leaves no fight behind", async () => {
+    // Review R3, breaker Q8: closing an expired room's fight opened a successor
+    // for the room it had just removed: a waiting fight nobody could reach,
+    // never dropped, and "lost to a restart" on the next boot (rule 6). After
+    // the rooms go, the only fights still live are the ones someone can reach.
+    const db = scratchDatabase();
+    server = await boot(db, { TICK_MS: "20", ROOM_EMPTY_MS: "800" });
+    const door = await raid(server.base);
+    const host = await seatedPlayer(server.base);
+    const gone = [await madeRoom(server.base, host.cookie), await madeRoom(server.base, host.cookie)];
+    await sleep(2_500);
+    for (const r of gone) expect((await room(server.base, r.code)).status, `room ${r.code} has expired`).toBe(404);
+    await server.kill();
+    server = null;
+
+    const sqlite = new Database(db, { readonly: true });
+    try {
+      const live = sqlite.prepare("select id from battles where status in ('waiting', 'fighting')").all() as { id: string }[];
+      expect(live.map((b) => b.id).sort(), "live: the public raid's fight and the host's own, and no fight for a room that's gone").toEqual(
+        [door.battleId, host.battleId].sort(),
+      );
+    } finally {
+      sqlite.close();
+    }
+  }, 20_000);
 });

@@ -43,8 +43,11 @@ export function createTable(store: Store, turnMs: number, tickMs: number, beatMs
     if (step.effects.status && isEnded(next)) {
       const seated = Object.keys(next.joined).length;
       console.log(`battle ${next.id} ended ${next.status} at tick ${next.tick} (${seated} seated)`);
-      // A room's fight ends and its next one opens, for the same watchers (rule 24).
-      if (next.room !== null) {
+      // A room's fight ends and its next one opens, for the same watchers (rule
+      // 24). Not for a room that has just expired: its fight was closed because
+      // the room is gone, and a successor would be a fight nobody can reach
+      // (review R3, breaker Q8).
+      if (next.room !== null && rooms.get(next.room)) {
         const room = rooms.move(next.room, open(next.room), Date.now());
         if (room) hub.moved(room);
       }
