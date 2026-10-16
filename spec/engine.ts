@@ -68,7 +68,11 @@ export interface Battle {
 
 export interface Step {
   battle: Battle;
-  effects: { events: { kind: string; [field: string]: unknown }[] };
+  effects: {
+    events: { kind: string; [field: string]: unknown }[];
+    /** What this step adds to each character's record: turns, damage, healing, wins, losses. */
+    stats: Record<string, { turns: number; damage: number; healing: number; wins: number; losses: number }>;
+  };
 }
 
 export interface Clock {
