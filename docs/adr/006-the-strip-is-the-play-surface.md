@@ -110,6 +110,38 @@ The pull is a state change, so it is shown before it is logged (rule 11): the
 server emits a `pull` event with the seats counted and the HP set, and
 `spec/effects.test.ts` is red for it until the client has a pull card to draw.
 
+## The Echo
+
+A seat that times out three turns in a row becomes an Echo: the server plays
+it, at low output, until its person comes back (rule 8). **This reverses
+ADR-002**, which rejected acting for an absent player ("the server is now
+making choices in someone's name") and decided a timeout should choose
+nothing and deal nothing.
+
+The reason: in a room of five, a dead seat holds the fight worse than a bot
+does. ADR-002's answer to a seat nobody plays was to send it away after two
+holds, which empties the table and, under the pull (above), would leave the
+Orrery scaled for people who are gone. An Echo keeps the seat in the fight,
+taking its place in the turn order and dealing a little, so the room isn't
+playing around a hole.
+
+An Echo has to be reclaimable, or it's just a slower way of being sent away.
+So when an Echo reaches the plate it waits a three-second beat
+(`ECHO_BEAT_MS`) before the server plays it. Its person's portrait lights for
+them, and any action from them in that window is an ordinary turn that ends
+the Echo and plays as theirs. Otherwise the server plays the Echo. Nothing
+happens off-turn: the beat is the Echo's own turn on the plate, so rule 2 (an
+action is never queued, and the command window is live only on your turn)
+stands. Without the beat an Echo was played the instant it arrived and could
+never be ended in a running fight (review F3).
+
+**The cost** is that a person's record could show turns they didn't take, which
+is exactly what ADR-002 objected to. So an Echo's turns are the Echo's: they
+are logged as the Echo's ("The Echo of …"), never counted in the person's
+record (no turns, no damage credited to them), and shown as the Echo's on the
+strip. The first two are held by `spec/echo.test.ts`. Drawing the Echo on the
+strip is client work, carried into phase two (docs/review/phase-one.md).
+
 ## Cost
 
 - **More rules to teach, without a tutorial.** Ranks, Resonance, Chains,

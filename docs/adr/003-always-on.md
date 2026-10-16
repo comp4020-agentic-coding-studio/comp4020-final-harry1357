@@ -69,8 +69,9 @@ volume.
   (ADR-001). This removes the *idle* stop, not every stop.
 - **Fights now outlive a quiet table.** That is a behaviour change, and mostly
   a good one. It does mean a battle with nobody watching keeps its turn timers
-  running, and holds will send its absent players away (ADR-002) instead of
-  the whole fight vanishing at idle stop.
+  running: its absent players' seats Brace and then become Echoes the server
+  plays (ADR-006, superseding ADR-002's holds, which sent them away), instead
+  of the whole fight vanishing at idle stop.
 - **Revisit after the showcase.** Once the app is marked and the showcase is
   done, there is no reason to keep paying for an always-warm table. Set it
   back to 0 then.

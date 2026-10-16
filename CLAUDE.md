@@ -250,13 +250,18 @@ around it.
    damage they take and banks a Charge. Their portrait dims (drifting). Three
    timeouts **in a row** and the character becomes an automated *Echo*,
    acting at low output, until the person acts again, which ends the Echo at
-   once. Acting resets the count. A timeout never decides *order*: the
-   auto-Brace takes a turn the clock already gave them, at Brace's rank.
+   once. When an Echo reaches the plate it waits a three-second beat
+   (`ECHO_BEAT_MS`): an action from its person in that window is an ordinary
+   turn that ends the Echo; otherwise the server plays it. Nothing happens
+   off-turn, so rule 2 stands. An Echo's turns are the Echo's: logged as the
+   Echo's, never counted in the person's record. Acting resets the count. A
+   timeout never decides *order*: the auto-Brace takes a turn the clock
+   already gave them, at Brace's rank.
    This supersedes the old hold rule (two holds and you leave, nothing chosen
    in your name), on purpose: the overhaul's design record (ADR-006) chose an
    auto-Brace and an Echo over removal, so a room keeps its seats.
-   *Spec: `spec/pacing.test.ts`, `spec/economy.test.ts`. Why: `docs/adr/002`,
-   `docs/adr/006`.*
+   *Spec: `spec/pacing.test.ts`, `spec/economy.test.ts`, `spec/echo.test.ts`.
+   Why: `docs/adr/002`, `docs/adr/006`.*
 9. **Before any pass with more than three parallel agents, the weekly budget
    is read at /api/me, and passes expected to cost more than half of what
    remains start on the day the allocation resets.** *Judged: no test can see

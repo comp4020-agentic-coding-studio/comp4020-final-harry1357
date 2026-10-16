@@ -2,8 +2,10 @@
 
 - **Status:** accepted. Partly superseded by ADR-006 (timeouts now Brace and
   can Echo; nobody leaves on a timeout). The twenty-second figure became
-  twelve seconds under ADR-006. The reason a room can't wait on one person
-  still stands.
+  twelve seconds under ADR-006. Its "never act in an absent player's name" is
+  reversed by ADR-006 ("The Echo"): an Echo the server plays, which its person
+  can reclaim in a three-second beat, and whose turns are never counted in
+  their record. The reason a room can't wait on one person still stands.
 - **Date:** 2026-10-01
 - **Builds on:** ADR-001 (one process, one tick).
 
