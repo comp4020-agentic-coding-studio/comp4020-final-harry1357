@@ -1,6 +1,9 @@
 # ADR-004: Model and parallelism
 
-- **Status:** accepted.
+- **Status:** accepted. Amended 2026-10-17: the three-agent cap is lifted,
+  because the review gate (CLAUDE.md, "How to work in here") now catches what
+  the cap was guarding against. The meter is still read before any pass with
+  more than three agents, and a big pass still starts on reset day.
 - **Date:** 2026-10-05
 - **Rule:** the budget rule in CLAUDE.md, under "What the app must never do".
 

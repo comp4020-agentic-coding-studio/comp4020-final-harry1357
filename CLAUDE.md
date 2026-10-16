@@ -267,10 +267,11 @@ around it.
    auto-Brace and an Echo over removal, so a room keeps its seats.
    *Spec: `spec/pacing.test.ts`, `spec/economy.test.ts`, `spec/echo.test.ts`.
    Why: `docs/adr/002`, `docs/adr/006`.*
-9. **Before any pass with more than three parallel agents, the weekly budget
-   is read at /api/me, and passes expected to cost more than half of what
-   remains start on the day the allocation resets.** *Judged: no test can see
-   a launch. Why: `docs/adr/004`.*
+9. **Parallel agents aren't capped; the meter is read instead. Before any
+   pass with more than three parallel agents, the weekly budget is read at
+   /api/me, and passes expected to cost more than half of what remains start
+   on the day the allocation resets.** *Judged: no test can see a launch.
+   Why: `docs/adr/004`.*
 10. **When two actions arrive for one turn, the server's clock decides; the
     second is refused with the name of whose turn it is, never queued.**
     *Spec: `spec/two-at-once.test.ts`. Why: `docs/adr/005`.*
