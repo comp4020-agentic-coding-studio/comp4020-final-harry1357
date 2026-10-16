@@ -1,12 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { clock, engine, fighter, table, type Battle, type Engine } from "./engine.ts";
 
-// The Echo's beat (docs/adr/006, "The Echo"; CLAUDE.md rule 8). An Echo is a
-// seat the server plays after three timeouts in a row. When it reaches the
-// plate, the person gets a three-second beat: any action from them in it
-// reclaims the seat and plays as theirs; otherwise the server plays the Echo.
-// Nothing happens off-turn, so rule 2 stands. And an Echo's turn is the
-// Echo's: logged as the Echo's, never counted in the person's record.
+// The Echo's beat (docs/adr/006, "The Echo", as amended by ADR-007; CLAUDE.md
+// rule 8). A timed-out seat's Echo is a seat the server plays after three
+// timeouts in a row. When it reaches the plate, the person gets a three-second
+// beat: any action from them in it reclaims the seat and plays as theirs;
+// otherwise the server plays the Echo. (An Echo seated on purpose has no person
+// and no beat: spec/echoes.test.ts.) Off its turn an Echo takes only a Reaction,
+// as anyone may (rule 18), so rule 2 stands. And an Echo's turn is the Echo's:
+// logged as the Echo's, never counted in the person's record.
 
 const BEAT_MS = 3_000;
 const T0 = 2_000_000;

@@ -1,6 +1,10 @@
 # ADR-006: The strip is the play surface
 
-- **Status:** accepted.
+- **Status:** accepted. Amended by ADR-007 in two places in "The Echo": the
+  three-second beat is a timed-out seat's, for its person to come back, and
+  an Echo seated on purpose, with no person, gets none; and an Echo may take
+  a Reaction off its turn against a card already on the strip, as anyone may
+  (rule 18). Otherwise nothing happens off-turn.
 - **Date:** 2026-10-15
 - **Builds on:** ADR-001 (one process, one tick), ADR-002 (a room can't wait on
   one person) and ADR-005 (two at once, the clock decides). The research behind
