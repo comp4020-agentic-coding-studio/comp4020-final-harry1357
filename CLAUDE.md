@@ -351,9 +351,13 @@ the rules.
     `spec/rooms.test.ts`.*
 24. **Nothing crosses between rooms except the character.** Each room has its
     own fight, queue and broadcast. An action in one room changes nothing in
-    another's queue, and a seat acts only in its own room. A character (name,
-    role, record) persists across rooms and the seat is per room, so one
-    character in two rooms is two seats and one record. *Spec:
+    another's queue, and a seat acts only in its own room. A character
+    persists across rooms and the seat is per room, so one character in two
+    rooms is two seats and one record. **A name is for life, a role is for a
+    fight:** a character's name stays with its cookie and is never changed,
+    because the app tells people apart by name; a person seated nowhere may
+    change role before sitting down again, and keeps their name and record;
+    seated at any table, they sit down at another as the same role. *Spec:
     `spec/rooms.test.ts`.*
 25. **An Echo is a seat the server plays, and it gets no favours.** Someone
     seated in the room seats it on purpose: one per role, at most four per

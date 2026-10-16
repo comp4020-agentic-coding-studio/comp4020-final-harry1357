@@ -78,15 +78,18 @@ export function createApp(root: string, store: Store, table: Table): Hono {
 
     const sid = getCookie(c, COOKIE);
     const known = sid ? store.characterBySession(sessionKey(sid)) : null;
-    // A character (name, role, record) persists across rooms (rule 24): seated
-    // at another live table, it sits down here as the same name and role, or
-    // not at all, never as someone else (review R1). Seated nowhere, a person
-    // may come back under a new name or role, and the character takes it.
-    const elsewhere = known !== null && table.seatedElsewhere(known.id, id);
-    if (known && elsewhere && (nameKey(name) !== nameKey(known.name) || body.role !== known.role)) {
-      return fail(c, 409, `You're seated at another table as ${known.name} the ${ROLES[known.role].label}; sit down here as them.`);
+    // A name is for life, a role is for a fight (rule 24). The app tells people
+    // apart by name, so a character's name stays with its cookie: it never
+    // sits down under another (re-review N2). Its role may change between
+    // fights, but seated at another live table it sits down here as the same
+    // role (review R1). Either way it keeps its record.
+    if (known && nameKey(name) !== nameKey(known.name)) {
+      return fail(c, 409, `You sat down as ${known.name}, and a name stays with you: sit down as ${known.name}.`);
     }
-    const seatName = known && elsewhere ? known.name : name;
+    if (known && body.role !== known.role && table.seatedElsewhere(known.id, id)) {
+      return fail(c, 409, `You're seated at another table as ${known.name} the ${ROLES[known.role].label}; sit down here as the same role, or finish that fight first.`);
+    }
+    const seatName = known ? known.name : name;
     const check = checkJoin(battle, known?.id ?? null, seatName);
     if (check === "already" && known) return { battleId: id, characterId: known.id, character: known };
     if (check && check !== "already") return fail(c, check.status, check.error);

@@ -310,6 +310,50 @@ describe("nothing crosses between rooms", () => {
   }, 45_000);
 });
 
+describe("a name is for life, a role is for a fight", () => {
+  let server: Booted | null = null;
+  afterEach(async () => {
+    await server?.kill();
+    server = null;
+  });
+
+  it("between fights a person may change role, keeping their name and record, and may not change name", async () => {
+    // Rule 24 (the owner's decision on re-review N2): the app tells people
+    // apart by name, so a character's name stays with its cookie for life; its
+    // role may change between fights. A restart puts the person between fights:
+    // fights don't survive one, characters do (rule 6).
+    const db = scratchDatabase();
+    server = await boot(db, { TICK_MS: "5" });
+    const name = `lifer-${suffix()}`;
+    const first = await newBattle(server.base);
+    const seat = await join(server.base, first, name, "striker");
+    expect(seat.status, "sits down as a Striker").toBe(200);
+    const w = watch(server.base, first);
+    open.push(w);
+    await w.waitFor((st) => st.activeId === seat.characterId, "the Striker's turn", 20_000);
+    expect((await act(server.base, first, seat.cookie, "jab")).status, "takes a turn, so the record has something in it").toBe(200);
+    const before = (await me(server.base, seat.cookie)).character;
+    expect(before?.turns, "one turn on the record").toBe(1);
+    w.close();
+    await server.kill();
+
+    server = await boot(db, { TICK_MS: "5" });
+    // Seated nowhere now. A new name, even between fights: refused, and
+    // nothing renamed.
+    const rename = await join(server.base, await newBattle(server.base), `renamed-${suffix()}`, "striker", seat.cookie);
+    expect(rename.status, "a name is for life: a rename between fights is refused").toBe(409);
+    expect((await me(server.base, seat.cookie)).character?.name, "the character still has its name").toBe(name);
+
+    // Still seated nowhere. A new role under the same name: allowed, the same character.
+    const rerole = await join(server.base, await newBattle(server.base), name, "warden", seat.cookie);
+    expect(rerole.status, "between fights, a new role is allowed").toBe(200);
+    expect(rerole.characterId, "as the same character").toBe(before?.id);
+    const after = (await me(server.base, seat.cookie)).character;
+    expect([after?.name, after?.role], "the name kept, the role changed").toEqual([name, "warden"]);
+    expect(after?.turns, "and the record carried over").toBe(before?.turns);
+  }, 60_000);
+});
+
 describe("rooms expire; logs don't", () => {
   let server: Booted | null = null;
   afterEach(async () => {

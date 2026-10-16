@@ -550,3 +550,15 @@ The re-review's fixes were not themselves re-reviewed.
 carried client findings, R7 and R9. Typecheck and lint clean. The propagation
 probe on this code: another browser sees a strike in 4.1 ms median, 4.9 ms
 worst (6 samples, local).
+
+### The owner's decisions
+
+- **N2 (rule 24): decided.** A character's name persists for the life of its
+  cookie; a person seated nowhere may change role before sitting down again,
+  and keeps their name and record; they may not change name, because the app
+  tells people apart by name. Rule 24 and ADR-007 say so, and
+  `spec/rooms.test.ts` pins a re-role between fights (allowed, the record
+  carried over) and a rename between fights (refused).
+- **R2, R8: stand as the gate settled them.** A seated Echo gets no beat,
+  because it has nobody to reclaim it; low output is what an Echo deals and
+  heals. No change.

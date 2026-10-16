@@ -58,6 +58,16 @@ each with its own place on its own strip, its own counter and its own HP, and
 one record that both feed. Each room holds its own fight, queue and
 broadcast, so nothing done in one room touches another room's queue.
 
+**A name is for life, a role is for a fight** (decided on the phase one-b
+gate's re-review, N2). A character's name persists for the life of its
+cookie. A person seated nowhere may change role before sitting down again,
+and keeps their name and record; they may not change name. Seated at any
+table, they sit down at another as the same role. The reason: the app tells
+people apart by name (rule 4 compares names, and the log, the strip and every
+refusal speak in them), so a name is the one thing that can't drift. A role
+is what a person chooses to play in one fight, and the next fight may want a
+different one.
+
 **An Echo is the same automated character a timed-out player becomes, seated
 on purpose by whoever's in the room.**
 
