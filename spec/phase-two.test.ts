@@ -202,30 +202,67 @@ describe("open findings carried into phase two", () => {
     }
   });
 
-  it("F7 (rule 18): a Reaction can be sent off-turn while the server says one is ready", async () => {
-    // The turn's commands stay dark off-turn (rule 2), but Intercept answers a
-    // card already on the strip, out of turn (rule 18). The server says when:
-    // reactionReady and a card. The window exposes setReactionReady for it.
+  it("F7 (rules 2, 18): a Reaction is the one thing live off-turn, only while the server says so, only at its card", async () => {
+    // Rule 2, as reworded: the turn's actions stay disabled until it's your
+    // turn. A Reaction is live only while the server says one is ready for you
+    // (reactionReady) and only against the card the server names, and it is the
+    // one thing the command window offers off-turn. The client decides nothing
+    // about when either is available. The window is told by
+    // setReactionReady(cardId | null): the card the server names, or null for
+    // not ready.
     const { mountCommandWindow } = await client<{
-      mountCommandWindow: (root: HTMLElement, o: Record<string, unknown>) => { setEnabled(on: boolean): void; setReactionReady?: (on: boolean) => void; destroy(): void };
+      mountCommandWindow: (
+        root: HTMLElement,
+        o: Record<string, unknown>,
+      ) => { setEnabled(on: boolean): void; setReactionReady?: (cardId: string | null) => void; destroy(): void };
     }>("src/client/command/window.ts");
     const root = document.createElement("div");
     document.body.append(root);
     const chosen: [string, string | null][] = [];
     const win = mountCommandWindow(root, {
-      actions: ["intercept", "anchor"],
+      actions: ["brace", "intercept", "anchor"],
       allies: () => [{ id: "me", name: "Me" }],
-      cards: () => [{ id: "card-7", name: "Eclipse on an ally" }],
+      // Two cards on the strip: the server names only one for the Reaction.
+      cards: () => [
+        { id: "card-7", name: "Eclipse on an ally" },
+        { id: "card-9", name: "Revolution on the party" },
+      ],
       onTarget: () => {},
       onChoose: (a: string, t: string | null) => chosen.push([a, t]),
     });
-    win.setEnabled(false); // not my turn
-    expect(typeof win.setReactionReady, "the window takes the server's word that a Reaction is ready").toBe("function");
-    win.setReactionReady?.(true);
-    const intercept = root.querySelector<HTMLButtonElement>('button[data-action="intercept"]');
-    const anchor = root.querySelector<HTMLButtonElement>('button[data-action="anchor"]');
-    expect(intercept?.disabled, "Intercept is live off-turn while a Reaction is ready").toBe(false);
-    expect(anchor?.disabled, "a turn's action stays dark off-turn (rule 2)").toBe(true);
+    expect(typeof win.setReactionReady, "the window takes the server's word on the Reaction: setReactionReady(cardId | null)").toBe("function");
+    const button = (a: string) => root.querySelector<HTMLButtonElement>(`button[data-action="${a}"]`);
+    const live = () => [...root.querySelectorAll<HTMLButtonElement>("button[data-action]")].filter((b) => !b.disabled).map((b) => b.dataset.action);
+
+    // Off-turn, nothing ready: nothing at all is live.
+    win.setEnabled(false);
+    win.setReactionReady?.(null);
+    expect(live(), "off-turn with no Reaction ready, the window offers nothing").toEqual([]);
+
+    // The server says a Reaction is ready, against card-7: Intercept is the one thing live.
+    win.setReactionReady?.("card-7");
+    expect(live(), "off-turn, the Reaction is the one thing offered").toEqual(["intercept"]);
+
+    // It aims only at the card the server named, and sends that card.
+    button("intercept")?.focus();
+    const key = (k: string) => (document.activeElement ?? root).dispatchEvent(new KeyboardEvent("keydown", { key: k, bubbles: true }));
+    key("Enter");
+    key("ArrowDown"); // no other card to move to: the Reaction has one target
+    key("Enter");
+    expect(chosen.at(-1), "Intercept is sent against the card the server named, and no other").toEqual(["intercept", "card-7"]);
+
+    // The server withdraws it: the client doesn't keep it live on its own.
+    win.setReactionReady?.(null);
+    expect(button("intercept")?.disabled, "when the server says no Reaction is ready, Intercept goes dark").toBe(true);
+    const before = chosen.length;
+    button("intercept")?.focus();
+    key("Enter");
+    key("Enter");
+    expect(chosen.length, "and a dark Reaction sends nothing").toBe(before);
+
+    // On your turn the turn's actions are live; that's the server's word too.
+    win.setEnabled(true);
+    expect(button("anchor")?.disabled, "on your turn, the turn's actions are live").toBe(false);
     win.destroy();
   });
 
