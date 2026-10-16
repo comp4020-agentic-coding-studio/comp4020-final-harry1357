@@ -574,8 +574,10 @@ export function checkSeatEcho(b: Battle, seatedBy: string, role: unknown): Refus
   if (!seater || seater.seatedBy !== null) return { status: 403, error: "Only someone seated at this table can seat an Echo here." };
   if (isEnded(b)) return { status: 409, error: "This fight is already over." };
   const seated = [...b.standing, ...b.fallen].filter(isEchoSeat);
-  if (seated.length >= ECHO_MAX) return { status: 409, error: `A table seats ${ECHO_MAX} Echoes at most, and this one has ${seated.length}.` };
+  // One per role first: a second Warden Echo is refused for being a second
+  // Warden Echo, whether or not the table is full (breaker Q4).
   if (seated.some((f) => f.role === role)) return { status: 409, error: `There's already a ${ROLES[role].label} Echo at this table; one per role.` };
+  if (seated.length >= ECHO_MAX) return { status: 409, error: `A table seats ${ECHO_MAX} Echoes at most, and this one has ${seated.length}.` };
   const key = nameKey(echoName(role));
   if (Object.values(b.joined).some((taken) => nameKey(taken) === key)) {
     return { status: 409, error: `Someone at this table already goes by "${echoName(role)}".` };

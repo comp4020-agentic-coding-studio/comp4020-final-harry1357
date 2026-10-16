@@ -324,6 +324,20 @@ describe("an Echo seated on purpose waits for nobody", () => {
   });
 });
 
+describe("a refused Echo is told why", () => {
+  it("a second Echo of a role is refused for its role, even at four", async () => {
+    // Breaker Q4: at the cap, a second Warden Echo was told the table was full,
+    // not that it already had a Warden Echo.
+    const e = await echoEngine();
+    let b = table(e, ["mender"]);
+    for (const role of ["warden", "mender", "striker", "breaker"]) {
+      b = e.seatEcho(b, { id: `echo-${role}`, role, seatedBy: "mender-1" }, clock()).battle;
+    }
+    expect(e.checkSeatEcho(b, "mender-1", "warden")?.error, "a second Warden Echo: one per role").toMatch(/already a Warden Echo/);
+    expect(e.checkSeatEcho(b, "mender-1", "chronist")?.error, "a fifth Echo of a new role: four at most").toMatch(/4 Echoes at most/);
+  });
+});
+
 describe("an Echo gets no favours", () => {
   it("an Echo's out-of-turn action is refused exactly as a human's is", async () => {
     const e = await echoEngine();
