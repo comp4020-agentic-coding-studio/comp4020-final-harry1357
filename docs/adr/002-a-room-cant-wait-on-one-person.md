@@ -1,8 +1,9 @@
 # ADR-002: A room can't wait on one person
 
 - **Status:** accepted. Partly superseded by ADR-006 (timeouts now Brace and
-  can Echo; nobody leaves on a timeout). The twenty-second figure and the
-  reason a room can't wait on one person still stand.
+  can Echo; nobody leaves on a timeout). The twenty-second figure became
+  twelve seconds under ADR-006. The reason a room can't wait on one person
+  still stands.
 - **Date:** 2026-10-01
 - **Builds on:** ADR-001 (one process, one tick).
 
