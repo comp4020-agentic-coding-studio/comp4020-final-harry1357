@@ -46,7 +46,7 @@ export function createApp(root: string, store: Store, table: Table): Hono {
 
   mountPages(app, root);
 
-  app.get("/api/raid", (c) => c.json({ battleId: table.publicRaid() } satisfies RaidResponse));
+  app.get("/api/raid", (c) => c.json(table.publicRaid() satisfies RaidResponse));
 
   app.post("/api/battles", (c) => c.json({ battleId: table.create() } satisfies NewBattleResponse, 201));
 
@@ -133,13 +133,13 @@ export function createApp(root: string, store: Store, table: Table): Hono {
   app.get(
     "/ws",
     upgradeWebSocket((c) => {
-      const id = c.req.query("battle") ?? "";
+      const query = { battle: c.req.query("battle"), room: c.req.query("room") };
       return {
         onOpen(_event, ws) {
-          if (!table.watch(id, ws)) ws.close(4404, "No such battle.");
+          if (!table.watch(query, ws)) ws.close(4404, query.room !== undefined ? "No such room." : "No such battle.");
         },
         onClose(_event, ws) {
-          table.unwatch(id, ws);
+          table.unwatch(ws);
         },
       };
     }),

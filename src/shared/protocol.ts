@@ -142,6 +142,12 @@ export interface Token {
   echo: boolean;
   /** Their one Reaction since the last boss turn is still unspent (rule 18). */
   reactionReady: boolean;
+  /** A Mender's Ward stands on them: the next blow is absorbed. */
+  warded: boolean;
+  /** An Echo seated on purpose (rule 25): who seated it. Null for a person's
+   *  seat, the Orrery's, and a person's seat that has timed out into an Echo.
+   *  A seated Echo's `echo` is always true and it has no person to come back. */
+  seatedBy: string | null;
 }
 
 /** An Exposed stack on a ring, and who set it (rule 16). */
@@ -240,6 +246,12 @@ export interface BattleState {
   /** Exposed stacks once spent: who set each and who spent it (rule 16). A
    *  client that connects late still sees both, not only from the event. */
   spentExposed: SpentExposed[];
+  /** The room this fight is in (rules 22-24), or null for a bare battle. */
+  room: { code: string; isPublic: boolean } | null;
+  /** The roles an Echo can still be seated as in this fight (rule 25): one per
+   *  role, four at most, none once the fight is over. The server decides it;
+   *  the client offers exactly these. */
+  echoRoles: RoleId[];
   /** The most recent log lines, oldest first. */
   log: LogEntry[];
 }
@@ -255,6 +267,7 @@ export interface BattleState {
 export const EVENT_KINDS = [
   // the table
   "join",
+  "seat", // an Echo is seated on purpose by someone in the room (rule 25)
   "leave",
   "down",
   "plate",
@@ -320,6 +333,8 @@ type Boss<K extends string, X = object> = EventBase & { kind: K; actorId: typeof
 
 export type BattleEvent =
   | Act<"join", { returning: boolean }>
+  // actorId is the Echo; seatedBy the person who seated it.
+  | Act<"seat", { role: RoleId; seatedBy: string }>
   | Act<"leave">
   | Act<"down">
   | Act<"plate">
@@ -371,6 +386,24 @@ export type EventOf<K extends EventKind> = Extract<BattleEvent, { kind: K }>;
 /** Every broadcast: the state as it now is, and the events that made it so (empty for a plain tick). */
 export type ServerMessage = { type: "state"; battle: BattleState; events: BattleEvent[] };
 
+/** A room as the server describes it (rules 22-23): its code and its fight now. */
+export interface RoomInfo {
+  code: string;
+  isPublic: boolean;
+  battleId: string;
+}
+
+/**
+ * What a room's socket (/ws?room=<code>) carries besides state: the room as it
+ * now is. Sent on open, before the first state, and whenever the room's fight
+ * changes; every state after it is the new fight's. A battle's own socket
+ * (/ws?battle=<id>) never carries one.
+ */
+export type RoomMessage = { type: "room"; room: RoomInfo };
+
+/** Everything a room's socket can carry. */
+export type RoomSocketMessage = ServerMessage | RoomMessage;
+
 export interface CharacterInfo {
   id: string;
   name: string;
@@ -394,6 +427,8 @@ export interface BattleSummary {
 /** GET /api/raid — the open public raid, for anyone arriving without a link. */
 export interface RaidResponse {
   battleId: string;
+  /** The public raid's room code (rule 23). */
+  code: string;
 }
 
 /** POST /api/battles → 201 */
@@ -434,6 +469,30 @@ export interface LogResponse {
   battleId: string;
   status: BattleStatus;
   entries: LogEntry[];
+}
+
+/** POST /api/rooms → 201: a seated player's new room (rule 22). */
+export interface NewRoomResponse {
+  code: string;
+  battleId: string;
+}
+
+/** GET /api/rooms/:code */
+export type RoomResponse = RoomInfo;
+
+/** POST /api/rooms/:code/join, with a JoinRequest: as a battle's join, plus the room. */
+export interface RoomJoinResponse extends JoinResponse {
+  code: string;
+}
+
+/** POST /api/rooms/:code/echoes → 201 (rule 25). */
+export interface EchoRequest {
+  role: RoleId;
+}
+export interface EchoResponse {
+  code: string;
+  battleId: string;
+  echoId: string;
 }
 
 /** Every non-2xx JSON answer. */

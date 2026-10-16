@@ -18,6 +18,11 @@ export const ECHO_POTENCY = 0.5;
  *  person to reclaim the seat before the server plays it. */
 export const ECHO_BEAT_MS = 3_000;
 
+/** Rule 25 (ADR-007): Echoes seated on purpose, one per role, at most this many in a room's fight. */
+export const ECHO_MAX = 4;
+/** Rule 26 (ADR-007): a room with no person seated in its fight for this long is gone. ROOM_EMPTY_MS overrides it. */
+export const ROOM_EMPTY_MS = 15 * 60 * 1000;
+
 /** Rule 15: +10% per link, capped at +50%. */
 export const CHAIN_STEP = 0.1;
 export const CHAIN_CAP = 0.5;

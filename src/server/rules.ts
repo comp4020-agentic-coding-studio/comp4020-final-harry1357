@@ -14,6 +14,10 @@
 //
 // They meet only through the Battle and Fighter shapes below and the Ctx this
 // file hands them. spec/engine.ts names the exports the specs drive.
+//
+// Phase one-b (docs/adr/007) adds an Echo seated on purpose (seatEcho, here)
+// and the policies that play every Echo (echoes.ts, which reads only what
+// view.ts sends a client). What a client is sent lives in view.ts.
 
 import {
   ACTIONS,
@@ -23,7 +27,6 @@ import {
   ROLES,
   type ActionId,
   type BattleEvent,
-  type BattleState,
   type BattleStatus,
   type BossCard,
   type Chain,
@@ -31,10 +34,9 @@ import {
   type Ring,
   type RingId,
   type RoleId,
-  type Token,
 } from "../shared/protocol.ts";
 import { ATTACK_RANK, counterReset } from "./ctb.ts";
-import { ECHO_BEAT_MS } from "./tuning.ts";
+import { ECHO_BEAT_MS, ECHO_MAX } from "./tuning.ts";
 import * as economy from "./economy.ts";
 import * as orrery from "./orrery.ts";
 import * as roles from "./roles.ts";
@@ -82,6 +84,9 @@ export interface Fighter {
   relayBonus: number;
   /** Why a fighter is off the rail; null while standing. */
   out: "downed" | "left" | null;
+  /** An Echo seated on purpose (rule 25): the person who seated it. Null for a
+   *  person's seat (even one timed out into an Echo) and for the Orrery. */
+  seatedBy: string | null;
 }
 
 /** A ring as the server holds it: the Ring the client sees, plus the weakness it hasn't been shown. */
@@ -92,6 +97,8 @@ export interface RingState extends Ring {
 export interface Battle {
   id: string;
   isPublic: boolean;
+  /** The room's code, when this fight is a room's (rules 22-24); null for a bare battle. Set by the table. */
+  room: string | null;
   status: BattleStatus;
   /** Bumped by the caller on every broadcast; the rules never touch it. */
   version: number;
@@ -170,7 +177,7 @@ export interface Clock {
 }
 
 /** How long whoever is on the plate has: a person the turn's time, an Echo its beat. */
-const plateMs = (f: Fighter, clock: Clock): number => (f.echo ? (clock.beatMs ?? ECHO_BEAT_MS) : clock.turnMs);
+export const plateMs = (f: Fighter, clock: Clock): number => (f.echo ? (clock.beatMs ?? ECHO_BEAT_MS) : clock.turnMs);
 
 export interface Refusal {
   status: 400 | 403 | 409;
@@ -325,6 +332,7 @@ export function createBattle(id: string, isPublic: boolean, now: number): Battle
   return {
     id,
     isPublic,
+    room: null,
     status: "waiting",
     version: 0,
     tick: 0,
@@ -475,52 +483,8 @@ function pull(ctx: Ctx): void {
   });
 }
 
-/** What every client is sent. */
-export function view(b: Battle, timing: { tickMs: number; turnMs: number; beatMs?: number }): BattleState {
-  const token = (f: Fighter): Token => ({
-    id: f.id,
-    kind: f.kind,
-    name: f.name,
-    role: f.role,
-    counter: f.counter,
-    hp: f.hp,
-    maxHp: f.maxHp,
-    hasted: f.hasteLeft > 0,
-    braced: f.braced,
-    seat: f.seat,
-    charge: f.charge,
-    resource: f.resource,
-    gravity: f.gravity,
-    drifting: f.drifting,
-    echo: f.echo,
-    reactionReady: f.reactionReady,
-  });
-  return {
-    battleId: b.id,
-    version: b.version,
-    tick: b.tick,
-    tickMs: timing.tickMs,
-    turnMs: timing.turnMs,
-    // The plate's real window: an Echo's beat, not the person's turn (review R8).
-    plateMs: (() => {
-      const up = b.standing.find((f) => f.id === b.activeId);
-      return up && up.kind === "character" ? plateMs(up, { now: 0, ...timing }) : null;
-    })(),
-    status: b.status,
-    activeId: b.activeId,
-    turnDeadline: b.turnDeadline,
-    queue: b.standing.map(token),
-    fallen: b.fallen.map(token),
-    log: b.log.map((entry) => ({ ...entry })),
-    phase: b.phase,
-    // The weakness the room hasn't Scanned stays on the server.
-    rings: b.rings.map(({ element: _hidden, ...ring }) => ({ ...ring, exposed: ring.exposed.map((x) => ({ ...x })) })),
-    cards: b.cards.map((c) => ({ ...c })),
-    chain: { ...b.chain },
-    pullSeats: b.pullSeats,
-    spentExposed: b.spentExposed.map((x) => ({ ...x })),
-  };
-}
+/** What every client is sent: view.ts builds it, and only view.ts. */
+export { view } from "./view.ts";
 
 // --- the engine contract (spec/engine.ts) -----------------------------------
 
@@ -566,6 +530,102 @@ export function plate(b: Battle, id: string, clock: Clock): Battle {
   next.activeId = id;
   next.turnDeadline = target.kind !== "character" ? null : clock.now + plateMs(target, clock);
   return next;
+}
+
+// --- Echoes seated on purpose (docs/adr/007, rule 25) -------------------------
+
+/** An Echo seat: one seated on purpose, by someone, with no person behind it. */
+const isEchoSeat = (f: Fighter): boolean => f.kind === "character" && f.seatedBy !== null;
+
+/** The roles an Echo can still be seated as in this fight: one per role, ECHO_MAX at most, none once it's over. */
+export function echoRolesOpen(b: Battle): RoleId[] {
+  if (isEnded(b)) return [];
+  const seated = [...b.standing, ...b.fallen].filter(isEchoSeat);
+  if (seated.length >= ECHO_MAX) return [];
+  return ROLE_IDS.filter((role) => !seated.some((f) => f.role === role));
+}
+
+/** The name an Echo of this role sits down under. */
+export const echoName = (role: RoleId): string => `${ROLES[role].label} Echo`;
+
+/** Why `seatedBy` can't seat an Echo of `role` in this fight, or null to go ahead (rule 25). */
+export function checkSeatEcho(b: Battle, seatedBy: string, role: unknown): Refusal | null {
+  if (!isRole(role)) return { status: 400, error: "Choose a role for the Echo: warden, mender, striker, breaker or chronist." };
+  const seater = b.standing.find((f) => f.id === seatedBy && f.kind === "character");
+  if (!seater || seater.seatedBy !== null) return { status: 403, error: "Only someone seated at this table can seat an Echo here." };
+  if (isEnded(b)) return { status: 409, error: "This fight is already over." };
+  const seated = [...b.standing, ...b.fallen].filter(isEchoSeat);
+  if (seated.length >= ECHO_MAX) return { status: 409, error: `A table seats ${ECHO_MAX} Echoes at most, and this one has ${seated.length}.` };
+  if (seated.some((f) => f.role === role)) return { status: 409, error: `There's already a ${ROLES[role].label} Echo at this table; one per role.` };
+  const key = nameKey(echoName(role));
+  if (Object.values(b.joined).some((taken) => nameKey(taken) === key)) {
+    return { status: 409, error: `Someone at this table already goes by "${echoName(role)}".` };
+  }
+  return null;
+}
+
+/** Seat an Echo (already checked with checkSeatEcho). It enters as a late joiner does, and a seat during the pull's countdown restarts it. */
+export function seatEcho(b: Battle, who: { id: string; role: RoleId; seatedBy: string }, clock: Clock): Step {
+  const ctx = context(structuredClone(b), clock);
+  const { b: next } = ctx;
+  const stats = roles.STATS[who.role];
+  const name = echoName(who.role);
+  next.standing.push({
+    ...blankFighter(),
+    id: who.id,
+    kind: "character",
+    name,
+    role: who.role,
+    agility: stats.agility,
+    counter: counterReset(stats.agility, "normal", ATTACK_RANK),
+    hp: stats.hp,
+    maxHp: stats.hp,
+    seat: next.nextSeat++,
+    echo: true,
+    seatedBy: who.seatedBy,
+  });
+  next.joined[who.id] = name;
+  if (next.status === "waiting") {
+    next.pullCap ??= clock.now + PULL_CAP_MS;
+    next.pullAt = Math.min(clock.now + PULL_RESTART_MS, next.pullCap);
+  }
+  // No battle_members row: an Echo has no character behind it, and no record.
+  ctx.say("join", who.id, `${next.joined[who.seatedBy] ?? "Someone"} seats a ${name} at the table.`, {
+    kind: "seat",
+    actorId: who.id,
+    role: who.role,
+    seatedBy: who.seatedBy,
+  });
+  return finish(ctx);
+}
+
+/**
+ * The Echo picks its move by its role's policy (echoes.ts, from the state a
+ * client is sent) and submits it exactly as a person's action is submitted:
+ * through checkAction, then act's path. The step, or the refusal a person in
+ * its place would get. Area (b) builds this.
+ */
+export function echoMove(b: Battle, echoId: string, clock: Clock): Step | Refusal {
+  void b;
+  void echoId;
+  void clock;
+  throw new Error("echoMove isn't built yet (phase one-b, area b: Echo policies)");
+}
+
+/** Close a fight that isn't over, as abandoned, with a line saying why: a room that went away (rule 26). */
+export function close(b: Battle, text: string, clock: Clock): Step {
+  const ctx = context(structuredClone(b), clock);
+  if (!isEnded(ctx.b)) {
+    ctx.say("end", null, text, { kind: "end", outcome: "abandoned" });
+    ctx.b.status = "abandoned";
+    ctx.fx.status = "abandoned";
+    ctx.b.endedAt = clock.now;
+    ctx.b.activeId = null;
+    ctx.b.turnDeadline = null;
+    ctx.b.pullAt = null;
+    ctx.b.pullCap = null;
+  }
+  return finish(ctx);
 }
 
 // --- shared machinery the modules use ---------------------------------------
@@ -633,6 +693,7 @@ function blankFighter(): Omit<Fighter, "id" | "kind" | "name" | "role" | "agilit
     warded: false,
     relayBonus: 0,
     out: null,
+    seatedBy: null,
   };
 }
 
