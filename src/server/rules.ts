@@ -675,10 +675,12 @@ function end(b: Battle, fx: Effects, outcome: BattleStatus, now: number): void {
   b.activeId = null;
   b.turnDeadline = null;
   // The outcome is credited to everyone who saw it through: standing at the
-  // end, or downed on the way. Someone who stepped away gets neither.
+  // end, or downed on the way. Someone who stepped away gets neither, and nor
+  // does a seat that is an Echo at the end: an Echo's turns are never counted
+  // in the person's record (ADR-006, "The Echo"; review F4).
   if (outcome === "won" || outcome === "lost") {
     for (const f of [...b.standing, ...b.fallen]) {
-      if (f.kind !== "character" || f.out === "left") continue;
+      if (f.kind !== "character" || f.out === "left" || f.echo) continue;
       stat(fx, f.id)[outcome === "won" ? "wins" : "losses"] += 1;
     }
   }

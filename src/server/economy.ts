@@ -27,8 +27,9 @@
 //   nothing else), which the client already draws per role. A role-specific
 //   event (counterweight, cleave) would claim that action's side effects
 //   (Exposed, Momentum, a weakness check), which an Echo doesn't do. Its turn
-//   and damage are credited to the character: it is their seat taking a turn.
-//   It resets at rank 3 and adds a Chain link. It is never a "hold".
+//   and damage are never credited to the character (ADR-006, "The Echo"): the
+//   turn is the Echo's, logged as the Echo's. It resets at rank 3 and adds a
+//   Chain link. It is never a "hold".
 // - A Reaction is a person acting, so it counts as them being back: it ends an
 //   Echo and clears drifting and the timeout count, exactly as a turn does.
 // - A timeout isn't counted in the character's turn stats (nobody chose it).
