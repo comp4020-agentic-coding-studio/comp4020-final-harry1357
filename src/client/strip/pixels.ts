@@ -4,7 +4,8 @@
 // ground. Shown at 3× (a whole number), never smoothed.
 //
 //   .  nothing        # brass        = lit brass
-//   +  card           * ember        (o, the outline, is added, not drawn)
+//   +  card           * ember        (o, the outline, is added, not drawn,
+//                                     except as a void pixel inside the art)
 
 const SVG_NS = "http://www.w3.org/2000/svg";
 const SCALE = 3;
@@ -48,8 +49,176 @@ export const DOWN: readonly string[] = [
   "**.....**",
 ];
 
-/** An SVG of `rows`, one cell per pixel, with the outline added. Build once and clone. */
-export function pixelIcon(rows: readonly string[], className: string): SVGSVGElement {
+// --- phase two: the boss cards' intents, one per Intent ----------------------
+// (an explicit `o` is a void pixel inside the art: the eclipse's dark disc)
+
+/** Revolution, raid-wide: a ring chasing its own arrowheads, the core lit. */
+export const REVOLUTION: readonly string[] = [
+  "....###=...",
+  "..####.==..",
+  ".##....===.",
+  ".#.......#.",
+  "##..***..##",
+  "##..***..##",
+  "##..***..##",
+  ".#.......#.",
+  ".===....##.",
+  "..==.####..",
+  "...=###....",
+];
+
+/** Eclipse, one target: a dark disc in a ring of fire, and the last spark of light. */
+export const ECLIPSE: readonly string[] = [
+  "....***....",
+  "..*******..",
+  ".**ooooo**.",
+  ".*ooooooo*.",
+  "**ooooooo**",
+  "**ooooooo**",
+  "**ooooooo**",
+  ".*ooooooo*.",
+  ".**ooooo**+",
+  "..*******++",
+  "....***..+.",
+];
+
+/** Lunge, one target and a Gravity stack: a heavy arrow driven down into the well. */
+export const LUNGE: readonly string[] = [
+  "....#=#....",
+  "....#=#....",
+  "....#=#....",
+  "....#=#....",
+  ".####=####.",
+  "..###=###..",
+  "...##=##...",
+  "....#=#....",
+  ".....=.....",
+  "...........",
+  "***********",
+];
+
+/** Perihelion, raid-wide and a Break check: the sun come close, rays out. */
+export const PERIHELION: readonly string[] = [
+  ".....#.....",
+  ".....#.....",
+  "..#.===.#..",
+  "...=***=...",
+  "..=*****=..",
+  "##=*****=##",
+  "..=*****=..",
+  "...=***=...",
+  "..#.===.#..",
+  ".....#.....",
+  ".....#.....",
+];
+
+/** Retrograde, the strip: one arrow up, one down, the order turned about. */
+export const RETROGRADE: readonly string[] = [
+  "..=.....#..",
+  ".===....#..",
+  "=====...#..",
+  "..=.....#..",
+  "..=.....#..",
+  "..=.....#..",
+  "..=.....#..",
+  "..=.....#..",
+  "..=...#####",
+  "..=....###.",
+  "..=.....#..",
+];
+
+/** Alignment, the wipe's clock: three bodies drawn into one line, the middle one burning. */
+export const ALIGNMENT: readonly string[] = [
+  "...........",
+  "...........",
+  "....***....",
+  "...*****...",
+  ".#.*****.#.",
+  "###*****###",
+  ".#.*****.#.",
+  "...*****...",
+  "....***....",
+  "...........",
+  "...........",
+];
+
+// --- phase two: the strip's marks -----------------------------------------------
+
+/** A Chain link: two rings and the bar between them. Drawn upright, turned for a row. */
+export const LINK: readonly string[] = [
+  ".##.",
+  "#..#",
+  "#..#",
+  ".##.",
+  ".##.",
+  "#..#",
+  "#..#",
+  ".##.",
+];
+
+/** The same link on its side, for the Chain's chip. */
+export const LINK_ACROSS: readonly string[] = [
+  ".##..##.",
+  "#..##..#",
+  "#..##..#",
+  ".##..##.",
+];
+
+/** An Echo: a card diamond between its own reflections. A seat the server plays. */
+export const ECHO: readonly string[] = [
+  "..#...#..",
+  ".#..+..#.",
+  "#..+++..#",
+  ".#..+..#.",
+  "..#...#..",
+];
+
+/** Drifting: an hourglass run out (the server Braced for them). */
+export const DRIFT: readonly string[] = [
+  "+++++++",
+  ".#...#.",
+  ".##.##.",
+  "..###..",
+  "...#...",
+  "..#.#..",
+  ".#...#.",
+  ".#####.",
+  "+++++++",
+];
+
+/** Frozen by Stillpoint: a card-white flake. */
+export const FROST: readonly string[] = [
+  "+..+..+",
+  ".+.+.+.",
+  "..+++..",
+  "+++++++",
+  "..+++..",
+  ".+.+.+.",
+  "+..+..+",
+];
+
+/** Resonance: a gold four-point star, a rank refunded. */
+export const STAR: readonly string[] = [
+  "...=...",
+  "...=...",
+  "..===..",
+  "=======",
+  "..===..",
+  "...=...",
+  "...=...",
+];
+
+/** A card's target marker: an arrow pointing at whoever it lands on. */
+export const AIM: readonly string[] = [
+  "..=..",
+  "...=.",
+  "=====",
+  "...=.",
+  "..=..",
+];
+
+/** An SVG of `rows`, one cell per pixel, with the outline added. Build once and clone. `scale` is a whole number. */
+export function pixelIcon(rows: readonly string[], className: string, scale = SCALE): SVGSVGElement {
   const w = Math.max(...rows.map((row) => row.length)) + 2;
   const h = rows.length + 2;
   const grid: string[][] = Array.from({ length: h }, () => Array<string>(w).fill("."));
@@ -77,8 +246,8 @@ export function pixelIcon(rows: readonly string[], className: string): SVGSVGEle
 
   const svg = document.createElementNS(SVG_NS, "svg");
   svg.setAttribute("viewBox", `0 0 ${w} ${h}`);
-  svg.setAttribute("width", String(w * SCALE));
-  svg.setAttribute("height", String(h * SCALE));
+  svg.setAttribute("width", String(w * scale));
+  svg.setAttribute("height", String(h * scale));
   svg.setAttribute("shape-rendering", "crispEdges");
   svg.setAttribute("aria-hidden", "true");
   svg.setAttribute("focusable", "false");
