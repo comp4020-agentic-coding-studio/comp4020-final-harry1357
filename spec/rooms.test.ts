@@ -293,9 +293,10 @@ describe("nothing crosses between rooms", () => {
     expect(wb.states.every((st) => !st.queue.some((t) => t.id === alice.characterId)), "alice never appears on room B's strip").toBe(true);
     expect(wb.states.every((st) => st.battleId === b.battleId), "room B's socket only carried room B's fight").toBe(true);
 
-    // A seat acts only in its own room.
+    // A seat acts only in its own room. To someone not seated in it, a private room's fight doesn't exist
+    // by its id at all (rule 22; phase two's gate, Q5): the same 404 as an id nobody has.
     const cross = await act(base, b.battleId, alice.cookie, "jab");
-    expect(cross.status, "alice's seat is in room A; room B's fight refuses her").toBe(403);
+    expect(cross.status, "alice's seat is in room A; room B's fight is no fight to her").toBe(404);
   }, 45_000);
 
   it("the same character seated in two rooms is two seats and one record", async () => {
