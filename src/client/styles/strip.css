@@ -269,6 +269,9 @@
   line-height: 1;
   letter-spacing: 0.08em;
   text-transform: uppercase;
+
+  /* phase two: it reads "You in N", on one line */
+  white-space: nowrap;
   color: var(--ink);
   background: var(--brass-lit);
   border-radius: 2px;
@@ -499,5 +502,984 @@
 
   100% {
     opacity: 0;
+  }
+}
+
+/* ==== phase two: the strip as the play surface (ADR-006) ===================
+   Everything below extends the strip above; nothing above is overridden
+   except where a rule says why. All of it is drawn from the state the strip
+   is sent (strip.ts, cards.ts): the Orrery's cards in the head, the Chain,
+   "You in N", the Echo and drifting marks, the card aimed at a portrait, the
+   plate's clock, and the ghost. Every mark has a shape or a word as well as a
+   colour. Every movement is in the no-preference block at the end; under
+   reduce each moment is the same mark, held still.
+
+   [data-rail][data-flow] is "column" or "row": strip.ts reads which way
+   mobile.css runs the strip (--strip-flow) and says so, so the links and the
+   ghost know where "between two portraits" is. */
+
+/* Down the stage's edge the strip takes the row it is given and never sizes
+   it (the promise at the top of this file). With the head above the portraits
+   its content can be taller than the 1920×1080 stage, and a grid row sized by
+   content would grow the page rather than scroll the lanes, so in a column its
+   size is contained: the row comes from the field and the command window, and
+   the lanes scroll. A row (the phone) is as tall as its content, as before. */
+#battle .strip:not([data-flow="row"]) {
+  contain: size;
+}
+
+/* ---- the head: the Orrery's cards, its Alignment clock, the Chain ------- */
+
+#battle .strip-head {
+  display: flex;
+  flex: none;
+  flex-direction: var(--strip-flow, column);
+  align-items: stretch;
+  gap: 0.4rem;
+  min-width: 0;
+  padding: 0 0.25rem;
+}
+
+#battle .strip[data-flow="row"] .strip-head {
+  align-items: flex-start;
+  overflow: auto hidden;
+  overscroll-behavior: contain;
+  padding-bottom: 0.15rem;
+  scrollbar-color: var(--brass-dim) transparent;
+  scrollbar-width: thin;
+}
+
+#battle .strip-cards {
+  display: flex;
+  flex: none;
+  flex-direction: var(--strip-flow, column);
+  gap: 0.4rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+#battle .strip-cards[hidden],
+#battle .strip-align[hidden],
+#battle .strip-chain[hidden] {
+  display: none;
+}
+
+/* A boss card: an ink window tinted with the Orrery's ember, its intent's
+   pixel icon, the word and the number, the target marker, and the countdown. */
+#battle .strip-boss-card {
+  position: relative;
+  flex: none;
+}
+
+#battle .strip-bc-body {
+  display: grid;
+  grid-template:
+    "art what amount" auto
+    "art at when" auto
+    "flag flag flag" auto
+    / auto minmax(0, 1fr) auto;
+  gap: 0.05rem 0.3rem;
+  align-items: center;
+  padding: 0.2rem 0.3rem 0.2rem 0.2rem;
+  background: color-mix(in srgb, var(--ember) 9%, var(--ink));
+  border: 2px solid color-mix(in srgb, var(--ember) 55%, var(--ink));
+  border-radius: 3px;
+  box-shadow: 0 2px 0 0 var(--void);
+}
+
+#battle .strip-boss-card[data-countdown="0"] > .strip-bc-body {
+  border-color: var(--ember);
+}
+
+#battle .strip-boss-card[data-at-me="true"] > .strip-bc-body {
+  box-shadow:
+    0 0 0 2px var(--brass-lit),
+    0 2px 0 2px var(--void);
+}
+
+#battle .strip-bc-art {
+  grid-area: art;
+  display: block;
+  line-height: 0;
+}
+
+#battle .strip-bc-art > svg {
+  display: block;
+}
+
+#battle .strip-bc-what {
+  grid-area: what;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.25rem;
+  min-width: 0;
+}
+
+#battle .strip-bc-word {
+  overflow: hidden;
+  font-family: var(--font-display);
+  font-size: 0.42rem;
+  line-height: 1.2;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--card);
+}
+
+/* what it deals before mitigation: the card's number */
+#battle .strip-bc-amount {
+  grid-area: amount;
+  justify-self: end;
+  font-size: 1.15rem;
+  line-height: 0.8;
+  color: var(--card);
+}
+
+#battle .strip-bc-at {
+  grid-area: at;
+  display: flex;
+  align-items: center;
+  gap: 0.2rem;
+  min-width: 0;
+}
+
+#battle .strip-bc-aim {
+  flex: none;
+}
+
+#battle .strip-bc-name {
+  overflow: hidden;
+  font-size: 1.05rem;
+  line-height: 0.9;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--card);
+}
+
+#battle .strip-bc-when {
+  grid-area: when;
+  display: flex;
+  align-items: baseline;
+  justify-self: end;
+  gap: 0.25rem;
+}
+
+#battle .strip-bc-label {
+  font-family: var(--font-display);
+  font-size: 0.42rem;
+  line-height: 1;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--brass-lit);
+}
+
+#battle [data-countdown="0"] .strip-bc-label {
+  color: var(--ember);
+}
+
+#battle .strip-bc-count {
+  font-family: var(--font-display);
+  font-size: 0.65rem;
+  line-height: 1;
+  color: var(--card);
+}
+
+/* Frozen (Stillpoint): a card-white flake and the word, the frame dashed, the icon greyed. */
+#battle .strip-bc-frozen {
+  grid-area: flag;
+  display: none;
+  align-items: center;
+  gap: 0.25rem;
+  font-family: var(--font-display);
+  font-size: 0.42rem;
+  line-height: 1;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--card);
+}
+
+#battle [data-frozen="true"] .strip-bc-frozen {
+  display: flex;
+}
+
+#battle .strip-boss-card[data-frozen="true"] > .strip-bc-body {
+  border-style: dashed;
+  border-color: var(--card);
+}
+
+#battle [data-frozen="true"] .strip-bc-art > svg {
+  filter: grayscale(1) brightness(1.15);
+}
+
+/* The card the server names for your Reaction: a lit tab saying what to answer it with. */
+#battle .strip-bc-react {
+  grid-area: flag;
+  display: none;
+  justify-self: start;
+  padding: 2px 3px 1px;
+  font-family: var(--font-display);
+  font-size: 0.4rem;
+  line-height: 1.1;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: var(--ink);
+  background: var(--brass-lit);
+  border-radius: 2px;
+}
+
+#battle [data-react] .strip-bc-react {
+  display: block;
+}
+
+#battle .strip-boss-card[data-react] > .strip-bc-body {
+  box-shadow:
+    0 0 0 2px var(--brass-lit),
+    0 0 10px 2px color-mix(in srgb, var(--brass) 60%, transparent);
+}
+
+/* A card's moment (strip.card): a word on its corner for about a second. */
+#battle .strip-bc-stamp {
+  position: absolute;
+  top: -0.45rem;
+  right: -0.2rem;
+  z-index: 2;
+  padding: 2px 3px 1px;
+  font-family: var(--font-display);
+  font-size: 0.42rem;
+  line-height: 1;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: var(--card);
+  background: var(--ink);
+  border: 2px solid var(--brass-lit);
+  border-radius: 2px;
+}
+
+#battle .strip-bc-stamp[data-moment="resolved"] {
+  border-color: var(--ember);
+}
+
+#battle .strip-boss-card[data-moment="announced"] > .strip-bc-body,
+#battle .strip-boss-card[data-moment="delayed"] > .strip-bc-body,
+#battle .strip-boss-card[data-moment="retargeted"] > .strip-bc-body {
+  outline: 2px solid var(--brass-lit);
+  outline-offset: 1px;
+}
+
+/* A card the server took off the strip, drawn leaving: it landed, it passed
+   over the fallen (never a hit), or a Chronist undid it. */
+#battle .strip-boss-card[data-leaving] {
+  pointer-events: none;
+}
+
+#battle .strip-boss-card[data-leaving="resolved"] > .strip-bc-body {
+  outline: 2px solid var(--ember);
+  outline-offset: 1px;
+}
+
+#battle .strip-boss-card[data-leaving="spent"] > .strip-bc-body,
+#battle .strip-boss-card[data-leaving="cancelled"] > .strip-bc-body {
+  border-style: dashed;
+  opacity: 0.6;
+}
+
+#battle [data-leaving="cancelled"] .strip-bc-word {
+  text-decoration: line-through;
+}
+
+/* The phone's row: a card is its icon and countdown over its target. */
+#battle .strip[data-flow="row"] .strip-bc-body {
+  grid-template:
+    "art when" auto
+    "art at" auto
+    "flag flag" auto
+    / auto minmax(0, auto);
+  gap: 0.05rem 0.25rem;
+  max-width: 6.6rem;
+  padding: 0.15rem 0.25rem 0.15rem 0.15rem;
+}
+
+#battle .strip[data-flow="row"] .strip-bc-what,
+#battle .strip[data-flow="row"] .strip-bc-amount {
+  display: none;
+}
+
+#battle .strip[data-flow="row"] .strip-bc-when {
+  justify-self: start;
+}
+
+#battle .strip[data-flow="row"] .strip-bc-name {
+  font-size: 0.95rem;
+}
+
+#battle .strip[data-flow="row"] .strip-bc-react {
+  white-space: normal;
+}
+
+/* ---- the Grand Alignment's clock: grows as the wipe nears ---------------- */
+
+#battle .strip-align {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 0.35rem;
+  margin: 0;
+  padding: 0.2rem 0.3rem;
+  background: color-mix(in srgb, var(--ember) 9%, var(--ink));
+  border: 2px dashed color-mix(in srgb, var(--ember) 55%, var(--ink));
+  border-radius: 3px;
+}
+
+#battle .strip-align-art {
+  line-height: 0;
+}
+
+#battle .strip-head > .strip-align .strip-align-art > svg {
+  display: block;
+  width: 26px;
+  height: 26px;
+}
+
+#battle .strip-align-word {
+  font-family: var(--font-display);
+  font-size: 0.5rem;
+  line-height: 1.2;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--card);
+}
+
+#battle .strip-align[data-clock="1"] .strip-align-art > svg,
+#battle .strip-boss-card[data-clock="1"] .strip-bc-art > svg {
+  width: 39px;
+  height: 39px;
+}
+
+#battle .strip-align[data-clock="0"] .strip-align-art > svg,
+#battle .strip-boss-card[data-clock="0"] .strip-bc-art > svg {
+  width: 52px;
+  height: 52px;
+}
+
+#battle .strip-align[data-clock="1"],
+#battle .strip-align[data-clock="0"] {
+  border-style: solid;
+  border-color: var(--ember);
+}
+
+#battle .strip-align[data-clock="0"] .strip-align-word {
+  font-size: 0.65rem;
+  color: var(--ember);
+}
+
+#battle .strip-boss-card[data-clock="1"] > .strip-bc-body,
+#battle .strip-boss-card[data-clock="0"] > .strip-bc-body {
+  border-color: var(--ember);
+  box-shadow: 0 0 12px 2px color-mix(in srgb, var(--ember) 45%, transparent);
+}
+
+#battle .strip-align[data-moment] {
+  outline: 2px solid var(--ember);
+  outline-offset: 1px;
+}
+
+/* ---- the Chain: a chip in the head, and links between player portraits --- */
+
+#battle .strip-chain {
+  position: relative;
+  display: flex;
+  flex: none;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.2rem 0.35rem;
+  margin: 0;
+  padding: 0.25rem 0.35rem;
+  border: 2px dashed var(--brass-dim);
+  border-radius: 3px;
+}
+
+#battle .strip-chain[data-live="true"] {
+  border-style: solid;
+  border-color: var(--brass-lit);
+}
+
+#battle .strip-chain-link {
+  flex: none;
+}
+
+#battle .strip-chain-word {
+  font-family: var(--font-display);
+  font-size: 0.42rem;
+  line-height: 1;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--card);
+}
+
+#battle .strip-chain-count {
+  font-family: var(--font-display);
+  font-size: 0.65rem;
+  line-height: 1;
+  color: var(--card);
+}
+
+#battle .strip-chain-bonus {
+  margin-left: auto;
+  font-size: 1.05rem;
+  line-height: 0.8;
+  color: var(--brass-lit);
+}
+
+/* five pips, one per +10% of the server's potency: a square, lit or hollow */
+#battle .strip-chain-pips {
+  display: flex;
+  flex-basis: 100%;
+  gap: 3px;
+}
+
+#battle .strip-chain-pip {
+  width: 7px;
+  height: 7px;
+  border: 2px solid var(--brass-dim);
+  border-radius: 1px;
+}
+
+#battle .strip-chain-pip[data-lit="true"] {
+  background: var(--brass-lit);
+  border-color: var(--brass-lit);
+}
+
+#battle .strip-chain[data-live="false"] .strip-chain-link {
+  opacity: 0.5;
+}
+
+#battle .strip-chain[data-live="true"] .strip-chain-link .px-f {
+  fill: var(--brass-lit);
+}
+
+/* its moment: the Chain grew, or a boss turn broke it */
+#battle .strip-chain[data-moment]::after {
+  position: absolute;
+  top: -0.45rem;
+  right: -0.2rem;
+  padding: 2px 3px 1px;
+  font-family: var(--font-display);
+  font-size: 0.42rem;
+  line-height: 1;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--card);
+  background: var(--ink);
+  border: 2px solid var(--brass-lit);
+  border-radius: 2px;
+}
+
+#battle .strip-chain[data-moment="grow"]::after {
+  content: "+1";
+}
+
+#battle .strip-chain[data-moment="broken"]::after {
+  content: "Broken";
+  border-color: var(--ember);
+}
+
+#battle .strip[data-flow="row"] .strip-chain {
+  flex-wrap: nowrap;
+  align-self: stretch;
+}
+
+#battle .strip[data-flow="row"] .strip-chain-word,
+#battle .strip[data-flow="row"] .strip-chain-pips {
+  display: none;
+}
+
+/* A link between two player portraits next to each other in the order sent:
+   upright in the gap above the frame's right edge in a column, on its side
+   at the frame's left edge in a row. Lit while the server's Chain runs
+   through it (from the top of the strip down to the first boss portrait). */
+#battle .strip-link {
+  position: absolute;
+  top: calc(-3px - 0.7rem);
+  right: -1.5px;
+  z-index: 1;
+  display: none;
+  translate: 50% -50%;
+  opacity: 0.55;
+}
+
+#battle [data-chained="true"] .strip-link {
+  display: block;
+}
+
+#battle [data-chain-live="true"] .strip-link {
+  opacity: 1;
+  filter: drop-shadow(0 0 3px color-mix(in srgb, var(--brass) 80%, transparent));
+}
+
+#battle .strip-token[data-chain-live="true"] .strip-link .px-f {
+  fill: var(--brass-lit);
+}
+
+#battle .strip[data-flow="row"] .strip-link {
+  top: calc(var(--face) / 2);
+  right: auto;
+  left: -1.5px;
+  translate: -50% -50%;
+  rotate: 90deg;
+}
+
+#battle .strip[data-chain-moment="broken"] [data-chained="true"] .strip-link {
+  opacity: 0.25;
+}
+
+/* ---- phase two's portrait moments (strip.flag, jump, retrograde) --------- */
+
+#battle .strip-stamp[data-flag="jump"] {
+  color: var(--ink);
+  background: var(--brass-lit);
+}
+
+#battle [data-flag="jump"] .strip-plate,
+#battle [data-flag="quickened"] .strip-plate,
+#battle [data-flag="relayed"] .strip-plate,
+#battle [data-flag="flip"] .strip-plate {
+  outline: 2px solid var(--brass-lit);
+  outline-offset: 2px;
+}
+
+#battle [data-flag="reacted"] .strip-plate,
+#battle [data-flag="holds"] .strip-plate,
+#battle [data-flag="restored"] .strip-plate {
+  outline: 2px solid var(--card);
+  outline-offset: 2px;
+}
+
+/* ---- Echo and drifting seats, from the state ----------------------------- */
+
+/* An Echo: its glyph and the word on a tab over the foot of the face, clear of the label beneath. */
+#battle .strip-echo-tab {
+  position: absolute;
+  bottom: 8px;
+  left: 50%;
+  z-index: 2;
+  display: none;
+  align-items: center;
+  gap: 2px;
+  translate: -50% 0;
+  padding: 1px 3px 1px 2px;
+  background: var(--ink);
+  border: 1px solid var(--card);
+  border-radius: 2px;
+}
+
+#battle [data-echo="true"] .strip-echo-tab {
+  display: flex;
+}
+
+#battle .strip-echo {
+  display: block;
+  width: 22px;
+  height: 14px;
+}
+
+#battle .strip-echo-word {
+  font-family: var(--font-display);
+  font-size: 0.42rem;
+  line-height: 1;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--card);
+}
+
+/* a seated Echo has nobody to come back: its tab is drawn solid brass */
+#battle [data-seated-echo="true"] .strip-echo-tab {
+  border-color: var(--brass-lit);
+}
+
+/* Drifting: the face dimmed, and an hourglass run out on the frame's corner. */
+#battle .strip-drift {
+  right: -6px;
+  bottom: -4px;
+}
+
+#battle [data-drifting="true"]:not([data-out]) .strip-drift {
+  display: block;
+}
+
+#battle [data-drifting="true"]:not([data-out]) .strip-face > * {
+  opacity: 0.5;
+  filter: grayscale(0.6);
+}
+
+/* ---- the card aimed at a portrait, mirrored on it ------------------------ */
+
+#battle .strip-aim {
+  position: absolute;
+  bottom: -4px;
+  left: -6px;
+  z-index: 1;
+  display: flex;
+  align-items: flex-end;
+  line-height: 0;
+}
+
+#battle .strip-aim-more {
+  margin-left: -2px;
+  padding: 1px 2px;
+  font-family: var(--font-display);
+  font-size: 0.4rem;
+  line-height: 1;
+  color: var(--card);
+  background: var(--ink);
+  border-radius: 1px;
+}
+
+/* ---- the plate's clock: a person's turn, or an Echo's beat --------------- */
+
+#battle .strip-beat {
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 0;
+  z-index: 1;
+  display: none;
+  height: 5px;
+  background: var(--void);
+  border-bottom: 1px solid var(--void);
+}
+
+#battle [data-beat] .strip-beat {
+  display: block;
+}
+
+#battle .strip-beat-fill {
+  display: block;
+  height: 100%;
+  background: var(--brass-lit);
+  transform: scaleX(var(--beat, 1));
+  transform-origin: left center;
+}
+
+#battle [data-beat="echo"] .strip-beat-fill {
+  background: var(--card);
+}
+
+#battle [data-beat="echo"] .strip-label::before {
+  content: "Beat";
+}
+
+/* ---- the ghost: where the server's preview puts the actor ---------------- */
+
+#battle .strip-queue > .strip-preview {
+  pointer-events: none;
+}
+
+#battle .strip-queue > .strip-preview > .strip-card {
+  background: none;
+  box-shadow: none;
+}
+
+#battle .strip-queue > .strip-preview .strip-plate {
+  border-style: dashed;
+  border-color: var(--brass-lit);
+}
+
+#battle .strip-queue > .strip-preview .strip-face > * {
+  opacity: 0.5;
+}
+
+#battle .strip-here {
+  position: absolute;
+  top: -0.62rem;
+  left: 50%;
+  z-index: 2;
+  translate: -50% 0;
+  padding: 2px 3px 1px;
+  font-family: var(--font-display);
+  font-size: 0.42rem;
+  line-height: 1;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink);
+  background: var(--card);
+  border-radius: 2px;
+  box-shadow: 0 0 0 2px var(--ink);
+}
+
+#battle .strip-res {
+  right: -6px;
+  bottom: -4px;
+}
+
+#battle .strip-queue > .strip-preview[data-resonance="true"] .strip-res {
+  display: block;
+}
+
+#battle .strip-queue > .strip-preview[data-resonance="true"] .strip-plate {
+  border-style: solid;
+  box-shadow:
+    inset 0 0 0 1px var(--ink),
+    0 0 0 2px var(--brass-lit),
+    0 0 12px 3px color-mix(in srgb, var(--brass) 70%, transparent);
+}
+
+#battle .strip-queue > .strip-preview[data-refused="true"] .strip-plate {
+  border-color: var(--ember);
+}
+
+#battle .strip-queue > .strip-preview[data-refused="true"] .strip-label::before {
+  content: "Refused";
+}
+
+#battle .strip-queue > .strip-preview[data-refused="true"] .strip-count {
+  text-decoration: line-through;
+}
+
+/* ---- your own portrait: pinned, and "You in N" -------------------------- */
+
+/* Pinned: when the strip outgrows its space and scrolls, your portrait stays
+   in view at whichever edge it would leave by. "You in N" is the YOU tab's
+   own text (strip.ts). */
+#battle .strip-queue > [data-mine="true"] {
+  position: sticky;
+  inset: 0.55rem 0 0.3rem;
+  z-index: 4;
+}
+
+#battle .strip-queue > [data-mine="true"]:not([data-active="true"]) > .strip-card {
+  background: var(--ink);
+  box-shadow: inset 0 0 0 1px var(--brass-dim);
+}
+
+/* stuck over a neighbour, the lit card's tint is made opaque: the same brass
+   on the window's ink, so nothing beneath shows through */
+#battle .strip-queue > [data-mine="true"][data-active="true"] > .strip-card {
+  background: color-mix(in srgb, var(--brass) 16%, var(--ink));
+}
+
+/* ---- the ghost in a row --------------------------------------------------- */
+
+/* In a row there's no room to add a portrait: the ghost takes no width, and
+   its card stands over the gap it would land in, opaque, above its neighbours.
+   At the back of the row there's no gap to stand over, so it takes its place
+   there like any portrait (the lanes scroll to it). */
+#battle .strip-queue > .strip-preview[data-across="true"]:not([data-last="true"]) {
+  z-index: 5;
+  flex: 0 0 0;
+  width: 0;
+  min-width: 0;
+  margin-inline: -0.125rem;
+}
+
+#battle .strip-queue > .strip-preview[data-across="true"]:not([data-last="true"]) > .strip-card {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: calc(var(--face) + 1rem);
+  translate: -50% 0;
+  background: var(--ink);
+  box-shadow: 0 0 0 2px var(--brass-lit);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  #battle .strip-boss-card[data-moment="announced"] > .strip-bc-body {
+    animation: strip-card-in 320ms ease-out both;
+  }
+
+  #battle .strip-boss-card[data-moment="delayed"] > .strip-bc-body {
+    animation: strip-card-push 360ms ease-out both;
+  }
+
+  #battle .strip-boss-card[data-moment="retargeted"] > .strip-bc-body {
+    animation: strip-card-turn 360ms ease-in-out both;
+  }
+
+  #battle .strip-boss-card[data-moment="frozen"] > .strip-bc-body {
+    animation: strip-card-frost 420ms ease-out both;
+  }
+
+  #battle .strip-boss-card[data-leaving="resolved"] > .strip-bc-body {
+    animation: strip-card-land 1100ms ease-in both;
+  }
+
+  #battle .strip-boss-card[data-leaving="spent"] > .strip-bc-body {
+    animation: strip-card-pass 1100ms ease-in-out both;
+  }
+
+  #battle .strip-boss-card[data-leaving="cancelled"] > .strip-bc-body {
+    animation: strip-card-undone 1100ms ease-in both;
+  }
+
+  #battle .strip-bc-stamp {
+    animation: strip-stamp 1100ms ease-out both;
+  }
+
+  #battle .strip-boss-card[data-react] > .strip-bc-body {
+    animation: strip-react 900ms ease-in-out infinite alternate;
+  }
+
+  #battle .strip-beat-fill {
+    transition: transform 100ms linear;
+  }
+
+  #battle .strip[data-chain-moment="grow"] [data-chain-live="true"] .strip-link {
+    animation: strip-link-lit 600ms ease-out both;
+  }
+
+  #battle [data-flag="jump"] > .strip-card {
+    animation: strip-hop 420ms ease-out both;
+  }
+
+  #battle [data-flag="flip"] > .strip-card {
+    animation: strip-flip 560ms ease-in-out both;
+  }
+
+  #battle .strip-queue > .strip-preview .strip-plate {
+    animation: strip-ghost-in 140ms ease-out both;
+  }
+}
+
+@keyframes strip-card-in {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes strip-card-push {
+  from {
+    transform: translateY(-6px);
+  }
+
+  to {
+    transform: none;
+  }
+}
+
+@keyframes strip-card-turn {
+  0%,
+  100% {
+    transform: none;
+  }
+
+  25% {
+    transform: translateX(-3px);
+  }
+
+  75% {
+    transform: translateX(3px);
+  }
+}
+
+@keyframes strip-card-frost {
+  from {
+    filter: brightness(1.8);
+  }
+
+  to {
+    filter: none;
+  }
+}
+
+@keyframes strip-card-land {
+  0% {
+    opacity: 1;
+    transform: none;
+  }
+
+  30% {
+    opacity: 1;
+    transform: scale(1.06);
+  }
+
+  100% {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+}
+
+@keyframes strip-card-pass {
+  0%,
+  25% {
+    opacity: 0.6;
+    transform: none;
+  }
+
+  100% {
+    opacity: 0;
+    transform: translateX(45%);
+  }
+}
+
+@keyframes strip-card-undone {
+  0%,
+  40% {
+    opacity: 0.6;
+    transform: none;
+  }
+
+  100% {
+    opacity: 0;
+    transform: rotate(-4deg) translateY(4px);
+  }
+}
+
+@keyframes strip-react {
+  from {
+    filter: drop-shadow(0 0 1px color-mix(in srgb, var(--brass) 40%, transparent));
+  }
+
+  to {
+    filter: drop-shadow(0 0 6px color-mix(in srgb, var(--brass) 80%, transparent));
+  }
+}
+
+@keyframes strip-link-lit {
+  from {
+    filter: drop-shadow(0 0 8px var(--brass-lit));
+  }
+
+  to {
+    filter: drop-shadow(0 0 3px color-mix(in srgb, var(--brass) 80%, transparent));
+  }
+}
+
+@keyframes strip-hop {
+  0%,
+  100% {
+    transform: none;
+  }
+
+  40% {
+    transform: translateY(-6px);
+  }
+}
+
+@keyframes strip-flip {
+  from {
+    transform: perspective(320px) rotateX(-180deg);
+  }
+
+  to {
+    transform: none;
+  }
+}
+
+@keyframes strip-ghost-in {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
   }
 }
