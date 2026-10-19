@@ -4,7 +4,15 @@
    option with its rank word, the target step, and the turn clock draining
    along the top edge. Phone placement is mobile.css's. The window itself is
    fluid down to 358px (a container query, not a media query, picks one line
-   or two per option), and every control it offers a finger is 44px or more. */
+   or two per option), and every control it offers a finger is 44px or more.
+
+   Phase two adds, inside the same window: your meters in the head (the
+   role's resource and Charge, pips hollow or solid beside the count, and an
+   Echo stamp), each option's wait badge (the rank's pips and word off-turn,
+   the server's wait and a gold Resonance gem on your turn), a refused option
+   struck through with the server's reason in its blurb's place, and the
+   window's border lit while a Reaction is ready. No state is colour alone:
+   each has a word, a count or a shape. */
 
 #battle .command {
   display: flex;
@@ -72,10 +80,12 @@
   cursor: pointer;
 }
 
+/* The label column fits the longest label in the roles' sets (Counterweight,
+   13 cells of the display face), so no blurb starts under a name. */
 @container command-menu (width >= 40rem) {
   #battle .command-option {
     grid-template-areas: "pointer label blurb rank";
-    grid-template-columns: 36px 7.5rem minmax(0, 1fr) auto;
+    grid-template-columns: 36px 10.5rem minmax(0, 1fr) auto;
   }
 }
 
@@ -124,6 +134,9 @@
 
 #battle .command-rank {
   grid-area: rank;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
   padding-inline: 0.4rem;
   border: 1px solid var(--brass-dim);
   border-radius: 2px;
@@ -139,6 +152,228 @@
   color: var(--card-quiet);
 }
 
+/* ---- the head: the title, your meters, the Echo stamp -------------------- */
+
+#battle .command-head {
+  container: command-head / inline-size;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.3rem 1.1rem;
+}
+
+#battle .command-meters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem 0.9rem;
+  margin-inline-start: auto;
+}
+
+#battle .command-meters[hidden] {
+  display: none;
+}
+
+#battle .command-meter {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+#battle .command-meter-label {
+  font-family: var(--font-display);
+  font-size: 0.5rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--brass-lit);
+}
+
+#battle .command-pips {
+  display: inline-flex;
+  gap: 4px;
+}
+
+/* A pip is hollow when empty and solid when banked, so the meter reads by
+   shape; the count beside it says the same in figures. */
+#battle .command-pip {
+  width: 10px;
+  height: 10px;
+  border: 2px solid var(--brass);
+}
+
+#battle .command-pip[data-on] {
+  background: var(--brass);
+}
+
+/* Charge is a bank of crystals (Brace's), so its pips stand on a point. */
+#battle .command-meter[data-meter="charge"] .command-pip {
+  rotate: 45deg;
+  scale: 0.85;
+}
+
+#battle .command-meter-count {
+  min-width: 2em;
+  font-size: 1.15rem;
+  color: var(--card);
+}
+
+/* A phone's window: smaller pips, so both meters share one line under the title. */
+@container command-head (width < 26rem) {
+  #battle .command-pips {
+    gap: 3px;
+  }
+
+  #battle .command-pip {
+    width: 8px;
+    height: 8px;
+  }
+}
+
+/* The server plays your seat (rule 8): a dashed stamp, the Echo's own line. */
+#battle .command-echo {
+  margin: 0;
+  padding: 0.2rem 0.45rem 0.15rem;
+  border: 2px dashed var(--brass);
+  border-radius: 2px;
+  font-family: var(--font-display);
+  font-size: 0.5rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--card);
+}
+
+#battle .command-echo[hidden] {
+  display: none;
+}
+
+/* ---- the wait badge: the rank, or the server's wait and its Resonance ----- */
+
+#battle .command-gauge {
+  display: inline-flex;
+  gap: 2px;
+}
+
+#battle .command-gauge-pip {
+  width: 4px;
+  height: 9px;
+  border: 1px solid var(--brass-dim);
+}
+
+#battle .command-gauge-pip[data-on] {
+  border-color: var(--brass-lit);
+  background: var(--brass-lit);
+}
+
+/* Narrow, the word carries the rank alone: the pips would push the longest
+   label (Counterweight) into its badge. */
+@container command-menu (width < 40rem) {
+  #battle .command-gauge {
+    display: none;
+  }
+}
+
+/* On your turn the number is the server's preview: the badge's edge firms up. */
+#battle .command-option[data-preview] .command-rank {
+  border-color: var(--brass);
+  color: var(--card);
+}
+
+#battle .command-res,
+#battle .command-res-word {
+  display: none;
+}
+
+#battle .command-option[data-resonance] .command-rank {
+  border-color: var(--brass-lit);
+}
+
+#battle .command-option[data-resonance] .command-res {
+  display: block;
+  width: 15px;
+  height: 15px;
+}
+
+/* Wide, the gem has its word beside it; narrow, the gem alone (the option's
+   spoken name says Resonance either way). */
+@container command-menu (width >= 40rem) {
+  #battle .command-option[data-resonance] .command-res-word {
+    display: inline;
+    color: var(--brass-lit);
+  }
+}
+
+/* ---- the note: why the server would refuse, or the card a Reaction answers */
+
+#battle .command-note {
+  grid-area: blurb;
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  min-width: 0;
+  font-size: 1.15rem;
+  color: var(--card);
+}
+
+#battle .command-note[hidden] {
+  display: none;
+}
+
+#battle .command-note-art {
+  flex: none;
+  width: 14px;
+  height: 14px;
+}
+
+#battle .command-note[data-note="reaction"] {
+  color: var(--brass-lit);
+}
+
+#battle .command-note[data-note="reaction"] .command-note-art {
+  display: none;
+}
+
+/* Refused (the server's preview says so): struck through and dimmed, the
+   badge reads "not now", the reason stands in the blurb's place. Still
+   focusable, so the reason can be read; never sent. */
+#battle .command-option[data-refused] {
+  cursor: not-allowed;
+}
+
+#battle .command-option[data-refused] > .command-label {
+  text-decoration: line-through;
+  text-decoration-thickness: 2px;
+  opacity: 0.6;
+}
+
+#battle .command-option[data-refused] .command-rank {
+  border-style: dashed;
+  opacity: 0.75;
+}
+
+/* Narrow, a refused row is one line (struck name, "not now") until the cursor
+   is on it: a tap or an arrow shows the server's reason there, and the window
+   speaks it. Wide, every reason stands. */
+@container command-menu (width < 40rem) {
+  #battle .command-option[data-refused]:not([data-cursor]) {
+    grid-template-areas: "pointer label rank";
+  }
+
+  #battle .command-option[data-refused]:not([data-cursor]) .command-note {
+    display: none;
+  }
+}
+
+/* ---- the Reaction: the one thing live off-turn, while the server names a card */
+
+#battle .command[data-reaction] {
+  border-color: var(--brass);
+}
+
+#battle .command-option[data-reaction]:enabled .command-rank {
+  border-color: var(--brass);
+  color: var(--card);
+}
+
 /* ---- pixel art: the hand and the step arrows ----------------------------- */
 
 #battle .command .pixel-body {
@@ -151,6 +386,15 @@
 
 #battle .command-option:disabled .pixel-body {
   fill: var(--brass-dim);
+}
+
+/* The Resonance gem is gold; the refusal's cross is harm's colour (a shape too, never colour alone). */
+#battle .command .command-res .pixel-body {
+  fill: var(--brass-lit);
+}
+
+#battle .command .command-note-art .pixel-body {
+  fill: var(--ember);
 }
 
 /* ---- the foot: a hint line, or the target step --------------------------- */
@@ -170,7 +414,8 @@
   color: var(--card-quiet);
 }
 
-#battle .command[data-enabled="true"] .command-hint {
+#battle .command[data-enabled="true"] .command-hint,
+#battle .command[data-reaction] .command-hint {
   color: var(--brass-lit);
 }
 
@@ -295,6 +540,14 @@
   }
 }
 
+/* A Reaction ready off-turn: the lit border flickers to brass-lit. Reduced,
+   it stays lit (brass, above) and the hint line says so: the same state. */
+@keyframes command-ready {
+  50% {
+    border-color: var(--brass-lit);
+  }
+}
+
 @media (prefers-reduced-motion: no-preference) {
   #battle .command-option[data-cursor]:enabled:not([data-aiming]) .command-pointer,
   #battle .command-aim-pointer {
@@ -307,5 +560,9 @@
 
   #battle .command-clock[data-low] .command-clock-fill {
     animation: command-low 0.8s steps(1, end) infinite;
+  }
+
+  #battle .command[data-reaction][data-enabled="false"] {
+    animation: command-ready 1.2s steps(1, end) infinite;
   }
 }
