@@ -52,6 +52,22 @@ describe("the ghost is the server's", () => {
     expect(cleave?.refusal, "an allowed action has no refusal").toBeNull();
   });
 
+  it("refuses an ally action only when no ally could take it", async () => {
+    // Area (b)'s finding: the preview checked each action at its default
+    // target, which for an ally action is the actor, so Quicken (never on
+    // yourself) was always "refused" and a Mender could never Quicken; Ward
+    // too, whenever the Mender was already Warded. An ally action is refused
+    // only if every standing ally would be refused.
+    const e = await engine();
+    const b = e.plate(table(e, ["mender", "warden"]), "mender-1", clock());
+    expect(previewOf(e, b)?.actions.quicken?.refusal, "a Mender with an ally beside them can Quicken").toBeNull();
+    const warded = structuredClone(b);
+    warded.standing.find((f) => f.id === "mender-1")!.warded = true;
+    expect(previewOf(e, warded)?.actions.ward?.refusal, "a Warded Mender can still Ward the Warden").toBeNull();
+    const alone = e.plate(table(e, ["mender"]), "mender-1", clock());
+    expect(previewOf(e, alone)?.actions.quicken?.refusal, "alone, there's nobody to Quicken: refused, in the server's words").toMatch(/Quicken/);
+  });
+
   it("previews nothing while the clock runs or the Orrery is on the plate", async () => {
     const e = await engine();
     const b = table(e, ["striker"]);

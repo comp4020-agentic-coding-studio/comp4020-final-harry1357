@@ -51,10 +51,27 @@ function preview(b: Battle): BattleState["preview"] {
     const { rank, resonance } = previewRank(b, up, action);
     const counter = counterReset(up.agility, up.hasteLeft > 0 ? "haste" : "normal", rank);
     const slot = b.standing.filter((f) => f !== up && (f.counter < counter || (f.counter === counter && f.seat < up.seat))).length;
-    const checked = checkAction(b, up.id, action, null);
-    actions[action] = { counter, slot, resonance, refusal: "status" in checked ? checked.error : null };
+    actions[action] = { counter, slot, resonance, refusal: refusalOf(b, up, action) };
   }
   return { actorId: up.id, actions };
+}
+
+/**
+ * Why the server would refuse this action now, or null. An ally action is
+ * judged against every ally standing (the server's default target for one is
+ * the actor, and Quicken never takes yourself), so it is refused only when no
+ * ally could take it; Restore against the fallen, through its own default.
+ */
+function refusalOf(b: Battle, up: Fighter, action: ActionId): string | null {
+  const first = checkAction(b, up.id, action, null);
+  if (!("status" in first)) return null;
+  if (ACTIONS[action].target === "ally" && action !== "restore") {
+    for (const f of b.standing) {
+      if (f.kind !== "character" || f.id === up.id) continue;
+      if (!("status" in checkAction(b, up.id, action, f.id))) return null;
+    }
+  }
+  return first.error;
 }
 
 /** A combatant as every client sees it. */
