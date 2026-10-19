@@ -3,8 +3,9 @@
 // the rest of an effect, and the few role-to-picture choices. No DOM here, so
 // the registry stays importable in Node (spec/effects.test.ts).
 import type { BattleState, EventKind, EventOf, RoleId, Token } from "../../../shared/protocol.ts";
-import type { Anim, EffectContext } from "../api.ts";
+import type { Anim, EffectContext, Tone } from "../api.ts";
 import { BOSS_ID } from "../../../shared/protocol.ts";
+import { marksOf } from "../../scene/marks.ts";
 import { spriteFor } from "../../sprites.ts";
 
 /** The event a renderer for kind K receives. */
@@ -91,6 +92,55 @@ export function showRings(ctx: EffectContext): void {
 /** After a one-shot, back to idle, but only for someone still standing (a fallen sprite waits for its down). */
 export function rest(ctx: EffectContext, id: string): void {
   if (isStanding(ctx, id)) void ctx.scene.frame(id, "idle");
+}
+
+// --- phase two: the marks, read off the state ------------------------------------
+
+/** Who set each Exposed stack, by role: every seat the state names, standing or not. */
+export function appliersOf(ctx: EffectContext): Record<string, RoleId> {
+  const state = ctx.state as BattleState | undefined;
+  const out: Record<string, RoleId> = {};
+  for (const t of [...(state?.queue ?? []), ...(state?.fallen ?? [])]) if (t.role !== "orrery") out[t.id] = t.role;
+  return out;
+}
+
+/** The server's rings on the Orrery's rings: pips, weakness, Broken, Exposed by whom. */
+export function showRingMarks(ctx: EffectContext): void {
+  ctx.scene.ringMarks((ctx.state as BattleState | undefined)?.rings ?? [], appliersOf(ctx));
+}
+
+/** A character's status marks as the server holds them (none once they've fallen). */
+export function showMarks(ctx: EffectContext, id: string): void {
+  const t = tokenOf(ctx, id);
+  if (!t || t.kind !== "character") return;
+  ctx.scene.status(id, isStanding(ctx, id) ? marksOf(t) : []);
+}
+
+/** A character's Ward, from the state: a blow it took has already cleared it. */
+export function showWard(ctx: EffectContext, id: string): void {
+  const t = tokenOf(ctx, id);
+  if (t && t.kind === "character") ctx.scene.ward(id, t.warded && isStanding(ctx, id));
+}
+
+/** Everything state-drawn about a seat: its marks, its Ward, an Echo, drifting. */
+export function showSeat(ctx: EffectContext, id: string): void {
+  const t = tokenOf(ctx, id);
+  if (!t || t.kind !== "character") return;
+  showMarks(ctx, id);
+  showWard(ctx, id);
+  ctx.scene.echo(id, t.echo, t.echo && t.seatedBy !== null);
+  ctx.scene.drifting(id, t.drifting && isStanding(ctx, id));
+}
+
+/** What a blow on a person reads as: harm, or (nothing landed) a blow their Ward took. */
+export function harmTone(amount: number): Tone {
+  return amount > 0 ? "harm" : "shield";
+}
+
+/** The impact: the flash, then a few frames' hold while it lands. */
+export async function impact(ctx: EffectContext, id: string, ms = 180): Promise<void> {
+  ctx.scene.hit(id);
+  await bounded(ctx, ctx.scene.hitStop(), ms);
 }
 
 // --- role to picture ----------------------------------------------------------
