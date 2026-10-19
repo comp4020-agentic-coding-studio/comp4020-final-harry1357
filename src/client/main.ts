@@ -16,6 +16,7 @@ import {
   type RoleId,
   type RoomInfo,
   type RoomJoinResponse,
+  type Token,
 } from "../shared/protocol.ts";
 import type { Door, JoinResult, SpriteManifest } from "./battle/api.ts";
 import { createConductor } from "./battle/conductor.ts";
@@ -28,6 +29,7 @@ import { mountJoin } from "./join/join.ts";
 import { getJSON, postJSON, watchBattle, watchRoom, type Link, type RoomGone, type Watch } from "./net.ts";
 import { createSeats } from "./seats/seats.ts";
 import { createScene } from "./scene/scene.ts";
+import { bastionFor } from "./strip/cards.ts";
 import { createStrip } from "./strip/strip.ts";
 
 const manifest = manifestJson as unknown as SpriteManifest;
@@ -116,6 +118,16 @@ function mountCommand(role: RoleId): void {
   });
 }
 
+/** What the strip asks of a command now: a Warden's Bastion, while a Perihelion is coming and none stands. */
+function prompts(state: BattleState, token: Token | null): Partial<Record<ActionId, string>> {
+  const asked = bastionFor(state, token ?? undefined);
+  if (!asked) return {};
+  const when = asked.card.countdown <= 0 ? "next" : `in ${asked.card.countdown}`;
+  const first = asked.first;
+  const before = first ? ` The ${first.intent.charAt(0).toUpperCase()}${first.intent.slice(1)}, ${first.countdown <= 0 ? "next" : `in ${first.countdown}`}, would take one raised now.` : "";
+  return { bastion: `Perihelion ${when}: a Bastion blunts it.${before}` };
+}
+
 /** A boss card as the command window names it: what, at whom, how soon. */
 function cardName(intent: string, targetId: string | null, countdown: number): string {
   const label = intent.charAt(0).toUpperCase() + intent.slice(1);
@@ -166,7 +178,11 @@ function onState(state: BattleState): void {
     app.command?.setEnabled(myTurn);
     // Off-turn, the Reaction is the one thing live, and only at the card the server names (rule 2).
     app.command?.setReactionReady(state.status === "fighting" ? (token?.reactionCard ?? null) : null);
-    app.command?.setSeat({ token, preview: myTurn && state.preview?.actorId === app.myId ? state.preview.actions : null });
+    app.command?.setSeat({
+      token,
+      preview: myTurn && state.preview?.actorId === app.myId ? state.preview.actions : null,
+      prompts: prompts(state, token),
+    });
     app.command?.setCountdown(myTurn ? countdownFraction(state, Date.now()) : null);
   } else {
     battleEl.dataset.phase = "join";

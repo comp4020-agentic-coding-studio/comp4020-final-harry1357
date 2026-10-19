@@ -332,6 +332,20 @@
   display: none;
 }
 
+/* What the strip asks of a command (a Warden's Bastion, a Perihelion coming):
+   in brass, and readable on a dark command too, since it's said off the turn. */
+#battle .command-note[data-note="prompt"] {
+  color: var(--brass-lit);
+}
+
+#battle .command-note[data-note="prompt"] .command-note-art {
+  display: none;
+}
+
+#battle .command-option[data-prompt]:disabled > .command-note {
+  opacity: 1;
+}
+
 /* Refused (the server's preview says so): struck through and dimmed, the
    badge reads "not now", the reason stands in the blurb's place. Still
    focusable, so the reason can be read; never sent. */

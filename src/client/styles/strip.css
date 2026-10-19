@@ -730,14 +730,26 @@
   border-radius: 2px;
 }
 
-#battle [data-react] .strip-bc-react {
+#battle [data-react] .strip-bc-react,
+#battle [data-prompt] .strip-bc-react,
+#battle [data-bastion] .strip-bc-react {
   display: block;
 }
 
-#battle .strip-boss-card[data-react] > .strip-bc-body {
+/* A Warden's Perihelion while no Bastion stands is lit like a Reaction's card,
+   and says what answers it; a Bastion standing is a quieter tab, so the room
+   sees which blow it will meet without being asked to do anything. */
+#battle .strip-boss-card[data-react] > .strip-bc-body,
+#battle .strip-boss-card[data-prompt] > .strip-bc-body {
   box-shadow:
     0 0 0 2px var(--brass-lit),
     0 0 10px 2px color-mix(in srgb, var(--brass) 60%, transparent);
+}
+
+#battle [data-bastion] .strip-bc-react {
+  color: var(--card);
+  background: var(--ink);
+  outline: 1px solid var(--brass-lit);
 }
 
 /* The card a command is being aimed at: a cursor ring, and the word, so it
@@ -1338,7 +1350,8 @@
     animation: strip-stamp 1100ms ease-out both;
   }
 
-  #battle .strip-boss-card[data-react] > .strip-bc-body {
+  #battle .strip-boss-card[data-react] > .strip-bc-body,
+  #battle .strip-boss-card[data-prompt] > .strip-bc-body {
     animation: strip-react 900ms ease-in-out infinite alternate;
   }
 

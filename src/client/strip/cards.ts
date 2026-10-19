@@ -13,7 +13,9 @@
 // data-target (a character id, "party", or "strip" for a card that touches
 // the strip itself), data-countdown and data-frozen; data-at-me when it is
 // aimed at this page's seat; data-react names your Reaction when the server
-// names this card for it (the token's reactionCard).
+// names this card for it (the token's reactionCard); data-prompt="bastion" on
+// a Warden's Perihelion while no Bastion stands (the state's `bastion`), and
+// data-bastion on the blow on everyone a standing Bastion will meet.
 // A card the server has taken off the strip is never [data-card-id]: if a
 // renderer marks its moment (it landed, passed over, was cancelled), a copy is
 // drawn leaving, as [data-left-card], and then it's gone.
@@ -129,6 +131,25 @@ function reactionLabel(token: Token | undefined): { id: string; label: string } 
   return id ? { id, label: ACTIONS[id].label } : null;
 }
 
+/**
+ * The Perihelion a Warden's Bastion is for, while none stands (the design:
+ * "Bastion is how the room survives Perihelion"), and the blow on everyone the
+ * server will resolve before it, which a Bastion raised now would meet first.
+ * Read from the state's cards, soonest first as sent; null for anyone else.
+ */
+export function bastionFor(state: BattleState, mine: Token | undefined): { card: BossCard; first: BossCard | null } | null {
+  if (!mine || mine.role !== "warden" || state.status !== "fighting" || state.bastion === true) return null;
+  const cards = state.cards ?? [];
+  const at = cards.findIndex((c) => c.intent === "perihelion");
+  if (at < 0) return null;
+  return { card: cards[at], first: cards.slice(0, at).find((c) => c.targetId === "party") ?? null };
+}
+
+/** The blow on everyone a standing Bastion meets: the soonest, as the server spends it. */
+function bastionMeets(state: BattleState): string | null {
+  return state.bastion === true ? ((state.cards ?? []).find((c) => c.targetId === "party")?.id ?? null) : null;
+}
+
 export function createCardLane(): CardLane {
   const list = el("ol", "strip-cards");
   list.setAttribute("aria-label", "The Orrery's cards, soonest first");
@@ -193,11 +214,20 @@ export function createCardLane(): CardLane {
     return entry;
   }
 
-  function update(entry: CardEntry, card: BossCard, state: BattleState, myId: string | null, mine: Token | undefined): void {
+  function update(
+    entry: CardEntry,
+    card: BossCard,
+    state: BattleState,
+    myId: string | null,
+    mine: Token | undefined,
+    answer: { prompt: string | null; first: Intent | null; meets: string | null },
+  ): void {
     const name = targetName(state, card.targetId, myId);
     const reaction = mine && mine.reactionCard === card.id ? reactionLabel(mine) : null;
+    const prompt = !reaction && answer.prompt === card.id;
+    const meets = answer.meets === card.id;
     const clockKey = card.intent === "alignment" && alignClock !== null ? String(alignClock) : "";
-    const key = [card.intent, card.targetId ?? "", name, card.amount ?? "", card.countdown, card.frozen, reaction?.id ?? "", clockKey].join("|");
+    const key = [card.intent, card.targetId ?? "", name, card.amount ?? "", card.countdown, card.frozen, reaction?.id ?? "", prompt, prompt ? answer.first : "", meets, clockKey].join("|");
     entry.card = card;
     if (entry.key === key) return;
     entry.key = key;
@@ -209,6 +239,10 @@ export function createCardLane(): CardLane {
     put(li, "atMe", String(card.targetId !== null && card.targetId === myId));
     if (reaction) put(li, "react", reaction.id);
     else if (li.dataset.react !== undefined) delete li.dataset.react;
+    if (prompt) put(li, "prompt", "bastion");
+    else if (li.dataset.prompt !== undefined) delete li.dataset.prompt;
+    if (meets) put(li, "bastion", "true");
+    else if (li.dataset.bastion !== undefined) delete li.dataset.bastion;
     if (clockKey) put(li, "clock", clockKey);
     else if (li.dataset.clock !== undefined) delete li.dataset.clock;
 
@@ -217,7 +251,9 @@ export function createCardLane(): CardLane {
     text(entry.amount, card.amount === null ? "" : String(card.amount));
     text(entry.label, card.countdown <= 0 ? "Next" : "In");
     text(entry.count, card.countdown <= 0 ? "" : String(card.countdown));
-    text(entry.react, reaction ? `React: ${reaction.label}` : "");
+    // One tab, three words: a Reaction ready, a Warden's Bastion asked for, or one standing (never two on one card:
+    // a Reaction answers a blow on one, a Bastion a blow on everyone).
+    text(entry.react, reaction ? `React: ${reaction.label}` : prompt ? "Answer: Bastion" : meets ? "Bastion stands" : "");
 
     const when = card.countdown <= 0 ? "on the Orrery's next turn" : `in ${card.countdown} of the Orrery's turns`;
     const on = card.targetId === null ? "on the strip" : card.targetId === "party" ? "on everyone" : `on ${name === "You" ? "you" : name}`;
@@ -226,6 +262,11 @@ export function createCardLane(): CardLane {
     parts.push(card.frozen ? `frozen, ${when} once it thaws` : when);
     if (clockKey) parts.push(alignWipe ? "the Grand Alignment is complete" : `${alignClock} more and the Grand Alignment is complete`);
     if (reaction) parts.push(`your ${reaction.label} can answer it now`);
+    if (prompt) {
+      const first = answer.first ? (INTENT_LABEL[answer.first] ?? answer.first) : null;
+      parts.push(first ? `a Bastion raised after the ${first} before it blunts it` : "a Bastion on your turn blunts it");
+    }
+    if (meets) parts.push("a Bastion stands against it");
     text(entry.say, parts.filter(Boolean).join(", "));
   }
 
@@ -271,9 +312,11 @@ export function createCardLane(): CardLane {
     }
     const cards = state.cards ?? [];
     const mine = myId ? state.queue.find((t) => t.id === myId) : undefined;
+    const asked = bastionFor(state, mine);
+    const answer = { prompt: asked?.card.id ?? null, first: asked?.first?.intent ?? null, meets: bastionMeets(state) };
     for (const card of cards) {
       const entry = entries.get(card.id) ?? build(card);
-      update(entry, card, state, myId, mine);
+      update(entry, card, state, myId, mine, answer);
     }
     place(cards);
 

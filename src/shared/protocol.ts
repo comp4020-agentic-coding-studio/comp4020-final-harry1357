@@ -272,6 +272,10 @@ export interface BattleState {
   preview: { actorId: string; actions: Partial<Record<ActionId, ActionPreview>> } | null;
   /** How many Alignments are still to resolve before the Grand Alignment's wipe; null before phase III. */
   alignmentLeft: number | null;
+  /** Whether a Warden's Bastion stands against the next blow on everyone. The
+   *  Warden's prompt to raise one, and the room's mark on the blow it meets,
+   *  are drawn from this. */
+  bastion: boolean;
   /** The roles an Echo can still be seated as in this fight (rule 25): one per
    *  role, four at most, none once the fight is over. The server decides it;
    *  the client offers exactly these. */

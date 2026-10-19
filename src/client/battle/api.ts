@@ -226,6 +226,10 @@ export interface Audio extends AudioApi {
 export interface SeatInfo {
   token: Token | null;
   preview: Partial<Record<ActionId, ActionPreview>> | null;
+  /** What the strip asks of a command now, in words, read from the state (a
+   *  Warden's Bastion while a Perihelion is coming and none stands). Shown on
+   *  and off the turn; the server's refusal, when there is one, comes first. */
+  prompts?: Partial<Record<ActionId, string>>;
 }
 
 /** src/client/join/join.ts: the character select. */

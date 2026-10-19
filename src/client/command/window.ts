@@ -367,8 +367,9 @@ export function mountCommandWindow(root: HTMLElement, opts: CommandOptions): Com
     const preview = enabled && !info.reaction ? (seat.preview?.[info.id] ?? null) : null;
     const refusal = isLive ? refusalAt(i) : null;
     const answers = info.reaction && reaction !== null ? cardName(reaction) : null;
+    const prompt = seat.prompts?.[info.id] ?? null;
     const cost = costOf(info, preview, rankWord(info.rank));
-    const drawn = JSON.stringify([isLive, refusal, cost.text, cost.aria, cost.resonance, answers]);
+    const drawn = JSON.stringify([isLive, refusal, cost.text, cost.aria, cost.resonance, answers, prompt]);
     if (drawn === part.drawn) return;
     part.drawn = drawn;
 
@@ -379,15 +380,23 @@ export function mountCommandWindow(root: HTMLElement, opts: CommandOptions): Com
     option.toggleAttribute("data-refused", refusal !== null);
     option.toggleAttribute("data-resonance", cost.resonance && refusal === null);
     option.toggleAttribute("data-preview", preview !== null);
+    option.toggleAttribute("data-prompt", prompt !== null && refusal === null);
     part.word.textContent = refusal !== null ? "not now" : cost.text;
 
-    const note = refusal ?? (answers !== null ? `Ready against ${answers}` : null);
+    const note = refusal ?? (answers !== null ? `Ready against ${answers}` : prompt);
     part.note.hidden = note === null;
     part.blurb.hidden = note !== null;
-    part.note.dataset.note = refusal !== null ? "refused" : "reaction";
+    part.note.dataset.note = refusal !== null ? "refused" : answers !== null ? "reaction" : "prompt";
     part.noteText.textContent = note ?? "";
     option.setAttribute("aria-describedby", note === null ? part.blurb.id : `${part.note.id} ${part.blurb.id}`);
-    const spoken = refusal !== null ? `${info.label}, unavailable` : answers !== null ? `${info.label}, ${cost.aria}, ready` : `${info.label}, ${cost.aria}`;
+    const spoken =
+      refusal !== null
+        ? `${info.label}, unavailable`
+        : answers !== null
+          ? `${info.label}, ${cost.aria}, ready`
+          : prompt !== null
+            ? `${info.label}, ${cost.aria}, asked for`
+            : `${info.label}, ${cost.aria}`;
     option.setAttribute("aria-label", spoken);
   }
 

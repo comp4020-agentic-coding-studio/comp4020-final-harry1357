@@ -130,6 +130,7 @@ export function view(b: Battle, timing: Timing): BattleState {
     echoRoles: echoRolesOpen(b),
     preview: preview(b),
     alignmentLeft: alignmentLeft(b),
+    bastion: b.bastion,
   };
 }
 
@@ -158,5 +159,6 @@ export function archived(id: string, row: { status: BattleStatus }, log: LogEntr
     echoRoles: [],
     preview: null,
     alignmentLeft: null,
+    bastion: false,
   };
 }
