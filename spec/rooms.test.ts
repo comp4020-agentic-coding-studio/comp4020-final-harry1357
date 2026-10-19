@@ -97,6 +97,36 @@ describe("a room is a code", () => {
     expect((await createRoom(base, "raid_sid=made-up")).status, "a cookie the server never minted: no room").toBe(403);
   });
 
+  it("someone new creates a room by sitting down in it", async () => {
+    // Phase two's "create a room" door: a newcomer has no character, so a room
+    // can't be asked for first and sat in after. Asking with a name and a role
+    // is sitting down: the room is made and its creator seated in it, one
+    // request, and they are then a seated player like any other (rule 22).
+    const name = `founder-${suffix()}`;
+    const res = await fetch(new URL("/api/rooms", base), {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ name, role: "chronist" }),
+    });
+    expect(res.status, "a name and a role make a room and a seat").toBe(201);
+    const made = (await res.json()) as { code?: string; battleId?: string; characterId?: string };
+    expect(made.code, "with its code").toEqual(expect.any(String));
+    expect(made.characterId, "and the founder's character").toEqual(expect.any(String));
+    const cookie = res.headers.getSetCookie().map((c) => c.split(";")[0]).join("; ");
+    expect(cookie, "the founder is given a session").not.toBe("");
+    const w = watching(base, made.code as string);
+    const st = await w.waitFor((s) => token(s, made.characterId as string) !== undefined, "the founder on the new room's strip", 5_000);
+    expect(token(st, made.characterId as string)?.name, "seated under the name given").toBe(name);
+    // Still no room from nothing: no session and no seat asked for.
+    expect((await createRoom(base, "")).status, "no session, no name: no room").toBe(403);
+    const bad = await fetch(new URL("/api/rooms", base), {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ name: "", role: "chronist" }),
+    });
+    expect(bad.status, "a seat asked for with no name is refused, and makes no room").toBe(400);
+  });
+
   it("joining with a wrong code is refused", async () => {
     const host = await seatedPlayer(base);
     const made = await madeRoom(base, host.cookie);
