@@ -21,6 +21,12 @@ export interface Conductor {
   setMe(id: string | null): void;
   /** The socket was replaced: the next message is the whole truth again. */
   resync(): void;
+  /**
+   * A room's fight changed (rule 24): the next message is the next fight's
+   * whole truth, but the last fight's events still waiting are shown and
+   * written down first, so its ending isn't dropped (rule 11).
+   */
+  next(): void;
 }
 
 export interface ConductorOptions {
@@ -41,6 +47,9 @@ export function createConductor(opts: ConductorOptions): Conductor {
   let me: string | null = null;
   let fresh = true;
   let playing = false;
+  /** After next(): the next fight's message, held until the last fight's events have played. */
+  let finishing = false;
+  let held: ServerMessage | null = null;
 
   const wait = (ms: number): Promise<void> =>
     new Promise((resolve) => setTimeout(resolve, reducedQuery.matches ? Math.min(ms, 120) : ms));
@@ -76,29 +85,47 @@ export function createConductor(opts: ConductorOptions): Conductor {
       }
     }
     playing = false;
+    if (held) {
+      // The last fight's ending is shown; now the next fight, whole.
+      const msg = held;
+      held = null;
+      finishing = false;
+      fresh = true;
+      receive(msg);
+      return;
+    }
+    finishing = false;
     if (latest) opts.scene.reconcile(latest, me);
   }
 
+  function receive(msg: ServerMessage): void {
+    if (finishing && playing) {
+      // Each message is the whole state, so only the newest is kept.
+      held = msg;
+      return;
+    }
+    latest = msg.battle;
+    for (const line of latest.log) lines.set(line.seq, line);
+    opts.strip.render(latest, me);
+    opts.onState(latest);
+    if (fresh) {
+      // A first message (or the first after a reconnect) is the whole truth:
+      // the log as it stands, the field as it is. Nothing to replay.
+      fresh = false;
+      finishing = false;
+      queue.length = 0;
+      opts.log.history(latest.log);
+      opts.scene.reconcile(latest, me);
+      return;
+    }
+    queue.push(...msg.events);
+    if (playing) return;
+    if (queue.length > 0) void play();
+    else opts.scene.reconcile(latest, me);
+  }
+
   return {
-    receive(msg) {
-      latest = msg.battle;
-      for (const line of latest.log) lines.set(line.seq, line);
-      opts.strip.render(latest, me);
-      opts.onState(latest);
-      if (fresh) {
-        // A first message (or the first after a reconnect) is the whole truth:
-        // the log as it stands, the field as it is. Nothing to replay.
-        fresh = false;
-        queue.length = 0;
-        opts.log.history(latest.log);
-        opts.scene.reconcile(latest, me);
-        return;
-      }
-      queue.push(...msg.events);
-      if (playing) return;
-      if (queue.length > 0) void play();
-      else opts.scene.reconcile(latest, me);
-    },
+    receive,
     setMe(id) {
       me = id;
       if (latest && !playing) {
@@ -108,6 +135,12 @@ export function createConductor(opts: ConductorOptions): Conductor {
     },
     resync() {
       fresh = true;
+      finishing = false;
+      held = null;
+    },
+    next() {
+      fresh = true;
+      finishing = true;
     },
   };
 }

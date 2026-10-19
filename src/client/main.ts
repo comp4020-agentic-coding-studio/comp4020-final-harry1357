@@ -66,6 +66,8 @@ const app = {
   commandRole: null as RoleId | null,
   joinShown: false,
   endedShown: false,
+  /** A room's fight ended and its next opened: the end panel stays until the person goes on (rule 24). */
+  afterEnding: false,
   /** The turn whose hold warning has already sounded (by its deadline). */
   warned: null as number | null,
   /** The socket this page is watching, so a change of room can let it go. */
@@ -81,6 +83,8 @@ function say(text: string): void {
   // a fresh node each time, so the same words twice are announced twice
   requestAnimationFrame(() => (announce.textContent = text));
 }
+
+type Outcome = "won" | "lost" | "abandoned";
 
 function standing(state: BattleState, id: string | null): boolean {
   return !!id && state.queue.some((t) => t.id === id);
@@ -160,14 +164,18 @@ function onState(state: BattleState): void {
     app.command?.setCountdown(null);
     if (!app.endedShown) {
       app.endedShown = true;
-      join.ended(state.status as "won" | "lost" | "abandoned");
+      // In a room the link goes on to the room's next fight; on a bare battle, to the front door.
+      join.ended(state.status as Outcome, app.code ? { href: roomHref(app.code), go: goOn } : undefined);
+      // The record this fight added, for the welcome when the person sits down again.
+      void loadMe();
     }
     return;
   }
 
   if (mine) {
-    if (app.joinShown) {
+    if (app.joinShown || app.afterEnding) {
       app.joinShown = false;
+      app.afterEnding = false;
       join.hide();
     }
     battleEl.dataset.phase = "fight";
@@ -184,6 +192,10 @@ function onState(state: BattleState): void {
       prompts: prompts(state, token),
     });
     app.command?.setCountdown(myTurn ? countdownFraction(state, Date.now()) : null);
+  } else if (app.afterEnding) {
+    // The room has moved on to its next fight; the last one's ending stays up until the person goes on.
+    battleEl.dataset.phase = "ended";
+    app.command?.setEnabled(false);
   } else {
     battleEl.dataset.phase = "join";
     app.command?.setEnabled(false);
@@ -288,12 +300,32 @@ function onRoom(room: RoomInfo): void {
   const next = app.battleId !== "";
   app.battleId = room.battleId;
   battleEl.dataset.battle = room.battleId;
-  // A new fight is a new truth: the next state is drawn whole, and the ending is shown afresh.
-  conductor.resync();
+  // A new fight is a new truth: the next state is drawn whole, and the ending is shown afresh. A fight
+  // that just ended in this room is still shown and written down first (conductor.next), and its end
+  // panel stays up until the person goes on.
   if (next) {
+    app.afterEnding = app.endedShown;
     app.endedShown = false;
     app.state = null;
+    conductor.next();
+  } else conductor.resync();
+}
+
+/** A room's address: the public raid's is the front door. */
+function roomHref(code: string): string {
+  return code === app.publicCode ? "/" : `/?room=${encodeURIComponent(code)}`;
+}
+
+/** The end panel's link, in a room: sit down for the room's next fight, or, if the room has closed, the front door. */
+function goOn(): void {
+  if (battleEl.dataset.closed) {
+    location.assign("/");
+    return;
   }
+  app.afterEnding = false;
+  app.joinShown = true;
+  battleEl.dataset.phase = "join";
+  join.show(app.me, { code: app.code, isPublic: app.state?.room?.isPublic ?? app.code === app.publicCode });
 }
 
 /** The room is gone for good (4410: it expired; 4404: there never was one). Said, never retried. */
@@ -307,6 +339,9 @@ function onGone(why: RoomGone): void {
   setLink("live");
   linkEl.textContent = why === "expired" ? "Room closed" : "No such room";
   say(text);
+  // The room's gone: an end panel up for its last fight goes on to the front door, not back into it.
+  app.afterEnding = false;
+  if (app.endedShown) join.ended((app.state?.status ?? "abandoned") as Outcome);
 }
 
 async function boot(): Promise<void> {

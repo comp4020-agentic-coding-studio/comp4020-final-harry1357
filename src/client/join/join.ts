@@ -17,7 +17,7 @@
 // a returning session's name is shown fixed, never offered for a rename (rule
 // 24). On a bare battle opened by id (the sensors'), there are no doors.
 import { ACTIONS, NAME_MAX, ROLE_IDS, ROLES, type CharacterInfo, type MeResponse, type RoleId } from "../../shared/protocol.ts";
-import type { Door, Here, Join, JoinOptions, JoinResult, SpriteManifest, SpriteRole } from "../battle/api.ts";
+import type { Door, Here, Join, JoinOptions, JoinResult, Next, SpriteManifest, SpriteRole } from "../battle/api.ts";
 
 type Outcome = "won" | "lost" | "abandoned";
 
@@ -124,6 +124,8 @@ export function mountJoin(root: HTMLElement, opts: JoinOptions): Join {
   const puppets: Puppet[] = [];
   let raf = 0;
   let pending = false;
+  /** Where the end panel's link goes on to, when the page has somewhere better than a reload (a room's next fight). */
+  let onNext: (() => void) | null = null;
   let shell: HTMLElement | null = null;
   let parts: Form | null = null;
   let end: End | null = null;
@@ -374,6 +376,11 @@ export function mountJoin(root: HTMLElement, opts: JoinOptions): Join {
     const line = make("p", "join-end-line");
     const link = make("a", "join-next");
     link.href = "/";
+    link.addEventListener("click", (event) => {
+      if (!onNext) return;
+      event.preventDefault();
+      onNext();
+    });
     const cursor = make("span", "join-cursor");
     cursor.innerHTML = CURSOR;
     link.append(cursor, make("span", "", "Join the next raid"));
@@ -526,9 +533,12 @@ export function mountJoin(root: HTMLElement, opts: JoinOptions): Join {
       if (parts) busy(false);
     },
 
-    ended(outcome: Outcome) {
+    ended(outcome: Outcome, next?: Next) {
       const host = ensureShell();
       const e = ensureEnd();
+      // In a room, going on is to the room's next fight, behind its code; elsewhere the front door.
+      onNext = next?.go ?? null;
+      e.link.href = next?.href ?? "/";
       if (parts) {
         parts.form.hidden = true;
         busy(false);

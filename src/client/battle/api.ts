@@ -254,6 +254,11 @@ export interface Join {
   /** Show the select, prefilled from a returning visitor's character and record (their name fixed: rule 24). */
   show(me: import("../../shared/protocol.ts").MeResponse | null, here?: Here): void;
   hide(): void;
-  /** The battle is over: say how, and offer the next raid. */
-  ended(outcome: "won" | "lost" | "abandoned"): void;
+  /** The battle is over: say how, and offer the next raid: in a room, its next fight (next); otherwise the front door. */
+  ended(outcome: "won" | "lost" | "abandoned", next?: Next): void;
+}
+/** Where the end panel's link goes on to: its address, and what the page does instead of a reload. */
+export interface Next {
+  href: string;
+  go(): void;
 }
