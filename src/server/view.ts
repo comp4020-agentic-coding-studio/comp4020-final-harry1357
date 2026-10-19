@@ -60,7 +60,7 @@ function preview(b: Battle, turnMs: number): BattleState["preview"] {
     const counter = me ? me.counter : counterReset(up.agility, up.hasteLeft > 0 ? "haste" : "normal", rank);
     const around = after && me ? after.standing : b.standing;
     const slot = around.filter((f) => f.id !== up.id && (f.counter < counter || (f.counter === counter && f.seat < up.seat))).length;
-    actions[action] = { counter, slot, resonance, refusal: refusalOf(b, up, action) };
+    actions[action] = { counter, slot, resonance, refusal: refusalOf(b, up, action), target: target ?? null };
   }
   return { actorId: up.id, actions };
 }
@@ -76,12 +76,14 @@ function played(b: Battle, id: string, action: ActionId, target: string | null, 
 }
 
 /**
- * The target the server would take for this action with none chosen (null),
- * or, for an ally action it won't take on yourself (Quicken), the first ally it
- * would; undefined when it would take none.
+ * The target the server would take for this action with none chosen (as it
+ * resolves it: yourself, the soonest card it accepts, a ring), or, for an ally
+ * action it won't take on yourself (Quicken), the first ally it would;
+ * undefined when it would take none.
  */
 function previewTarget(b: Battle, up: Fighter, action: ActionId): string | null | undefined {
-  if (!("status" in checkAction(b, up.id, action, null))) return null;
+  const bare = checkAction(b, up.id, action, null);
+  if (!("status" in bare)) return bare.targetId;
   if (ACTIONS[action].target !== "ally" || action === "restore") return undefined;
   return b.standing.find((f) => f.kind === "character" && f.id !== up.id && !("status" in checkAction(b, up.id, action, f.id)))?.id;
 }

@@ -166,6 +166,10 @@ export interface ActionPreview {
   resonance: boolean;
   /** Why the server would refuse it now, in its own words; null if it wouldn't. */
   refusal: string | null;
+  /** The target the server would take with none chosen (an ally, a card, a
+   *  ring), or for an ally action it won't take on yourself the first ally it
+   *  would; null when it would take none. The window starts its aim here. */
+  target: string | null;
 }
 
 /** An Exposed stack on a ring, and who set it (rule 16). */

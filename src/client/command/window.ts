@@ -592,7 +592,10 @@ export function mountCommandWindow(root: HTMLElement, opts: CommandOptions): Com
             : "There's no one to aim that at.";
       return;
     }
-    aim = { option: i, targets, at: 0 };
+    // Start where the server would take it (its preview's target): never on yourself for Quicken, never on a
+    // raid-wide card for Anchor (review T6). The rest are a step away.
+    const named = enabled ? (seat.preview?.[info.id]?.target ?? null) : null;
+    aim = { option: i, targets, at: Math.max(0, targets.findIndex((t) => t.id === named)) };
     showAim(true);
     opts.onTarget(targets[0].id);
   }
