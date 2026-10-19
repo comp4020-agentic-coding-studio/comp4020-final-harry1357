@@ -271,7 +271,9 @@
 #battle .actor[data-echo]:not([data-down]) .actor-art {
   opacity: 0.85;
   filter: grayscale(1) brightness(1.2);
-  mask-image: repeating-linear-gradient(180deg, #000 0 2px, transparent 2px 3px);
+
+  /* a mask reads only alpha: any opaque token does, so no literal colour */
+  mask-image: repeating-linear-gradient(180deg, var(--void) 0 2px, transparent 2px 3px);
 }
 
 #battle .actor[data-echo] .actor-ring {

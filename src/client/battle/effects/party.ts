@@ -200,8 +200,9 @@ export const braceReduced: Fx<"brace"> = async (raw, e) => {
 
 /**
  * Bastion: the Warden plants itself against the next blow that falls on
- * everyone (the server holds it; no state the client is sent marks it, so
- * this is the moment it's seen). A shimmer passes over everyone standing.
+ * everyone. The strip marks the card it will meet from the state (bastion,
+ * bastionCard); this is the moment it goes up. A shimmer passes over everyone
+ * standing.
  */
 export const bastion: Fx<"bastion"> = async (raw, e) => {
   const ctx = stage(raw);
