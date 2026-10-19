@@ -94,6 +94,11 @@ describe("open findings carried into phase two", () => {
     expect(card?.getAttribute("data-intent"), "the card shows its intent").toBe("eclipse");
     expect(card?.getAttribute("data-target"), "the card names its target").toBe("me");
     expect(card?.getAttribute("data-countdown"), "the card shows its countdown").toBe("1");
+    // On its face, not only in its attributes (phase two's gate, T10): what a sighted player reads.
+    const face = card?.querySelector('[aria-hidden="true"]')?.textContent ?? "";
+    expect(face, "the card's face names its target").toContain("You");
+    expect(face, "and counts down").toMatch(/In\s*1/);
+    expect(card?.querySelector("svg"), "with its intent's icon").not.toBeNull();
   });
 
   it("F6 (rules 8, 11): a timeout shows the server's Brace, and a drifting portrait is drawn dim", async () => {
