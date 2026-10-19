@@ -551,6 +551,27 @@ describe("rooms expire; logs don't", () => {
     expect((await fetch(new URL(`/api/battles/${made.battleId}/log`, server.base))).status, "nor its log").toBe(404);
   }, 90_000);
 
+  it("a private room's fight answers an action only from someone seated in it (Q5)", async () => {
+    // Phase two's gate, the breaker's Q5 (rule 22): the fight's state, log,
+    // join and socket answer 404 by battle id, but its action route answered
+    // 403 ("You aren't standing in this fight") where an unknown id gets 404,
+    // so it told anyone holding an id that the fight exists.
+    server = await boot(scratchDatabase(), { TICK_MS: "20" });
+    const res = await fetch(new URL("/api/rooms", server.base), {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ name: `founder-${suffix()}`, role: "striker" }),
+    });
+    const made = (await res.json()) as { battleId: string };
+    const founder = res.headers.getSetCookie().map((c) => c.split(";")[0]).join("; ");
+    const outsider = await seatedPlayer(server.base);
+    const unknown = await act(server.base, "no-such-battle", outsider.cookie, "jab");
+    expect(unknown.status, "an id nobody has: 404").toBe(404);
+    expect((await act(server.base, made.battleId, outsider.cookie, "jab")).status, "someone seated elsewhere: the same 404").toBe(404);
+    expect((await act(server.base, made.battleId, "", "jab")).status, "no session: the same 404").toBe(404);
+    expect((await act(server.base, made.battleId, founder, "jab")).status, "its own seat is answered as any seat is").not.toBe(404);
+  }, 20_000);
+
   it("a founder refused a seat makes no room", async () => {
     // Phase two's gate, the reviewer's R3 and T8: asking for a room with a name
     // and a role is sitting down in it (rule 22), so a seat refused is a room

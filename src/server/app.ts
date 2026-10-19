@@ -214,10 +214,14 @@ export function createApp(root: string, store: Store, table: Table): Hono {
     // No awaits from here on: the check and the turn see the same battle.
     const id = c.req.param("id");
     const battle = table.get(id);
-    if (!battle) return store.battle(id) ? fail(c, 409, "This fight is over.") : fail(c, 404, "No such battle.");
-
     const sid = getCookie(c, COOKIE);
     const actorId = sid ? table.characterFor(sessionKey(sid)) : undefined;
+    // A private room's fight answers only someone seated in it; to anyone else holding its id it doesn't
+    // exist, as its state, log, join and socket already say (rule 22; breaker Q5).
+    if (table.behindCode(id) && !(battle && actorId && [...battle.standing, ...battle.fallen].some((f) => f.id === actorId))) {
+      return fail(c, 404, "No such battle.");
+    }
+    if (!battle) return store.battle(id) ? fail(c, 409, "This fight is over.") : fail(c, 404, "No such battle.");
     if (!actorId) return fail(c, 403, "You aren't standing in this fight.");
 
     // Rejected here means dropped: nothing is stored, deferred or replayed (rule 2).
