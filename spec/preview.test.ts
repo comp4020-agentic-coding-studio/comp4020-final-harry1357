@@ -98,6 +98,26 @@ describe("the ghost is the server's", () => {
     }
   });
 
+  it("names the target the server would take, so a command starts aimed where it would land (T6)", async () => {
+    // Phase two's gate, the reviewer's T6 and R1: the window opened Quicken on
+    // yourself (refused: never on yourself) and Anchor on the first card, often
+    // a raid-wide one (refused: Anchor takes a blow aimed at one ally). The
+    // preview names the target the server would take, and the window starts
+    // its aim there.
+    const e = await engine();
+    let b = table(e, ["warden", "mender", "striker"]);
+    const clean = structuredClone(b);
+    clean.cards = [];
+    b = e.announce(clean, { intent: "revolution", targetId: "party", amount: 8, countdown: 0 });
+    b = e.announce(b, { intent: "eclipse", targetId: "mender-2", amount: 20, countdown: 1 });
+    const eclipse = b.cards.find((c) => c.intent === "eclipse")!.id;
+    const warden = previewOf(e, e.plate(b, "warden-1", clock()))?.actions as Record<string, { target?: string | null }>;
+    expect(warden.anchor?.target, "Anchor: the blow aimed at one ally, not the raid-wide card ahead of it").toBe(eclipse);
+    const mender = previewOf(e, e.plate(b, "mender-2", clock()))?.actions as Record<string, { target?: string | null }>;
+    expect(mender.quicken?.target, "Quicken: an ally, never yourself").toMatch(/^(warden-1|striker-3)$/);
+    expect(mender.mend?.target, "Mend with none chosen: yourself, as the server takes it").toBe("mender-2");
+  });
+
   it("previews nothing while the clock runs or the Orrery is on the plate", async () => {
     const e = await engine();
     const b = table(e, ["striker"]);

@@ -57,6 +57,48 @@ describe("phase two's gate", () => {
     win.destroy();
   });
 
+  it("T6: a command starts aimed at the target the server would take", async () => {
+    const { mountCommandWindow } = (await import(resolve("src/client/command/window.ts"))) as { mountCommandWindow: Mount };
+    const root = document.createElement("div");
+    document.body.append(root);
+    const chosen: [string, string | null][] = [];
+    const win = mountCommandWindow(root, {
+      actions: ["brace", "intercept", "anchor", "bastion", "counterweight"],
+      allies: () => [{ id: "me", name: "Me (you)" }],
+      cards: () => [
+        { id: "rev", name: "Revolution on everyone, next" },
+        { id: "ecl", name: "Eclipse on Mae, in 1" },
+      ],
+      onTarget: () => {},
+      onChoose: (a: string, t: string | null) => chosen.push([a, t]),
+    });
+    win.setEnabled(true);
+    const p = (target: string | null) => ({ counter: 6, slot: 1, resonance: false, refusal: null, target });
+    win.setSeat({ token: null, preview: { anchor: p("ecl") } });
+    root.querySelector<HTMLButtonElement>('button[data-action="anchor"]')?.click();
+    expect(root.querySelector<HTMLElement>("[data-aim-name]")?.textContent, "Anchor starts on the card the server would take").toBe("Eclipse on Mae, in 1");
+    root.querySelector<HTMLButtonElement>("[data-confirm]")?.click();
+    expect(chosen.at(-1), "and sends it").toEqual(["anchor", "ecl"]);
+    win.destroy();
+
+    const root2 = document.createElement("div");
+    document.body.append(root2);
+    const win2 = mountCommandWindow(root2, {
+      actions: ["brace", "mend", "ward", "quicken", "restore"],
+      allies: () => [
+        { id: "me", name: "Me (you)" },
+        { id: "al", name: "Al" },
+      ],
+      onTarget: () => {},
+      onChoose: (a: string, t: string | null) => chosen.push([a, t]),
+    });
+    win2.setEnabled(true);
+    win2.setSeat({ token: null, preview: { quicken: p("al") } });
+    root2.querySelector<HTMLButtonElement>('button[data-action="quicken"]')?.click();
+    expect(root2.querySelector<HTMLElement>("[data-aim-name]")?.textContent, "Quicken starts on an ally, not on yourself").toBe("Al");
+    win2.destroy();
+  });
+
   it("P3: a person back from their Echo has a strip flag of their own, not Restore's", async () => {
     const { RENDERERS } = (await import(resolve("src/client/battle/registry.ts"))) as {
       RENDERERS: Record<string, { reduced: (ctx: unknown, e: unknown) => Promise<void> | void }>;
