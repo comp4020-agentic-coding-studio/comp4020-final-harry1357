@@ -535,3 +535,85 @@ Added to the open list by the owner, from playing phase two:
   are three Tabs away.
 - **P2.** Restore has no list of the fallen to choose from.
 - **P3.** The Echo-off strip flag reuses "restored".
+
+## Disposition
+
+Every finding is fixed in a commit that names it, carried as a red test, or
+left with a reason. Per the gate (CLAUDE.md), the branch does not merge to main
+while any finding below is **open**.
+
+"Green on arrival" marks a test that holds behaviour already right. Each such
+test was mutation-checked: a planted fault turns it red, and its commit says
+which fault. Every fix's test was red before its fix.
+
+### The reviewer's findings
+
+| Finding | What was done | Where |
+| --- | --- | --- |
+| R1: a refused command keeps the turn dark until the timeout | Fixed: on a refusal the window goes back to the server's last word, which still says it's your turn. Held in Chrome with the page's action POST answered 409. | `518c631` |
+| R2: the client decides which card a Bastion meets | Fixed: the state carries `bastionCard`, the first Revolution or Perihelion to resolve (an Alignment spends none; a frozen card waits a cycle). The strip's mark and the Warden's prompt read it. | `c36ebca` (spec), `e343a7c` |
+| R3: a refused founder mints a room | Fixed: the seat is checked against an empty, unsaved fight before a room is minted. The test reads the database after two refusals. | `9969551` |
+| R4: ADR-007 has no amendment for a newcomer founding a room | Fixed: ADR-007's status records it. | `3698f29` |
+| R5: a renderer that throws still has its line written | Fixed: a full variant that throws hands over to the reduced one; an event nothing shows is never written down. A renderer still running at the cap counts as shown, as before. | `996e181` |
+| R6: a seventh colour by intent; a literal `#000`; stale comments | **Fixed in part:** the Echo mask uses a token, and the two comments are right (`7277b45`). **Open, the owner's:** the shield cyan. The brief asks for cyan shields; the design gate allows six tokens and no seventh colour. Mixed from tokens, it passes the gate's letter, not its intent. | `7277b45` |
+| U1: the ghost from the preview, untested on the client | Fixed: a preview whose slot disagrees with the counters puts the ghost at the server's slot. Green on arrival; red with the ghost placed by counter. | `eca9c70` |
+| U2: nothing held that the page hands the window `reactionCard` | Fixed: in Chrome, the page's socket names a raid-wide card no Intercept could answer, and the Reaction is offered at exactly that card, then goes dark. Green on arrival; red with `main.ts` picking the card itself. | `6f93174` |
+| U3: phase two's mixed inks have no contrast pair | Fixed: Chrome resolves the shield and Resonance inks and brass-lit, and each is held to 4.5:1. Green on arrival; red with the cyan darkened (1.30:1). | `9314ef7` |
+| T1: expected states self-declared; event fields wildcards; full variants never run | Fixed: the spec pins its own expected calls by each event's fields, for both variants and every branch: Alignment, Chain, Retrograde, Echo on and off, the end banner, and every target of a raid-wide blow. Green on arrival; red on four planted faults. | `251e88c` |
+| T2: the Bastion spec pins the client's choice | Fixed with R2: the client marks only the card the server names, and the server half checks the name against the card whose resolution actually spends the Bastion. | `c36ebca` |
+| T3: the preview spec checks three Striker actions; Haste's preview is wrong | Fixed: every turn action of all five roles is checked against where it leaves the actor. Red on a Chronist's Haste (12 shown, 6 left). The preview now plays the action on a copy, at the target the server would take. The soonest of two Reaction cards is named. | `a98dfca` (spec), `10e9145` |
+| T4: the server's half of shown-before-logged unbounded | Fixed: a browserless test holds the broadcast to one tick after the POST. The Chrome test stays relative, by the owner's instruction. Red against a server holding broadcasts 800 ms. | `ced56ad` |
+| T5: a spent card checked in the reduced variant only | Fixed: both variants of Eclipse and Lunge, with a projectile or hurt frame counted as a landing. Red with the full strike's spent branch removed. | `dacf8df` |
+| T6: the window offers Anchor's raid-wide card and Quicken's self first | Fixed: each preview names the target the server would take, and the window starts its aim there. | `516fbb4` (spec), `9ad15a5` |
+| T7: R9's boot check is a regex on an import line | Fixed: in Chrome, the default door answers a code the client couldn't know, and the page opens that room and never a battle of its own. Red with a client that hard-codes "RAID". | `b324b37` |
+| T8: "makes no room" never checked | Fixed with R3. | `9969551` |
+| T9: the shim tests check nothing once the shim is gone | Fixed: every role's sheet is its own file and pixels, and every kind's renderers are its own. Red with Haste given Mend's renderer, and the Chronist the Warden's sheet. | `6323e71` |
+| T10: F2's test reads attributes, not the card's face | Fixed: the face's target name, countdown and icon. Red with the name left off. | `06f77e1` |
+| T11: check:tags skips by size, not by the screen-reader clip | Fixed: keyed on the clip; a new fixture (a visible name squeezed to 1px) is red on the old skip. | `adf9199` |
+| Note: `spec/phase-two.test.ts`'s header says "red on purpose" | Fixed. | `05a40e7` |
+| Could not check: rule 12's order, and the shown spec change in its own commit | Checked here:<br>• CREDITS.md's Chronist rows and the art landed in one commit (`934e09e`), so history can't show the rows first. `spec/assets.test.ts` holds that every file has its row.<br>• The shown spec's "jab" acceptance was changed inside `b5c62e4`, a client commit, not in a commit of its own as CLAUDE.md asks. Recorded here; the pushed history isn't rewritten. Its other changes (`02c630c`, `7fbf5e8`, `ced56ad`) each stand alone. | — |
+
+### The breaker's findings
+
+| Finding | What was done | Where |
+| --- | --- | --- |
+| B1: the server takes a Reaction at a card it didn't name | Fixed: `reactionCardOf` names the card, the token reads it, and `checkReaction` refuses any other with a 409. The rule-18 test clears the strip first. | `e12ae83` |
+| B2: Unicode look-alike codes become real room codes in the page | Fixed: the door and the code field fold ASCII case only, as the server does. | `ddcde3a` |
+| B3: a private room's finished fight is served by id once it leaves memory | Fixed: the table remembers which open private room each dropped fight is behind. `DROP_AFTER_MS` overrides the ten minutes, and CLAUDE.md lists it. | `ace0022` |
+| Q1: the last fight's end line is on screen for no frame | Fixed: the conductor keeps the last fight's lines, and the next fight's follow them. Held in Chrome with Q2. | `3f047c8`, `8f69985` |
+| Q2: the end panel is retitled for a fight nobody played | Fixed: the panel keeps the played fight's outcome, ignores the empty next fight's closing, and on 4410 links to the front door. | `8f69985` |
+| Q3: a reload drops the end panel | **No change.** A reload is a new page, and it opens the room as the room now is: its next fight. The result is kept in the person's record (`/api/me`: turns, wins and the battle's status). Showing the room's previous fight after a reload would need the room to describe it, a protocol addition beyond this gate. | — |
+| Q4: homoglyph names (a Cyrillic і, "Wаrden Echo") | **No change.** Rule 4's letter holds: trim, case, NFKC and invisible characters are all folded. Confusable skeletons (Unicode TR39) are a larger change than this gate. An Echo is never told apart by its name: the state's `echo` flag draws its marks (the ECHO tag, the grey sprite, the dashed plate), so a person named like an Echo is still drawn as a person. | — |
+| Q5: the action route confirms a private fight exists (403 vs 404) | Fixed: to anyone not seated in it, the same 404 as an unknown id. The two-rooms test expects it. | `a03a38a`, `a05d4e9` |
+| Q6: a refused founder still mints a room | Fixed with R3. | `9969551` |
+| Q7: the page trims padded codes the server refuses | Fixed: nothing is trimmed. The form refuses a padded code inline, and the address goes to the server. | `52e2e22` |
+| Q8: a blank name field when `/api/me` fails | **No change.** The client can't show a name it couldn't fetch. The server holds rule 24, and its 409 names the name the person sat down as. | — |
+| Q9: re-joining as another role where you're seated is silently ignored | Fixed: a 409 naming the role you're seated as. | `f5f6cd3` |
+| Q10: a stale Echo button, once | **No change.** Not reproduced in three instrumented reruns; the breaker calls it unconfirmed. | — |
+| H20's note: focus falls to the page body after a refused rename | Fixed: the refusal itself takes focus. | `9e14d5d` |
+| Not attempted: rule 6, 7, 9, 12, 13, 14, `ECHO_POTENCY`, the `enter()` race, rule 16's spender | Not reached from outside:<br>• Rule 6 is held by `spec/restart.test.ts`; rule 12 by `spec/assets.test.ts`; rules 13 and 14 by `spec/queue.test.ts` and `spec/economy.test.ts`; `ECHO_POTENCY` by `spec/echoes.test.ts`.<br>• The `enter()` race and rule 16's spender half are untested from outside. | — |
+
+### The owner's findings from play
+
+| Finding | What was done | Where |
+| --- | --- | --- |
+| P1: after sitting down, focus falls to the page body; the commands are three Tabs away | Fixed: sitting down puts focus in the command window, and your turn's command needs no Tab. Held in Chrome with trusted keys. | `e2e2386` |
+| P2: Restore has no list of the fallen | Fixed: the window steps through the downed allies; with nobody down it aims at nothing and says so. | `60a302c` |
+| P3: the Echo-off strip flag reuses "restored" | Fixed: it is "reclaimed"; the word on the portrait stays "Back!". | `972ca70` |
+
+### Carried from the earlier reviews
+
+Every client finding carried from phase one and phase one-b is closed in code.
+Several tests that claimed to close them were weak, and are strengthened
+above: F25 by T1, phase one's R1 by T5, F7 by U2 and T6, and phase one-b's R9
+by T7.
+
+**Phase one-b's R7 (the README says nothing of rooms or Echoes) stays open and
+red**: the owner's file. It lands with the merge.
+
+**Roster after the fixes:** 209 green, 1 red (R7) on `:8090` at `a05d4e9`.
+Typecheck and lint are clean. `check:keyboard`, `check:viewports` and
+`check:tags` all pass.
+
+**Propagation probe**, on the image at `a05d4e9`: another browser shows a
+strike in a median 6.3 ms, worst 7.9 ms (n=6).
