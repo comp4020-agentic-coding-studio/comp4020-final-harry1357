@@ -60,13 +60,21 @@ export function createApp(root: string, store: Store, table: Table): Hono {
    * Seat the caller in a battle: a battle's join and a room's are this one
    * function. The answer is the seat, or the refusal to send as it is.
    */
-  /** Seat the cookie's person in the fight `where()` names once the body is read (null: the room went). */
-  async function seatIn(c: Context, where: () => string | null): Promise<JoinResponse | Response> {
-    const body = await readJson(c);
+  /** A join body's name and role, or the refusal to answer with. */
+  function seatRequest(c: Context, body: Record<string, unknown> | null): { name: string; role: RoleId } | Response {
     if (!body) return fail(c, 400, "Send a JSON object with a name and a role.");
     const name = cleanName(body.name);
     if (!name) return fail(c, 400, "A name is 1 to 24 characters, with no control characters.");
     if (!isRole(body.role)) return fail(c, 400, `Choose a role: ${ROLE_IDS.slice(0, -1).join(", ")} or ${ROLE_IDS.at(-1)}.`);
+    return { name, role: body.role };
+  }
+
+  /** Seat the cookie's person in the fight `where()` names once the body is read (null: the room went). */
+  async function seatIn(c: Context, where: () => string | null, preread?: { name: string; role: RoleId }): Promise<JoinResponse | Response> {
+    const asked = preread ?? seatRequest(c, await readJson(c));
+    if (asked instanceof Response) return asked;
+    const { name } = asked;
+    const body = { role: asked.role };
 
     // No awaits from here on: the check and the seat see the same battle. Which
     // battle is asked only now, after the body: a room's fight can end, and its
@@ -122,7 +130,20 @@ export function createApp(root: string, store: Store, table: Table): Hono {
   });
 
   // Rooms (docs/adr/007): a code is the only key, and a wrong one is a 404.
-  app.post("/api/rooms", (c) => {
+  app.post("/api/rooms", async (c) => {
+    // With a name and a role, asking for a room is sitting down in it: the room
+    // is made and its founder seated, which is how someone new makes one (they
+    // have no character to be a seated player with yet). Without them, only a
+    // seated player may ask (rule 22).
+    const body = await readJson(c);
+    if (body && ("name" in body || "role" in body)) {
+      const asked = seatRequest(c, body);
+      if (asked instanceof Response) return asked;
+      const room = table.createRoom();
+      const seat = await seatIn(c, () => table.room(room.code)?.battleId ?? null, asked);
+      if (seat instanceof Response) return seat;
+      return c.json({ ...seat, code: room.code } satisfies RoomJoinResponse, 201);
+    }
     const sid = getCookie(c, COOKIE);
     if (!sid || !store.characterBySession(sessionKey(sid))) return fail(c, 403, "Sit down at a table before you make a room.");
     const { code, battleId } = table.createRoom();

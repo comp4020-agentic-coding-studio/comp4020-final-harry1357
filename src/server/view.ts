@@ -7,8 +7,11 @@
 // policy never reads anything a player can't see). So whatever a policy
 // needs to decide has to be here, in the open, for every client too.
 
-import type { BattleState, BattleStatus, LogEntry, Token } from "../shared/protocol.ts";
-import { echoRolesOpen, plateMs, type Battle, type Fighter } from "./rules.ts";
+import { ACTIONS, ROLES, type ActionId, type ActionPreview, type BattleState, type BattleStatus, type LogEntry, type RoleId, type Token } from "../shared/protocol.ts";
+import { counterReset } from "./ctb.ts";
+import { checkReaction } from "./economy.ts";
+import { previewRank } from "./roles.ts";
+import { checkAction, echoRolesOpen, plateMs, type Battle, type Fighter } from "./rules.ts";
 
 export interface Timing {
   tickMs: number;
@@ -16,8 +19,46 @@ export interface Timing {
   beatMs?: number;
 }
 
+/**
+ * The card this fighter's Reaction may answer now: the soonest card the
+ * server's own check would accept (rule 2, "the card the server names").
+ */
+function reactionCard(b: Battle, f: Fighter): string | null {
+  if (f.kind !== "character" || !f.reactionReady || b.status !== "fighting") return null;
+  const reactions = ROLES[f.role as RoleId].actions.filter((a) => ACTIONS[a].reaction);
+  let best: { id: string; countdown: number } | null = null;
+  for (const action of reactions) {
+    for (const card of b.cards) {
+      if (checkReaction(b, f, action, card.id) !== null) continue;
+      if (!best || card.countdown < best.countdown) best = { id: card.id, countdown: card.countdown };
+    }
+  }
+  return best?.id ?? null;
+}
+
+/**
+ * Where each turn action would leave whoever is on the plate: the counter it
+ * resets to and the slot it lands in, with everyone else where they are, and
+ * the refusal the server would give. The server's arithmetic, so the client's
+ * ghost is drawn, never predicted (rule 1).
+ */
+function preview(b: Battle): BattleState["preview"] {
+  const up = b.standing.find((f) => f.id === b.activeId && f.kind === "character");
+  if (!up || b.status !== "fighting") return null;
+  const actions: Partial<Record<ActionId, ActionPreview>> = {};
+  for (const action of ROLES[up.role as RoleId].actions) {
+    if (ACTIONS[action].reaction) continue;
+    const { rank, resonance } = previewRank(b, up, action);
+    const counter = counterReset(up.agility, up.hasteLeft > 0 ? "haste" : "normal", rank);
+    const slot = b.standing.filter((f) => f !== up && (f.counter < counter || (f.counter === counter && f.seat < up.seat))).length;
+    const checked = checkAction(b, up.id, action, null);
+    actions[action] = { counter, slot, resonance, refusal: "status" in checked ? checked.error : null };
+  }
+  return { actorId: up.id, actions };
+}
+
 /** A combatant as every client sees it. */
-function token(f: Fighter): Token {
+function token(f: Fighter, b: Battle): Token {
   return {
     id: f.id,
     kind: f.kind,
@@ -37,6 +78,7 @@ function token(f: Fighter): Token {
     reactionReady: f.reactionReady,
     warded: f.warded,
     seatedBy: f.seatedBy,
+    reactionCard: reactionCard(b, f),
   };
 }
 
@@ -56,8 +98,8 @@ export function view(b: Battle, timing: Timing): BattleState {
     status: b.status,
     activeId: b.activeId,
     turnDeadline: b.turnDeadline,
-    queue: b.standing.map(token),
-    fallen: b.fallen.map(token),
+    queue: b.standing.map((f) => token(f, b)),
+    fallen: b.fallen.map((f) => token(f, b)),
     log: b.log.map((entry) => ({ ...entry })),
     phase: b.phase,
     // The weakness the room hasn't Scanned stays on the server.
@@ -68,6 +110,7 @@ export function view(b: Battle, timing: Timing): BattleState {
     spentExposed: b.spentExposed.map((x) => ({ ...x })),
     room: b.room ? { code: b.room, isPublic: b.isPublic } : null,
     echoRoles: echoRolesOpen(b),
+    preview: preview(b),
   };
 }
 
@@ -94,5 +137,6 @@ export function archived(id: string, row: { status: BattleStatus }, log: LogEntr
     spentExposed: [],
     room: null,
     echoRoles: [],
+    preview: null,
   };
 }

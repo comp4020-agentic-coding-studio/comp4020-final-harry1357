@@ -213,6 +213,8 @@ around it.
    *it* thinks a counter reached zero. It renders the `queue` and `activeId`
    the server sent, in the order sent; the turn strip is that queue drawn as
    portraits. Animating between two server states is drawing, not deciding.
+   The ghost that shows where your portrait would land before you commit is
+   the server's preview (`state.preview`), drawn and never computed.
    *Spec: two clients in one battle receive identical queues
    (`spec/queue.test.ts`), and the strip draws the queue in the order sent,
    never re-sorted (`spec/strip-order.test.ts`).*
@@ -222,7 +224,8 @@ around it.
    action either. The turn's actions stay disabled until the server says it
    is your turn. A Reaction is different: it is live only while the server
    says one is ready for you (reactionReady) and only against the card the
-   server names, and it is the one thing the command window offers off-turn.
+   server names (the token's `reactionCard`), and it is the one thing the
+   command window offers off-turn.
    The client decides nothing about when either is available. *Spec: an early
    action is rejected, and nothing fires when the turn comes.*
 3. **No accounts.** A person is a session cookie, plus a name, plus a role.
@@ -338,7 +341,9 @@ the rules.
 ### Rooms and Echoes (ADR-007)
 
 22. **A room is a code, and nothing more.** The server mints a short code
-    when a seated player (a session with a character) asks for one. Nothing
+    when a seated player (a session with a character) asks for one, or when
+    someone asks with a name and a role, which seats them in it as its first
+    seat. Nothing
     lists rooms, nothing owns one, and no password, invite or account stands
     behind a code (rule 3). A wrong code is refused (404), never guessed at or
     redirected to another room. While a private room is open, its code is

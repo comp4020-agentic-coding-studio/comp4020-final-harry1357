@@ -73,6 +73,7 @@ import {
   MOMENTUM_MAX,
   PRY_PIPS,
   QUICKEN_CUT,
+  RANK_MIN,
   RELAY_BONUS,
   RESOLVE_MAX,
   RESTORE_COST,
@@ -193,6 +194,23 @@ export function perform(ctx: Ctx, actor: Fighter, action: ActionId, target: stri
       // A Reaction: rules.ts hands it to economy.react and never brings it here.
       throw new Error("Intercept is a Reaction; economy.react takes it, not perform");
   }
+}
+
+/**
+ * The rank a turn action would reset its actor at, aimed at its default
+ * target, and whether that is a Resonance (rule 14): for the server's preview
+ * of where a portrait lands (view.ts; rule 1 keeps the client from working it
+ * out). The same resolve() and resonant() perform() uses, so they can't drift.
+ */
+export function previewRank(b: Battle, actor: Fighter, action: ActionId): { rank: number; resonance: boolean } {
+  const rank = ACTIONS[action].rank;
+  const aimed = resolve(b, actor, action, null);
+  if ("status" in aimed) return { rank, resonance: false };
+  const ring = aimed.target !== null && isRingId(aimed.target) ? b.rings.find((r) => r.id === aimed.target) : undefined;
+  const blows: readonly ActionId[] = ["jab", "cleave", "finisher", "counterweight"];
+  const hit = action === "feint" || (blows.includes(action) && !!ring && resonant(ring));
+  const to = hit ? Math.max(RANK_MIN, rank - 1) : rank;
+  return { rank: to, resonance: to < rank };
 }
 
 /**

@@ -148,6 +148,22 @@ export interface Token {
    *  seat, the Orrery's, and a person's seat that has timed out into an Echo.
    *  A seated Echo's `echo` is always true and it has no person to come back. */
   seatedBy: string | null;
+  /** The boss card this seat's Reaction may answer now, as the server names it
+   *  (rule 2: a Reaction is live only against the card the server names); null
+   *  when no Reaction is ready or none can answer anything on the strip. */
+  reactionCard: string | null;
+}
+
+/** Where a turn action would leave its actor, as the server works it out. */
+export interface ActionPreview {
+  /** The counter the actor would reset to. */
+  counter: number;
+  /** The slot in the queue, 0 first, the actor would land in with everyone else where they are. */
+  slot: number;
+  /** It would refund a rank (rule 14), aimed at its default target. */
+  resonance: boolean;
+  /** Why the server would refuse it now, in its own words; null if it wouldn't. */
+  refusal: string | null;
 }
 
 /** An Exposed stack on a ring, and who set it (rule 16). */
@@ -248,6 +264,10 @@ export interface BattleState {
   spentExposed: SpentExposed[];
   /** The room this fight is in (rules 22-24), or null for a bare battle. */
   room: { code: string; isPublic: boolean } | null;
+  /** For whoever is on the plate, where each of their turn actions would leave
+   *  them (rule 1: the client draws this ghost and never computes it). Null while
+   *  the clock runs, or when the Orrery is on the plate. */
+  preview: { actorId: string; actions: Partial<Record<ActionId, ActionPreview>> } | null;
   /** The roles an Echo can still be seated as in this fight (rule 25): one per
    *  role, four at most, none once the fight is over. The server decides it;
    *  the client offers exactly these. */
