@@ -10,8 +10,8 @@
 //
 // It renders, it never decides (CLAUDE.md rule 1): who stands where follows
 // arrival, and every HP, mark and fall comes from the server's tokens.
-import { BOSS_ID, type BattleState } from "../../shared/protocol.ts";
-import type { Anim, PartsOptions, Scene, Tone } from "../battle/api.ts";
+import { BOSS_ID, type BattleState, type Ring, type RoleId } from "../../shared/protocol.ts";
+import type { Anim, PartsOptions, Scene, StatusMark, Tone } from "../battle/api.ts";
 import { createFx } from "./fx.ts";
 import { createOrrery } from "./orrery.ts";
 import { createParty, type Actor } from "./party.ts";
@@ -280,6 +280,16 @@ export function createScene(root: HTMLElement, { manifest, orrerySvg }: PartsOpt
       const node = id === BOSS_ID ? orrery.el : party.get(id)?.el;
       if (node) await flag(node, "data-afterimage", "", 480);
     },
+
+    // --- phase two (area c fills these in) ------------------------------------
+    status(_id: string, _marks: readonly StatusMark[]): void {},
+    ringMarks(_rings: readonly Ring[], _appliers: Readonly<Record<string, RoleId>>): void {},
+    echo(_id: string, _on: boolean, _seated: boolean): void {},
+    drifting(_id: string, _on: boolean): void {},
+    ward(_id: string, _on: boolean): void {},
+    phase(_phase: 1 | 2 | 3): void {},
+    async windUp(_id: string): Promise<void> {},
+    async hitStop(): Promise<void> {},
 
     // --- the truth ---------------------------------------------------------
     reconcile(state: BattleState, myId: string | null): void {

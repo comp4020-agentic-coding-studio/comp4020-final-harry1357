@@ -16,8 +16,8 @@
 // Hooks other code reads, and must stay exact: [data-rail] carries
 // data-version; each portrait is [data-token-id] with data-counter,
 // data-active, data-kind and data-mine; DOM order is queue order, then fallen.
-import { ROLES, type BattleState, type RoleId, type Token } from "../../shared/protocol.ts";
-import type { PartsOptions, Strip } from "../battle/api.ts";
+import { ROLES, type ActionPreview, type BattleState, type RoleId, type Token } from "../../shared/protocol.ts";
+import type { CardMoment, PartsOptions, Strip } from "../battle/api.ts";
 import { orreryPortrait } from "./orrery.ts";
 import { BRACE, DOWN, HASTE, pixelIcon } from "./pixels.ts";
 import { spriteFor } from "../sprites.ts";
@@ -280,7 +280,7 @@ export function createStrip(root: HTMLElement, opts: PartsOptions): Strip {
     drawn = true;
   }
 
-  function flag(id: string, kind: "held" | "plate"): void {
+  function flag(id: string, kind: "held" | "plate" | "jump" | "quickened" | "reacted" | "relayed" | "restored"): void {
     const entry = entries.get(id);
     if (!entry) return;
     if (entry.stampTimer) clearTimeout(entry.stampTimer);
@@ -330,5 +330,13 @@ export function createStrip(root: HTMLElement, opts: PartsOptions): Strip {
     for (const ghost of ghosts) ghost.remove();
   }
 
-  return { render, flag, afterimage };
+  // --- phase two (area a fills these in) ------------------------------------
+  function preview(_actorId: string | null, _preview: ActionPreview | null): void {}
+  function card(_cardId: string, _moment: CardMoment): void {}
+  function chain(_links: number, _broken: boolean): void {}
+  function jump(_id: string, _from: number, _to: number): void {}
+  function retrograde(_flipped: boolean, _cancelledBy: string | null): void {}
+  function alignment(_countdown: number, _wipe: boolean): void {}
+
+  return { render, flag, afterimage, preview, card, chain, jump, retrograde, alignment };
 }

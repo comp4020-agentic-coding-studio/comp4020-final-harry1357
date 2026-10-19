@@ -58,14 +58,16 @@ export function createConductor(opts: ConductorOptions): Conductor {
         | undefined;
       if (renderer && latest) {
         const reduced = reducedQuery.matches || queue.length >= BACKLOG;
-        const ctx: EffectContext = { scene: opts.scene, strip: opts.strip, audio: opts.audio, reduced, wait, state: latest };
+        const ctx: EffectContext = { scene: opts.scene, strip: opts.strip, audio: opts.audio, reduced, wait, state: latest, me };
         try {
           await capped((reduced ? renderer.reduced : renderer.full)(ctx, event));
         } catch (err) {
           console.error(`the ${event.kind} renderer failed`, err);
         }
       } else if (!renderer) {
+        // Nothing showed it, so nothing writes it down (rule 11; review F1).
         console.error(`no renderer for "${event.kind}": rule 11 says this event shouldn't have shipped`);
+        continue;
       }
       // Shown; now it may be written down.
       if (event.seq !== undefined) {

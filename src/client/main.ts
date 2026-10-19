@@ -12,17 +12,18 @@ import {
   type BattleState,
   type JoinResponse,
   type MeResponse,
-  type RaidResponse,
   type RoleId,
+  type RoomInfo,
 } from "../shared/protocol.ts";
 import type { JoinResult, SpriteManifest } from "./battle/api.ts";
 import { createConductor } from "./battle/conductor.ts";
 import { createLog } from "./battle/log.ts";
 import { RENDERERS } from "./battle/registry.ts";
 import { createAudio } from "./audio/audio.ts";
-import { mountCommandWindow, type CommandWindow } from "./command/window.ts";
+import { countdownFraction, mountCommandWindow, type CommandWindow } from "./command/window.ts";
+import { door } from "./door.ts";
 import { mountJoin } from "./join/join.ts";
-import { getJSON, postJSON, watchBattle, type Link } from "./net.ts";
+import { getJSON, postJSON, watchBattle, watchRoom, type Link, type RoomGone } from "./net.ts";
 import { createScene } from "./scene/scene.ts";
 import { createStrip } from "./strip/strip.ts";
 
@@ -48,6 +49,8 @@ const commandEl = need<HTMLElement>("[data-command]");
 const join = mountJoin(need<HTMLElement>("[data-join-screen]"), { manifest, onJoin });
 
 const app = {
+  /** The room this page is in (rules 22-24), or null on a bare battle opened by ?battle= (the sensors'). */
+  code: null as string | null,
   battleId: "",
   me: null as MeResponse | null,
   myId: null as string | null,
@@ -87,9 +90,26 @@ function mountCommand(role: RoleId): void {
       const mine = party.filter((t) => t.id === app.myId);
       return [...mine, ...party.filter((t) => t.id !== app.myId)].map((t) => ({ id: t.id, name: t.id === app.myId ? `${t.name} (you)` : t.name }));
     },
+    // Card-target actions aim at the strip's boss cards, never at ally ids (review F7).
+    cards: () => (app.state?.cards ?? []).map((c) => ({ id: c.id, name: cardName(c.intent, c.targetId, c.countdown) })),
     onTarget: (targetId) => scene.target(targetId),
     onChoose: (action, targetId) => void choose(action, targetId),
+    // The ghost: where the server's preview puts your portrait for this command (rule 1).
+    onPreview: (action) => {
+      const preview = app.state?.preview;
+      const mine = preview && preview.actorId === app.myId ? preview : null;
+      strip.preview(mine && action ? mine.actorId : null, mine && action ? (mine.actions[action] ?? null) : null);
+    },
   });
+}
+
+/** A boss card as the command window names it: what, at whom, how soon. */
+function cardName(intent: string, targetId: string | null, countdown: number): string {
+  const label = intent.charAt(0).toUpperCase() + intent.slice(1);
+  const at =
+    targetId === "party" ? "everyone" : targetId === null ? "the strip" : (app.state?.queue.find((t) => t.id === targetId)?.name ?? "someone");
+  const when = countdown <= 0 ? "next" : `in ${countdown}`;
+  return `${label} on ${at}, ${when}`;
 }
 
 async function choose(action: ActionId, targetId: string | null): Promise<void> {
@@ -125,13 +145,15 @@ function onState(state: BattleState): void {
       join.hide();
     }
     battleEl.dataset.phase = "fight";
-    const role = (state.queue.find((t) => t.id === app.myId)?.role ?? app.role) as RoleId;
+    const token = state.queue.find((t) => t.id === app.myId) ?? null;
+    const role = (token?.role ?? app.role) as RoleId;
     mountCommand(role);
     const myTurn = state.status === "fighting" && state.activeId === app.myId;
     app.command?.setEnabled(myTurn);
-    app.command?.setCountdown(
-      myTurn && state.turnDeadline !== null ? Math.max(0, Math.min(1, (state.turnDeadline - Date.now()) / state.turnMs)) : null,
-    );
+    // Off-turn, the Reaction is the one thing live, and only at the card the server names (rule 2).
+    app.command?.setReactionReady(state.status === "fighting" ? (token?.reactionCard ?? null) : null);
+    app.command?.setSeat({ token, preview: myTurn && state.preview?.actorId === app.myId ? state.preview.actions : null });
+    app.command?.setCountdown(myTurn ? countdownFraction(state, Date.now()) : null);
   } else {
     battleEl.dataset.phase = "join";
     app.command?.setEnabled(false);
@@ -143,7 +165,9 @@ function onState(state: BattleState): void {
 }
 
 async function onJoin(name: string, role: RoleId): Promise<JoinResult> {
-  const res = await postJSON<JoinResponse>(`/api/battles/${app.battleId}/join`, { name, role });
+  // In a room, by its code (rule 22); on a bare battle (the sensors'), by its id.
+  const path = app.code ? `/api/rooms/${encodeURIComponent(app.code)}/join` : `/api/battles/${app.battleId}/join`;
+  const res = await postJSON<JoinResponse>(path, { name, role });
   if (!res.ok || !res.data) return { ok: false, error: res.error ?? "The table couldn't seat you." };
   app.myId = res.data.characterId;
   app.role = role;
@@ -172,37 +196,63 @@ function setLink(link: Link): void {
   linkEl.textContent = link === "live" ? "Live" : link === "connecting" ? "Connecting" : "Reconnecting";
 }
 
-async function findBattle(): Promise<string> {
-  const fromUrl = new URLSearchParams(location.search).get("battle")?.trim();
-  if (fromUrl) return fromUrl;
-  for (let attempt = 0; ; attempt++) {
-    const res = await getJSON<RaidResponse>("/api/raid");
-    if (res.ok && res.data?.battleId) return res.data.battleId;
-    await new Promise((resolve) => setTimeout(resolve, Math.min(10_000, 1_000 * 2 ** attempt)));
+/** The room's fight is now this one (on open, and when a fight ends and the next opens). */
+function onRoom(room: RoomInfo): void {
+  app.code = room.code;
+  battleEl.dataset.room = room.code;
+  if (room.battleId === app.battleId) return;
+  const next = app.battleId !== "";
+  app.battleId = room.battleId;
+  battleEl.dataset.battle = room.battleId;
+  // A new fight is a new truth: the next state is drawn whole, and the ending is shown afresh.
+  conductor.resync();
+  if (next) {
+    app.endedShown = false;
+    app.state = null;
   }
+}
+
+/** The room is gone for good (4410: it expired; 4404: there never was one). Said, never retried. */
+function onGone(why: RoomGone): void {
+  const text = why === "expired" ? "This room has closed: nobody had been at the table for too long." : "There's no room with that code.";
+  battleEl.dataset.phase = "closed";
+  battleEl.dataset.closed = why;
+  app.command?.setEnabled(false);
+  app.command?.setReactionReady(null);
+  scene.banner(text);
+  setLink("live");
+  linkEl.textContent = why === "expired" ? "Room closed" : "No such room";
+  say(text);
 }
 
 async function boot(): Promise<void> {
   setLink("connecting");
   const me = loadMe();
-  app.battleId = await findBattle();
-  battleEl.dataset.battle = app.battleId;
-  await me;
-  watchBattle(
-    app.battleId,
-    (msg) => conductor.receive(msg),
-    (link) => {
-      setLink(link);
-      if (link === "reconnecting") conductor.resync();
-    },
-    () => {},
-  );
+  const bare = new URLSearchParams(location.search).get("battle")?.trim();
+  const onLink = (link: Link): void => {
+    setLink(link);
+    if (link === "reconnecting") conductor.resync();
+  };
+  if (bare) {
+    // A bare battle by id (POST /api/battles): the sensors' way in, kept until they move onto rooms.
+    app.battleId = bare;
+    battleEl.dataset.battle = bare;
+    await me;
+    watchBattle(bare, (msg) => conductor.receive(msg), onLink, () => {});
+  } else {
+    // The front door (rule 23): the address's code, or the room the server's default door names.
+    const code = await door(location.search, async (path) => (await getJSON<unknown>(path)).data);
+    app.code = code;
+    battleEl.dataset.room = code;
+    await me;
+    watchRoom(code, (msg) => conductor.receive(msg), onRoom, onLink, onGone);
+  }
   // The countdown drains between messages too: the clock is stopped while
   // it's your turn, so the server sends nothing until someone acts.
   setInterval(() => {
     const state = app.state;
     if (state && state.activeId === app.myId && state.turnDeadline !== null) {
-      const left = Math.max(0, Math.min(1, (state.turnDeadline - Date.now()) / state.turnMs));
+      const left = countdownFraction(state, Date.now()) ?? 0;
       app.command?.setCountdown(left);
       // a quarter of the turn left: the hold warning, once per turn
       if (left < 0.25 && app.warned !== state.turnDeadline) {

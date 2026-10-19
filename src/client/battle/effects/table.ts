@@ -1,6 +1,7 @@
-// Who is at the table and how the fight stands: join, leave, hold, down, plate,
-// end. Mostly marks and entrances, so most full and reduced variants differ only
-// in how long they let the moment sit.
+// Who is at the table and how the fight stands: join, leave, down, end (hold
+// is the command area's, in ./command.ts; plate the strip's, in ./strip.ts).
+// Mostly marks and entrances, so most full and reduced variants differ only in
+// how long they let the moment sit.
 import type { EffectContext } from "../api.ts";
 import { BOSS_ID } from "../../../shared/protocol.ts";
 import { HOLD, bounded, rest, showHp, showRings, stage, tokenOf, type Fx } from "./kit.ts";
@@ -38,31 +39,6 @@ export const leaveReduced: Fx<"leave"> = async (raw, e) => {
   await ctx.wait(HOLD);
 };
 
-// --- hold -------------------------------------------------------------------------
-
-/**
- * The server held their turn. The idle breaks for a beat (a flinch: no flash,
- * no number, so it can't read as a hit), the strip marks the portrait it has
- * moved past, and the hold cue sounds. A hold also ends a Brace.
- */
-export const hold: Fx<"hold"> = async (raw, e) => {
-  const ctx = stage(raw);
-  ctx.strip.flag(e.actorId, "held");
-  ctx.scene.guard(e.actorId, false);
-  ctx.audio.play("hold");
-  await ctx.wait(120);
-  await bounded(ctx, ctx.scene.frame(e.actorId, "hurt"), 380);
-  rest(ctx, e.actorId);
-};
-
-export const holdReduced: Fx<"hold"> = async (raw, e) => {
-  const ctx = stage(raw);
-  ctx.strip.flag(e.actorId, "held");
-  ctx.scene.guard(e.actorId, false);
-  ctx.audio.play("hold");
-  await ctx.wait(HOLD);
-};
-
 // --- down -------------------------------------------------------------------------
 
 /** Laid down and greyed, the bar empty, and nothing pending on them (rules.ts clears both marks). */
@@ -83,15 +59,6 @@ export const downReduced: Fx<"down"> = async (raw, e) => {
   const ctx = stage(raw);
   fall(ctx, e.actorId);
   await ctx.wait(HOLD);
-};
-
-// --- plate ------------------------------------------------------------------------
-
-/** Someone reached the strike plate. Instant: it must never hold up the strike that follows. */
-export const plate: Fx<"plate"> = (raw, e) => {
-  const ctx = stage(raw);
-  ctx.audio.play("plate");
-  ctx.strip.flag(e.actorId, "plate");
 };
 
 // --- end --------------------------------------------------------------------------

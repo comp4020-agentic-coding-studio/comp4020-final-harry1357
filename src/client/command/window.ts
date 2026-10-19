@@ -13,20 +13,45 @@
 // one tab stop and focus follows the cursor; while dark, the list itself is the
 // stop, so a keyboard user can still find the window and its state. A click on
 // an option keeps focus there; going dark hands focus back to the list.
-import { ACTIONS, BOSS_ID, type ActionId, type ActionInfo } from "../../shared/protocol.ts";
+import { ACTIONS, BOSS_ID, type ActionId, type ActionInfo, type BattleState } from "../../shared/protocol.ts";
+import type { SeatInfo } from "../battle/api.ts";
 
 export interface CommandWindow {
   setEnabled(on: boolean): void;
   /** Time left on your turn as a fraction 1 → 0, or null when it isn't your turn. */
   setCountdown(fraction: number | null): void;
+  /**
+   * Phase two (rule 2): the card the server names for your Reaction, or null
+   * when none is ready. While it names one, the Reaction is the one thing live
+   * off-turn, aimed only at that card.
+   */
+  setReactionReady(cardId: string | null): void;
+  /** Phase two: your seat as the server has it: resource meters, Charge, Echo, and each action's previewed wait and refusal. */
+  setSeat(info: SeatInfo): void;
   destroy(): void;
 }
 
 export interface CommandOptions {
   actions: readonly ActionId[];
   allies: () => { id: string; name: string }[];
+  /** Phase two: the boss cards on the strip, for card-target actions (Anchor, Delay, Stillpoint, a Reaction). Never ally ids. */
+  cards?: () => { id: string; name: string }[];
   onTarget: (targetId: string | null) => void;
   onChoose: (action: ActionId, targetId: string | null) => void;
+  /** Phase two: a command hovered or focused (null when none): the strip ghosts your portrait where the server's preview puts it. */
+  onPreview?: (action: ActionId | null) => void;
+}
+
+/**
+ * How much of the plate's real window is left, 1 → 0: an Echo's beat or a
+ * person's turn, as the server says (plateMs; review R8), and nothing at all
+ * for a seated Echo (plateMs 0; re-review N8), never NaN. Null when nobody's
+ * window is running.
+ */
+export function countdownFraction(state: Pick<BattleState, "turnDeadline" | "plateMs">, now: number): number | null {
+  if (state.turnDeadline === null || state.plateMs === null || state.plateMs === undefined) return null;
+  if (!(state.plateMs > 0)) return 0;
+  return Math.max(0, Math.min(1, (state.turnDeadline - now) / state.plateMs));
 }
 
 interface Target {
@@ -445,6 +470,10 @@ export function mountCommandWindow(root: HTMLElement, opts: CommandOptions): Com
         clock.setAttribute("aria-valuenow", String(step));
       }
     },
+
+    // Phase two (area b fills these in).
+    setReactionReady(_cardId: string | null) {},
+    setSeat(_info: SeatInfo) {},
 
     destroy() {
       root.removeEventListener("keydown", onKey);
