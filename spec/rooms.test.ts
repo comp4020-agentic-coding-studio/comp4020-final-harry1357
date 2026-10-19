@@ -572,6 +572,24 @@ describe("rooms expire; logs don't", () => {
     expect((await act(server.base, made.battleId, founder, "jab")).status, "its own seat is answered as any seat is").not.toBe(404);
   }, 20_000);
 
+  it("sitting down again where you're already seated, as another role, is refused, not ignored (Q9)", async () => {
+    // Phase two's gate, the breaker's Q9 (rule 24: a role is for a fight):
+    // re-joining your own room's fight with another role answered 200 and
+    // the old role, saying nothing.
+    server = await boot(scratchDatabase(), { TICK_MS: "20" });
+    const name = `seated-${suffix()}`;
+    const res = await fetch(new URL("/api/rooms", server.base), {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ name, role: "striker" }),
+    });
+    const made = (await res.json()) as { code: string };
+    const cookie = res.headers.getSetCookie().map((c) => c.split(";")[0]).join("; ");
+    const other = await joinRoom(server.base, made.code, name, "warden", cookie);
+    expect(other.status, "another role in the fight you're seated in: refused").toBe(409);
+    expect((await joinRoom(server.base, made.code, name, "striker", cookie)).status, "the same role: you're already here, as before").toBe(200);
+  }, 20_000);
+
   it("a founder refused a seat makes no room", async () => {
     // Phase two's gate, the reviewer's R3 and T8: asking for a room with a name
     // and a role is sitting down in it (rule 22), so a seat refused is a room

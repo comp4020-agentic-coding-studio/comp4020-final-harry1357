@@ -88,6 +88,10 @@ export function createApp(root: string, store: Store, table: Table): Hono {
       return fail(c, 409, `You're seated at another table as ${known.name} the ${ROLES[known.role].label}; sit down here as the same role, or finish that fight first.`);
     }
     const check = checkJoin(battle, known?.id ?? null, known ? known.name : name);
+    if (check === "already" && known && role !== known.role) {
+      // Seated here already: a role is for a fight, so it isn't changed mid-fight, and asking says so (breaker Q9).
+      return fail(c, 409, `You're seated at this table already, as ${known.name} the ${ROLES[known.role].label}.`);
+    }
     if (check === "already") return known ? "already" : null;
     return check ? fail(c, check.status, check.error) : null;
   }
