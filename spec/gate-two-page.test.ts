@@ -12,7 +12,8 @@ let server: Booted;
 let chrome: Chrome;
 
 beforeAll(async () => {
-  server = await boot(scratchDatabase(), { TICK_MS: "20" });
+  // A tick long enough that off-turn time (the clock running between turns) can be seen.
+  server = await boot(scratchDatabase(), { TICK_MS: "100" });
   chrome = await launchChrome();
 }, 30_000);
 
@@ -66,3 +67,50 @@ it("R1: a refused command gives the turn back, as the server still has it", asyn
   await tab.evaluate(`document.querySelector('button[data-action="jab"]').click(); document.querySelector("[data-confirm]").click()`);
   await tab.until(`[...document.querySelectorAll("[data-log] li")].some((l) => /Refused Once jabs/.test(l.textContent))`, "the second Jab to land", 10_000);
 }, 60_000);
+
+/** Wrap the page's socket: log every URL, and let `window.__react` rewrite your token's Reaction card in each state. */
+const SOCKET_TAMPER = `(() => {
+  window.__react = "off";
+  window.__sockets = [];
+  const Real = window.WebSocket;
+  window.WebSocket = class extends Real {
+    constructor(url, protocols) { super(url, protocols); window.__sockets.push(String(url)); }
+    addEventListener(type, fn, opts) {
+      if (type !== "message") return super.addEventListener(type, fn, opts);
+      return super.addEventListener(type, (event) => {
+        let data = event.data;
+        try {
+          const m = JSON.parse(data);
+          const me = document.body.dataset.me;
+          if (m.type === "state" && me && window.__react !== "off") {
+            for (const t of m.battle.queue) if (t.id === me) t.reactionCard = window.__react === "first" ? (m.battle.cards[0]?.id ?? null) : null;
+            data = JSON.stringify(m);
+          }
+        } catch {}
+        fn.call(this, { type: "message", data });
+      }, opts);
+    }
+  };
+})();`;
+
+it("U2 (rule 2): the Reaction offered off-turn is at the card the server names, whatever the page would think", async () => {
+  // The server is made to name a raid-wide Revolution, a card no Intercept could
+  // answer: a client that picked the card itself would never offer it. Then it
+  // names none, and the Reaction goes dark.
+  const tab = await page(SOCKET_TAMPER);
+  await sit(tab, "create", "warden", "Named Card");
+  await tab.until(`!!document.querySelector('[data-add-echo="mender"]:not([disabled])')`, "the Echo button", 10_000);
+  await tab.evaluate(`document.querySelector('[data-add-echo="mender"]').click()`);
+  await tab.evaluate(`window.__react = "first"`);
+  await tab.until(`!!document.querySelector('button[data-action="intercept"]:not([disabled])') && ${LIVE} === 0`, "the Reaction live off-turn", 30_000);
+  const first = await tab.evaluate<string>(`document.querySelector("[data-rail] [data-card-id]").dataset.intent`);
+  await tab.evaluate(`document.querySelector('button[data-action="intercept"]').click()`);
+  const aimed = await tab.evaluate<string>(`document.querySelector("[data-aim-name]").textContent`);
+  expect(aimed.toLowerCase(), "Intercept is aimed at the card the server named (the strip's first, a raid-wide card)").toMatch(new RegExp(`^${first}`));
+  await tab.evaluate(`document.querySelector("[data-cancel]").click()`);
+  const version = await tab.evaluate<string>(`document.querySelector("[data-rail]").dataset.version`);
+  await tab.evaluate(`window.__react = "none"`);
+  await tab.until(`document.querySelector("[data-rail]").dataset.version !== ${JSON.stringify(version)}`, "the server's next word", 15_000);
+  expect(await tab.evaluate<boolean>(`document.querySelector('button[data-action="intercept"]').disabled`), "the server names no card: the Reaction is dark").toBe(true);
+}, 60_000);
+
