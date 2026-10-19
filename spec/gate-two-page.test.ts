@@ -139,3 +139,36 @@ it("T7 (rule 23): with no code, the page opens the room the server's default doo
   expect(sockets.filter((u) => /[?&]battle=/.test(u)), "no battle socket of its own").toEqual([]);
   expect(fetches.filter((f) => /^POST .*\/api\/battles$/.test(f)), "and no bare battle made").toEqual([]);
 }, 60_000);
+
+it("Q2 and Q1: a room closing under the end panel keeps the ending it shows, and its log", async () => {
+  // Phase two's gate, the breaker's Q2: with the end panel up, the room's empty
+  // next fight was closed when the room expired, and the panel changed to
+  // "Nobody stayed", a fight nobody played. And Q1, in the page: the last
+  // fight's lines stay in the log while its ending is up. A fast clock and four
+  // Echoes play the fight out; the room closes two seconds after it's empty.
+  const own = await boot(scratchDatabase(), { TICK_MS: "5", TURN_TIMEOUT_MS: "250", ECHO_BEAT_MS: "100", ROOM_EMPTY_MS: "2000" });
+  const tab = await chrome.open("about:blank");
+  try {
+    await tab.send("Page.navigate", { url: `${own.base}/` });
+    await tab.until(`!!document.querySelector("form[data-join]") && !document.querySelector("form[data-join]").hidden`, "the join form", 15_000);
+    await sit(tab, "create", "striker", "Stays Shown");
+    for (const role of ["warden", "mender", "breaker", "chronist"]) {
+      await tab.until(`!!document.querySelector('[data-add-echo="${role}"]:not([disabled])')`, `the ${role} Echo button`, 10_000);
+      await tab.evaluate(`document.querySelector('[data-add-echo="${role}"]').click()`);
+      await tab.until(`!document.querySelector('[data-add-echo="${role}"]')`, `the ${role} Echo seated`, 10_000);
+    }
+    const visible = `(() => { const p = document.querySelector("[data-join-end]"); return !!p && !p.hidden && !p.closest("[hidden]"); })()`;
+    await tab.until(visible, "the end panel", 60_000);
+    const title = await tab.evaluate<string>(`document.querySelector("[data-join-end] .join-end-title").textContent`);
+    expect(title, "a fight four Echoes and a person played out ends won or lost").not.toBe("Nobody stayed");
+    await tab.until(`document.querySelector("#battle").dataset.closed === "expired"`, "the empty room to close", 15_000);
+    await tab.evaluate(`new Promise((r) => setTimeout(r, 300))`);
+    expect(await tab.evaluate<boolean>(visible), "the end panel is still up").toBe(true);
+    expect(await tab.evaluate<string>(`document.querySelector("[data-join-end] .join-end-title").textContent`), "and still says how the fight that was played ended").toBe(title);
+    expect(await tab.evaluate<string>(`document.querySelector("[data-join-end] a").getAttribute("href")`), "the room's gone: the link is the front door").toBe("/");
+    const log = await tab.evaluate<string>(`document.querySelector("[data-log]").textContent`);
+    expect(log, "the last fight's end line is still in the log (Q1)").toMatch(/The table wins|has fallen|fall/i);
+  } finally {
+    await own.kill();
+  }
+}, 120_000);

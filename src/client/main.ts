@@ -69,6 +69,8 @@ const app = {
   endedShown: false,
   /** A room's fight ended and its next opened: the end panel stays until the person goes on (rule 24). */
   afterEnding: false,
+  /** How the fight on the end panel ended: kept, so nothing that happens after it can retitle it (breaker Q2). */
+  shownOutcome: null as Outcome | null,
   /** The turn whose hold warning has already sounded (by its deadline). */
   warned: null as number | null,
   /** The socket this page is watching, so a change of room can let it go. */
@@ -171,6 +173,10 @@ function onState(state: BattleState): void {
     app.command?.setCountdown(null);
     if (!app.endedShown) {
       app.endedShown = true;
+      // The room's next fight closed with nobody in it while the last one's ending is up (the room expired):
+      // that panel stays, never retitled for a fight nobody played (breaker Q2).
+      if (app.afterEnding) return;
+      app.shownOutcome = state.status as Outcome;
       // In a room the link goes on to the room's next fight; on a bare battle, to the front door.
       join.ended(state.status as Outcome, app.code ? { href: roomHref(app.code), go: goOn } : undefined);
       // The record this fight added, for the welcome when the person sits down again.
@@ -352,9 +358,10 @@ function onGone(why: RoomGone): void {
   setLink("live");
   linkEl.textContent = why === "expired" ? "Room closed" : "No such room";
   say(text);
-  // The room's gone: an end panel up for its last fight goes on to the front door, not back into it.
+  // The room's gone: an end panel up for its last fight goes on to the front door, not back into it, and
+  // still says how that fight ended (breaker Q2).
+  if (app.endedShown || app.afterEnding) join.ended(app.shownOutcome ?? ((app.state?.status ?? "abandoned") as Outcome));
   app.afterEnding = false;
-  if (app.endedShown) join.ended((app.state?.status ?? "abandoned") as Outcome);
 }
 
 async function boot(): Promise<void> {
