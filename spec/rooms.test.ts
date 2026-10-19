@@ -522,4 +522,36 @@ describe("rooms expire; logs don't", () => {
       sqlite.close();
     }
   }, 20_000);
+
+  it("a founder refused a seat makes no room", async () => {
+    // Phase two's gate, the reviewer's R3 and T8: asking for a room with a name
+    // and a role is sitting down in it (rule 22), so a seat refused is a room
+    // not made. The room was minted before the seat was checked, and a refused
+    // founder left a fight in the database nobody sat in.
+    const db = scratchDatabase();
+    server = await boot(db, { TICK_MS: "20" });
+    const door = await raid(server.base);
+    const host = await seatedPlayer(server.base);
+    const ask = (body: object, cookie = "") =>
+      fetch(new URL("/api/rooms", server!.base), {
+        method: "POST",
+        headers: { "content-type": "application/json", ...(cookie ? { cookie } : {}) },
+        body: JSON.stringify(body),
+      });
+    const kept = await ask({ name: "Mender Echo", role: "mender" });
+    expect(kept.status, "an Echo's kept name: refused").toBe(409);
+    expect(((await kept.json()) as { code?: string }).code, "and no code handed out").toBeUndefined();
+    const renamed = await ask({ name: `someone-else-${suffix()}`, role: "warden" }, host.cookie);
+    expect(renamed.status, "a seated player under another name (rule 24): refused").toBe(409);
+    await server.kill();
+    server = null;
+
+    const sqlite = new Database(db, { readonly: true });
+    try {
+      const fights = sqlite.prepare("select id from battles").all() as { id: string }[];
+      expect(fights.map((b) => b.id).sort(), "no fight but the public raid's and the host's own").toEqual([door.battleId, host.battleId].sort());
+    } finally {
+      sqlite.close();
+    }
+  }, 20_000);
 });

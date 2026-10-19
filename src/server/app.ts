@@ -24,7 +24,7 @@ import type {
 import { newId, type Store } from "./db.ts";
 import { mountPages } from "./pages.ts";
 import { ROLE_IDS, ROLES } from "../shared/protocol.ts";
-import { checkAction, checkJoin, checkSeatEcho, cleanName, isRole, nameKey } from "./rules.ts";
+import { checkAction, checkJoin, checkSeatEcho, cleanName, createBattle, isRole, nameKey, type Battle } from "./rules.ts";
 import type { Table } from "./table.ts";
 
 const COOKIE = "raid_sid";
@@ -69,6 +69,29 @@ export function createApp(root: string, store: Store, table: Table): Hono {
     return { name, role: body.role };
   }
 
+  /**
+   * Whether the cookie's person (`known`, or nobody yet) may sit in `battle`
+   * under this name and role: the refusal to send, "already" if they're in it,
+   * or null. No awaits, no writes: the room door asks it before minting a room,
+   * and the seat asks it again just before seating (review R3).
+   */
+  function vetSeat(c: Context, known: ReturnType<Store["characterBySession"]>, name: string, role: RoleId, battle: Battle): Response | "already" | null {
+    // A name is for life, a role is for a fight (rule 24). The app tells people
+    // apart by name, so a character's name stays with its cookie: it never
+    // sits down under another (re-review N2). Its role may change between
+    // fights, but seated at another live table it sits down here as the same
+    // role (review R1). Either way it keeps its record.
+    if (known && nameKey(name) !== nameKey(known.name)) {
+      return fail(c, 409, `You sat down as ${known.name}, and a name stays with you: sit down as ${known.name}.`);
+    }
+    if (known && role !== known.role && table.seatedElsewhere(known.id, battle.id)) {
+      return fail(c, 409, `You're seated at another table as ${known.name} the ${ROLES[known.role].label}; sit down here as the same role, or finish that fight first.`);
+    }
+    const check = checkJoin(battle, known?.id ?? null, known ? known.name : name);
+    if (check === "already") return known ? "already" : null;
+    return check ? fail(c, check.status, check.error) : null;
+  }
+
   /** Seat the cookie's person in the fight `where()` names once the body is read (null: the room went). */
   async function seatIn(c: Context, where: () => string | null, preread?: { name: string; role: RoleId }): Promise<JoinResponse | Response> {
     const asked = preread ?? seatRequest(c, await readJson(c));
@@ -86,21 +109,10 @@ export function createApp(root: string, store: Store, table: Table): Hono {
 
     const sid = getCookie(c, COOKIE);
     const known = sid ? store.characterBySession(sessionKey(sid)) : null;
-    // A name is for life, a role is for a fight (rule 24). The app tells people
-    // apart by name, so a character's name stays with its cookie: it never
-    // sits down under another (re-review N2). Its role may change between
-    // fights, but seated at another live table it sits down here as the same
-    // role (review R1). Either way it keeps its record.
-    if (known && nameKey(name) !== nameKey(known.name)) {
-      return fail(c, 409, `You sat down as ${known.name}, and a name stays with you: sit down as ${known.name}.`);
-    }
-    if (known && body.role !== known.role && table.seatedElsewhere(known.id, id)) {
-      return fail(c, 409, `You're seated at another table as ${known.name} the ${ROLES[known.role].label}; sit down here as the same role, or finish that fight first.`);
-    }
+    const vetted = vetSeat(c, known, name, body.role, battle);
+    if (vetted === "already" && known) return { battleId: id, characterId: known.id, character: known };
+    if (vetted instanceof Response) return vetted;
     const seatName = known ? known.name : name;
-    const check = checkJoin(battle, known?.id ?? null, seatName);
-    if (check === "already" && known) return { battleId: id, characterId: known.id, character: known };
-    if (check && check !== "already") return fail(c, check.status, check.error);
 
     // A cookie the database doesn't know is never adopted: mint a fresh one.
     const session = known && sid ? sid : randomBytes(32).toString("base64url");
@@ -139,6 +151,10 @@ export function createApp(root: string, store: Store, table: Table): Hono {
     if (body && ("name" in body || "role" in body)) {
       const asked = seatRequest(c, body);
       if (asked instanceof Response) return asked;
+      // A founder refused a seat makes no room (review R3): vet the seat against an empty fight, unsaved, first.
+      const sid = getCookie(c, COOKIE);
+      const refused = vetSeat(c, sid ? store.characterBySession(sessionKey(sid)) : null, asked.name, asked.role, createBattle("unminted", false, Date.now()));
+      if (refused instanceof Response) return refused;
       const room = table.createRoom();
       const seat = await seatIn(c, () => table.room(room.code)?.battleId ?? null, asked);
       if (seat instanceof Response) return seat;
