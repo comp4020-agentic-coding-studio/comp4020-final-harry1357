@@ -151,8 +151,12 @@ async function choose(action: ActionId, targetId: string | null): Promise<void> 
     `/api/battles/${app.battleId}/actions`,
     targetId && targetId !== "orrery" ? { action, targetId } : { action },
   );
-  // Refused means dropped: say so, and wait for the server's next word.
-  if (!res.ok) say(res.error ?? "That didn't go through.");
+  // Refused means dropped: say so. The server took nothing, so nothing moved and it broadcasts nothing; the
+  // window goes back to what its last word says (still your turn), not dark until the timeout (review R1).
+  if (!res.ok) {
+    say(res.error ?? "That didn't go through.");
+    if (app.state) onState(app.state);
+  }
 }
 
 function onState(state: BattleState): void {
