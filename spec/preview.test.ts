@@ -41,13 +41,15 @@ describe("the ghost is the server's", () => {
     const e = await engine();
     let b = table(e, ["striker", "warden"]);
     const scanned = structuredClone(b);
-    for (const r of scanned.rings) r.weakness = r.element; // every weakness known: a Jab resonates
+    for (const r of scanned.rings) r.weakness = r.element; // every weakness known: a Cleave resonates
     b = e.plate(scanned, "striker-1", clock());
-    const jab = previewOf(e, b)?.actions.jab;
-    expect(jab?.resonance, "a Jab on a known weakness is previewed as a Resonance").toBe(true);
-    expect(jab?.counter, "at the refunded rank's counter").toBe(fighter(e.act(b, "striker-1", "jab", null, clock()).battle, "striker-1").counter);
+    const cleave = previewOf(e, b)?.actions.cleave;
+    expect(cleave?.resonance, "a Cleave on a known weakness is previewed as a Resonance").toBe(true);
+    expect(cleave?.counter, "at the refunded rank's counter").toBe(fighter(e.act(b, "striker-1", "cleave", null, clock()).battle, "striker-1").counter);
+    // Jab is rank 1, already the floor (rule 14: never below 1): nothing to refund.
+    expect(previewOf(e, b)?.actions.jab?.resonance, "a Jab has no rank to refund, weakness or not").toBe(false);
     expect(previewOf(e, b)?.actions.finisher?.refusal, "a Finisher with no Momentum is previewed with the server's refusal").toMatch(/Momentum/);
-    expect(jab?.refusal, "an allowed action has no refusal").toBeNull();
+    expect(cleave?.refusal, "an allowed action has no refusal").toBeNull();
   });
 
   it("previews nothing while the clock runs or the Orrery is on the plate", async () => {
