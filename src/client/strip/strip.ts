@@ -201,6 +201,8 @@ export function createStrip(root: HTMLElement, opts: PartsOptions): Strip {
   /** The state last drawn, for the moments and the ghost to read. Never changed here. */
   let latest: BattleState | null = null;
   let ghost: { actorId: string; preview: ActionPreview; li: HTMLLIElement } | null = null;
+  /** Where the lanes were scrolled before a ghost scrolled them to show itself. */
+  let scrolledFrom: { left: number; top: number } | null = null;
   let beatId: string | null = null;
   let beatTimer: ReturnType<typeof setInterval> | null = null;
   const timers = new Map<string, ReturnType<typeof setTimeout>>();
@@ -628,6 +630,12 @@ export function createStrip(root: HTMLElement, opts: PartsOptions): Strip {
   function clearGhost(): void {
     ghost?.li.remove();
     ghost = null;
+    // Hand back whatever the ghost scrolled to show itself.
+    if (scrolledFrom) {
+      lanes.scrollLeft = scrolledFrom.left;
+      lanes.scrollTop = scrolledFrom.top;
+      scrolledFrom = null;
+    }
   }
 
   /** Scroll the strip's own lanes, never the page, until `node` is in view: a ghost below the fold can't be read. */
@@ -635,6 +643,7 @@ export function createStrip(root: HTMLElement, opts: PartsOptions): Strip {
     const box = node.getBoundingClientRect();
     const port = lanes.getBoundingClientRect();
     if (box.width === 0 && box.height === 0) return;
+    scrolledFrom ??= { left: lanes.scrollLeft, top: lanes.scrollTop };
     const margin = 8;
     if (box.bottom > port.bottom) lanes.scrollTop += box.bottom - port.bottom + margin;
     else if (box.top < port.top) lanes.scrollTop -= port.top - box.top + margin;
