@@ -59,12 +59,16 @@ export function createSeats(root: HTMLElement, opts: SeatsOptions): Seats {
 
   let busy = false;
   let shownKey = "";
+  /** The last state drawn, so a finished press can redraw at once: a waiting room sends nothing until its pull. */
+  let last: [BattleState, string | null, string | null] | null = null;
 
   function render(state: BattleState, myId: string | null, roomCode: string | null): void {
+    last = [state, myId, roomCode];
     const seats = [...state.queue, ...state.fallen].filter((t) => t.kind === "character");
     const echoCount = seats.filter((t) => t.seatedBy !== null).length;
     const seated = !!myId && state.queue.some((t) => t.id === myId);
     const key = JSON.stringify([
+      busy,
       roomCode,
       state.room?.isPublic ?? null,
       myId,
@@ -141,8 +145,8 @@ export function createSeats(root: HTMLElement, opts: SeatsOptions): Seats {
       refused = "The table couldn't seat the Echo.";
     }
     busy = false;
-    shownKey = ""; // redraw from the next state, whatever it says
     said.textContent = refused ?? `A ${label(role)} Echo takes a seat.`;
+    if (last) render(...last); // the buttons come back now, not at the next broadcast
   }
 
   return { render };
