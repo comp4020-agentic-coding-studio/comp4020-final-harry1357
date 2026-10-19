@@ -199,6 +199,8 @@ export function takeTurn(ctx: Ctx): void {
       actorId: BOSS_ID,
       flipped: false,
       cancelledBy: by,
+      cardId: card.id,
+      slots: [],
     });
   }
 
@@ -276,6 +278,12 @@ export function freezeCard(ctx: Ctx, cardId: string, by: Fighter): void {
 export function retargetCard(ctx: Ctx, cardId: string, toId: string): void {
   const card = ctx.b.cards.find((c) => c.id === cardId);
   if (card) card.targetId = toId;
+}
+
+/** How many Alignments are still to resolve before the wipe, once the Grand Alignment has begun (phase III); null before. For the strip's clock. */
+export function alignmentLeft(b: Battle): number | null {
+  if (b.phase !== 3) return null;
+  return Math.max(0, ALIGNMENT_STEPS - script(b).aligned);
 }
 
 /** The soonest card that passes the filter: lowest countdown, first on the strip on a tie. */
@@ -369,9 +377,9 @@ function resolve(ctx: Ctx, card: BossCard): void {
     case "lunge":
       return lunge(ctx, card);
     case "retrograde":
-      return retrograde(ctx);
+      return retrograde(ctx, card);
     case "alignment":
-      return alignment(ctx);
+      return alignment(ctx, card);
   }
 }
 
@@ -381,6 +389,7 @@ function revolution(ctx: Ctx, card: BossCard): void {
     kind: "revolution",
     actorId: BOSS_ID,
     hits,
+    cardId: card.id,
   });
   downTheFallen(ctx);
 }
@@ -392,7 +401,7 @@ function perihelion(ctx: Ctx, card: BossCard): void {
     "boss",
     BOSS_ID,
     `Perihelion: the Orrery swings closest and burns ${amount} into everyone${broken ? ", its outer ring Broken and its heat halved" : ""}${bastion}.`,
-    { kind: "perihelion", actorId: BOSS_ID, hits, broken },
+    { kind: "perihelion", actorId: BOSS_ID, hits, broken, cardId: card.id },
   );
   downTheFallen(ctx);
 }
@@ -407,9 +416,9 @@ function spent(ctx: Ctx, card: BossCard, what: string): void {
   const text = `${what} finds no one where ${named} stood, and passes over the table.`;
   const targetId = card.targetId ?? "";
   if (card.intent === "lunge") {
-    ctx.say("boss", BOSS_ID, text, { kind: "lunge", actorId: BOSS_ID, targetId, amount: 0, gravity: 0, spent: true });
+    ctx.say("boss", BOSS_ID, text, { kind: "lunge", actorId: BOSS_ID, targetId, amount: 0, gravity: 0, spent: true, cardId: card.id });
   } else {
-    ctx.say("boss", BOSS_ID, text, { kind: "eclipse", actorId: BOSS_ID, targetId, amount: 0, spent: true });
+    ctx.say("boss", BOSS_ID, text, { kind: "eclipse", actorId: BOSS_ID, targetId, amount: 0, spent: true, cardId: card.id });
   }
 }
 
@@ -422,6 +431,7 @@ function eclipse(ctx: Ctx, card: BossCard): void {
     actorId: BOSS_ID,
     targetId: target.id,
     amount: taken,
+    cardId: card.id,
   });
   downTheFallen(ctx);
 }
@@ -456,7 +466,7 @@ function lunge(ctx: Ctx, card: BossCard): void {
     "boss",
     BOSS_ID,
     `Lunge: the Orrery drives at ${target.name} for ${taken}, and the well's pull on them grows to ${gravity}.`,
-    { kind: "lunge", actorId: BOSS_ID, targetId: target.id, amount: taken, gravity },
+    { kind: "lunge", actorId: BOSS_ID, targetId: target.id, amount: taken, gravity, cardId: card.id },
   );
   if (lethal || anchoredBy) {
     ctx.say(
@@ -477,7 +487,7 @@ function lunge(ctx: Ctx, card: BossCard): void {
  * tick where a tie would let the seat order undo the flip, and rules.ts
  * finish() re-sorts the strip into the reversed order.
  */
-function retrograde(ctx: Ctx): void {
+function retrograde(ctx: Ctx, card: BossCard): void {
   const next = ctx.b.standing.filter((f) => f.kind === "character").slice(0, RETROGRADE_SLOTS);
   const waits = next.map((f) => f.counter).sort((x, y) => x - y);
   const flipped = [...next].reverse();
@@ -491,12 +501,12 @@ function retrograde(ctx: Ctx): void {
     next.length > 1
       ? `Retrograde: the Orrery runs backwards. ${listNames(next)} now come round as ${listNames(flipped)}.`
       : "Retrograde: the Orrery runs backwards, but there's nobody to turn about.",
-    { kind: "retrograde", actorId: BOSS_ID, flipped: next.length > 1, cancelledBy: null },
+    { kind: "retrograde", actorId: BOSS_ID, flipped: next.length > 1, cancelledBy: null, cardId: card.id, slots: next.map((f) => f.id) },
   );
   if (next.length > 1) roles.stripMoved(ctx);
 }
 
-function alignment(ctx: Ctx): void {
+function alignment(ctx: Ctx, card: BossCard): void {
   const s = script(ctx.b);
   s.aligned += 1;
   const countdown = Math.max(0, ALIGNMENT_STEPS - s.aligned);
@@ -508,7 +518,7 @@ function alignment(ctx: Ctx): void {
     wipe
       ? "The Grand Alignment is complete. Every ring stands in line, and nothing at the table survives it."
       : `The rings creep into line: ${countdown} more ${countdown === 1 ? "Alignment" : "Alignments"} and the Grand Alignment is complete.`,
-    { kind: "alignment", actorId: BOSS_ID, countdown, wipe },
+    { kind: "alignment", actorId: BOSS_ID, countdown, wipe, cardId: card.id },
   );
   downTheFallen(ctx);
 }

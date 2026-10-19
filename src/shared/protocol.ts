@@ -270,6 +270,8 @@ export interface BattleState {
    *  them (rule 1: the client draws this ghost and never computes it). Null while
    *  the clock runs, or when the Orrery is on the plate. */
   preview: { actorId: string; actions: Partial<Record<ActionId, ActionPreview>> } | null;
+  /** How many Alignments are still to resolve before the Grand Alignment's wipe; null before phase III. */
+  alignmentLeft: number | null;
   /** The roles an Echo can still be seated as in this fight (rule 25): one per
    *  role, four at most, none once the fight is over. The server decides it;
    *  the client offers exactly these. */
@@ -394,15 +396,17 @@ export type BattleEvent =
   | Boss<"pull", { seats: number; maxHp: number }>
   | Boss<"phase", { phase: 2 | 3 }>
   | Boss<"break", { ringId: RingId; by: string }>
-  | Boss<"revolution", { hits: Hit[] }>
+  // cardId: the strip card that resolved into this event (phase two).
+  | Boss<"revolution", { hits: Hit[]; cardId: string }>
   // `spent`: the card's target had fallen or left, so it landed on nobody and
   // passes over (rule 19; review F8, R1). Drawn as passing, never as a hit.
-  | Boss<"eclipse", { targetId: string; amount: number; spent?: true }>
-  | Boss<"lunge", { targetId: string; amount: number; gravity: number; spent?: true }>
+  | Boss<"eclipse", { targetId: string; amount: number; spent?: true; cardId: string }>
+  | Boss<"lunge", { targetId: string; amount: number; gravity: number; spent?: true; cardId: string }>
   | Boss<"gravity", { targetId: string; anchoredBy: string | null; lethal: boolean }>
-  | Boss<"perihelion", { hits: Hit[]; broken: boolean }>
-  | Boss<"retrograde", { flipped: boolean; cancelledBy: string | null }>
-  | Boss<"alignment", { countdown: number; wipe: boolean }>;
+  | Boss<"perihelion", { hits: Hit[]; broken: boolean; cardId: string }>
+  // slots: the portraits it turned about, in the order they stood (none when cancelled).
+  | Boss<"retrograde", { flipped: boolean; cancelledBy: string | null; cardId: string; slots: string[] }>
+  | Boss<"alignment", { countdown: number; wipe: boolean; cardId: string }>;
 
 /** One member per kind, so this never collapses to `never` (a member whose kind was a pair did). */
 export type EventOf<K extends EventKind> = Extract<BattleEvent, { kind: K }>;
