@@ -412,7 +412,8 @@ the rules.
   the client is built, so after a client change rebuild and reload. After a
   server change restart the process, which ends every fight in progress, by
   design. Env: `PORT`, `DATABASE_PATH`, `TICK_MS` (150), `TURN_TIMEOUT_MS`
-  (12000), `ECHO_BEAT_MS` (3000), `ROOM_EMPTY_MS` (900000).
+  (12000), `ECHO_BEAT_MS` (3000), `ROOM_EMPTY_MS` (900000), `DROP_AFTER_MS`
+  (600000: how long an ended fight stays in memory).
 - **`pnpm check` needs the app running**, because the specs run over HTTP.
   Three exceptions boot or drive something of their own:
   - `spec/restart.test.ts`, `spec/pacing.test.ts` and the first test in

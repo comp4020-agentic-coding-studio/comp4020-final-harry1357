@@ -7,7 +7,7 @@ import { join, resolve } from "node:path";
 import { WebSocketServer } from "ws";
 import { createApp } from "./app.ts";
 import { openStore } from "./db.ts";
-import { createTable } from "./table.ts";
+import { createTable, DROP_AFTER_MS } from "./table.ts";
 import { ROOM_EMPTY_MS } from "./tuning.ts";
 
 /** The repo root (/app in the image), whatever directory the process was started from. */
@@ -33,7 +33,9 @@ const databasePath = resolve(process.env.DATABASE_PATH || "/data/raid.db");
 const store = openStore(databasePath, join(ROOT, "drizzle"));
 const closed = store.closeLiveBattles(Date.now());
 const roomEmptyMs = intEnv("ROOM_EMPTY_MS", ROOM_EMPTY_MS);
-const table = createTable(store, turnMs, tickMs, beatMs, roomEmptyMs);
+// How long an ended fight stays in memory; short in a spec that needs it gone (breaker B3).
+const dropAfterMs = intEnv("DROP_AFTER_MS", DROP_AFTER_MS);
+const table = createTable(store, turnMs, tickMs, beatMs, roomEmptyMs, dropAfterMs);
 const app = createApp(ROOT, store, table);
 
 const server = serve(

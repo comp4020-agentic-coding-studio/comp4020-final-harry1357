@@ -14,13 +14,22 @@ import { act, advance, close, createBattle, isEnded, join, seatEcho, type Battle
 import { ROOM_EMPTY_MS } from "./tuning.ts";
 import { archived, view } from "./view.ts";
 
-/** How long an ended battle stays in memory before only the database has it. */
-const DROP_AFTER_MS = 10 * 60 * 1000;
+/** How long an ended battle stays in memory before only the database has it. DROP_AFTER_MS overrides it. */
+export const DROP_AFTER_MS = 10 * 60 * 1000;
 
 export type Table = ReturnType<typeof createTable>;
 
-export function createTable(store: Store, turnMs: number, tickMs: number, beatMs?: number, roomEmptyMs: number = ROOM_EMPTY_MS) {
+export function createTable(
+  store: Store,
+  turnMs: number,
+  tickMs: number,
+  beatMs?: number,
+  roomEmptyMs: number = ROOM_EMPTY_MS,
+  dropAfterMs: number = DROP_AFTER_MS,
+) {
   const battles = new Map<string, Battle>();
+  /** A private room's ended fights that have left memory, and the room each is behind, while the room is open (breaker B3). */
+  const droppedBehind = new Map<string, string>();
   /** Hashed session → character, for everyone seated since boot. Only they can be standing. */
   const sessions = new Map<string, string>();
   const rooms = createRooms();
@@ -78,6 +87,8 @@ export function createTable(store: Store, turnMs: number, tickMs: number, beatMs
     for (const room of rooms.expired(now, roomEmptyMs)) {
       // Out of the registry first, so the closing fight doesn't open a successor.
       rooms.remove(room.code);
+      // The room's gone, so its fights already out of memory are readable by id now (rule 26).
+      for (const [id, code] of droppedBehind) if (code === room.code) droppedBehind.delete(id);
       const b = battles.get(room.battleId);
       try {
         if (b && !isEnded(b)) apply(close(b, "The room closed: nobody had been seated at the table for too long.", clock()));
@@ -119,7 +130,9 @@ export function createTable(store: Store, turnMs: number, tickMs: number, beatMs
     for (const b of [...battles.values()]) {
       try {
         if (isEnded(b)) {
-          if (b.endedAt !== null && c.now - b.endedAt > DROP_AFTER_MS) {
+          if (b.endedAt !== null && c.now - b.endedAt > dropAfterMs) {
+            // Out of memory, still behind its code while its private room is open.
+            if (b.room !== null && !b.isPublic && rooms.get(b.room) !== null) droppedBehind.set(b.id, b.room);
             battles.delete(b.id);
             hub.dropped(b.id);
           }
@@ -139,10 +152,14 @@ export function createTable(store: Store, turnMs: number, tickMs: number, beatMs
    * battle id. That holds for the room's finished fights too, whose state
    * carries the open room's code (re-review N1). The public raid isn't a
    * secret, and once a room is gone its fights are readable by id (rule 26).
+   * A finished fight that has left memory is still behind its room's code
+   * while the room is open (breaker B3).
    */
   function behindCode(battleId: string): boolean {
     const b = battles.get(battleId);
-    return !!b && b.room !== null && !b.isPublic && rooms.get(b.room) !== null;
+    if (b) return b.room !== null && !b.isPublic && rooms.get(b.room) !== null;
+    const code = droppedBehind.get(battleId);
+    return code !== undefined && rooms.get(code) !== null;
   }
 
   /** The state of a battle: live from memory, or what the database keeps of one that's over. */

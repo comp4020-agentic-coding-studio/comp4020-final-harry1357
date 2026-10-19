@@ -523,6 +523,34 @@ describe("rooms expire; logs don't", () => {
     }
   }, 20_000);
 
+  it("a private room's finished fight stays behind its code once it leaves memory (B3)", async () => {
+    // Phase two's gate, the breaker's B3 (rule 22: "none of its fights, live
+    // or finished, is joined, watched or read by battle id" while the room is
+    // open): an ended fight leaves memory after a while, and then it was
+    // served by id, log and socket, the room still open. A fast clock, four
+    // Echoes and a founder who times out play the fight to its end; the drop
+    // is made short so the test needn't wait ten minutes.
+    server = await boot(scratchDatabase(), { TICK_MS: "5", TURN_TIMEOUT_MS: "250", ECHO_BEAT_MS: "100", DROP_AFTER_MS: "300" });
+    const res = await fetch(new URL("/api/rooms", server.base), {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ name: `kept-${suffix()}`, role: "striker" }),
+    });
+    expect(res.status, "the room made and its founder seated").toBe(201);
+    const made = (await res.json()) as { code: string; battleId: string };
+    const cookie = res.headers.getSetCookie().map((c) => c.split(";")[0]).join("; ");
+    for (const role of ["warden", "mender", "breaker", "chronist"]) expect((await seatEcho(server.base, made.code, cookie, role)).status).toBe(201);
+    for (const deadline = Date.now() + 60_000; ; await sleep(200)) {
+      const now = await room(server.base, made.code);
+      if (now.room && now.room.battleId !== made.battleId) break;
+      if (Date.now() > deadline) throw new Error("the room's first fight never ended in 60s");
+    }
+    await sleep(1_000); // past the drop
+    expect((await room(server.base, made.code)).status, "the room is still open").toBe(200);
+    expect((await fetch(new URL(`/api/battles/${made.battleId}`, server.base))).status, "its finished fight isn't read by id").toBe(404);
+    expect((await fetch(new URL(`/api/battles/${made.battleId}/log`, server.base))).status, "nor its log").toBe(404);
+  }, 90_000);
+
   it("a founder refused a seat makes no room", async () => {
     // Phase two's gate, the reviewer's R3 and T8: asking for a room with a name
     // and a role is sitting down in it (rule 22), so a seat refused is a room
