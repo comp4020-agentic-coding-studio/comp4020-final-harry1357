@@ -790,6 +790,13 @@
     bottom: 4%;
     width: 52%;
   }
+
+  /* Five at the table (one person and four Echoes, say): the row widens into
+     the gap before the Orrery and closes up, so nobody stands off the edge. */
+  #battle .party:has(> .actor:nth-child(5)) {
+    width: 58%;
+    gap: 0.25rem;
+  }
 }
 
 @media (width > 46rem) and (height < 900px) {
