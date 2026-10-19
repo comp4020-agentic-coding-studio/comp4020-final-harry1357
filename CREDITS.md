@@ -39,6 +39,9 @@ of `sparklinlabs/superpowers-asset-packs`.
 | `party/herald/sheet.png` | https://github.com/sparklinlabs/superpowers-asset-packs/blob/e8674a03ab4456802f71f848c4df79eccca23f7a/rpg-battle-system/char/mage/sprite-sheet-151x100.png | Pixel-boy (Sparklin Labs) | CC0-1.0 | "mage", unmodified; 5×4 cells of 151×100 |
 | `party/herald/portrait.png` | https://github.com/sparklinlabs/superpowers-asset-packs/blob/e8674a03ab4456802f71f848c4df79eccca23f7a/rpg-battle-system/char/mage/faceset.png | Pixel-boy (Sparklin Labs) | CC0-1.0 | unmodified |
 | `party/herald/down.png` | derived from https://github.com/sparklinlabs/superpowers-asset-packs/blob/e8674a03ab4456802f71f848c4df79eccca23f7a/rpg-battle-system/char/mage/sprite-sheet-151x100.png by `scripts/assets/derive-down.ts` | Pixel-boy (Sparklin Labs); derivation by this repo | CC0-1.0 | the last hurt frame, laid flat (rotated 90°) |
+| `party/chronist/sheet.png` | https://github.com/sparklinlabs/superpowers-asset-packs/blob/e8674a03ab4456802f71f848c4df79eccca23f7a/rpg-battle-system/char/bowman/sprite-sheet-158x173.png | Pixel-boy (Sparklin Labs) | CC0-1.0 | "bowman", unmodified; 8×6 cells of 158×173; the Chronist, whose raised-bow cast in a cyan circle is its time magic |
+| `party/chronist/portrait.png` | https://github.com/sparklinlabs/superpowers-asset-packs/blob/e8674a03ab4456802f71f848c4df79eccca23f7a/rpg-battle-system/char/bowman/faceset.png | Pixel-boy (Sparklin Labs) | CC0-1.0 | unmodified |
+| `party/chronist/down.png` | derived from https://github.com/sparklinlabs/superpowers-asset-packs/blob/e8674a03ab4456802f71f848c4df79eccca23f7a/rpg-battle-system/char/bowman/sprite-sheet-158x173.png by `scripts/assets/derive-down.ts` | Pixel-boy (Sparklin Labs); derivation by this repo | CC0-1.0 | the idle frame laid back (rotated 90°), as the knight's; its crouched flinch stands on end when turned |
 
 ## Original to this repo
 

@@ -25,7 +25,7 @@ const anim = (from: number, to: number, fps: number, loop = false): Animation =>
   loop,
 });
 
-export const ROLE_ART: Record<"bulwark" | "lancer" | "mender" | "herald", RoleArt> = {
+export const ROLE_ART: Record<"bulwark" | "lancer" | "mender" | "herald" | "chronist", RoleArt> = {
   // "warrior2": the shield knight
   bulwark: {
     dir: "party/bulwark",
@@ -42,7 +42,15 @@ export const ROLE_ART: Record<"bulwark" | "lancer" | "mender" | "herald", RoleAr
     cell: [240, 104],
     columns: 5,
     downFrom: 17,
-    animations: { idle: anim(0, 4, 8, true), attack: anim(5, 11, 12), hurt: anim(16, 17, 8), guard: anim(12, 15, 10) },
+    // jab: the quick blow, ready to lunge to recover, without the attack's
+    // shield-forward wind-up (frames 6-8) that a Cleave's full swing has
+    animations: {
+      idle: anim(0, 4, 8, true),
+      attack: anim(5, 11, 12),
+      hurt: anim(16, 17, 8),
+      guard: anim(12, 15, 10),
+      jab: { frames: [5, 9, 10, 11], fps: 14, loop: false },
+    },
   },
   // "Wizard": robe, hat and staff; the cast is the glow before the fireball, not the fireball
   mender: {
@@ -59,6 +67,25 @@ export const ROLE_ART: Record<"bulwark" | "lancer" | "mender" | "herald", RoleAr
     columns: 5,
     downFrom: 15,
     animations: { idle: anim(0, 4, 8, true), attack: anim(5, 6, 8), hurt: anim(14, 15, 8), special: anim(7, 13, 14) },
+  },
+  // "bowman": the Chronist. Its draw and release is the attack; the bow raised
+  // inside a cyan clock-circle is its cast (Haste, Delay, Stillpoint: time
+  // bent), and the circle loosed as an arrow its special. Read off the sheet:
+  // idle row 0, attack row 1, cast rows 2-3, special row 4, hurt row 5.
+  chronist: {
+    dir: "party/chronist",
+    cell: [158, 173],
+    columns: 8,
+    // like the knight: the crouched flinch, turned, stands on end; the idle
+    // pose, turned, lies back with the bow up
+    downFrom: 0,
+    animations: {
+      idle: anim(0, 7, 8, true),
+      attack: anim(8, 15, 12),
+      hurt: anim(43, 45, 10),
+      cast: anim(20, 31, 14),
+      special: anim(32, 39, 14),
+    },
   },
 };
 
