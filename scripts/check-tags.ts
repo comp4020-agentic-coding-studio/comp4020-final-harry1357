@@ -114,6 +114,9 @@ const COLLECT = (root: string, field: string): string => `(() => {
     // whose content is wider or taller than its box while it hides overflow.
     for (const el of [plate, ...plate.querySelectorAll("*")]) {
       if (!shown(el) || !(el.textContent || "").trim()) continue;
+      // Screen-reader words are clipped to 1px on purpose; a name nobody sees isn't cut off (as for sprites, below).
+      const r = el.getBoundingClientRect();
+      if (r.width <= 1 && r.height <= 1) continue;
       const s = getComputedStyle(el);
       // (an ellipsis only ever shows where overflow is hidden, so this covers it)
       const hidesX = s.overflowX !== "visible";
@@ -198,7 +201,7 @@ async function selfTest(page: Page): Promise<void> {
   // and whether the plate names its owner by value or by sitting beside it.
   // `whole`: the scene's shape, where [data-sprite] is the member itself and
   // holds its art and its own plate; otherwise sprite and plate are siblings.
-  type Member = { plate: [number, number]; sprite?: [number, number, number, number]; byValue?: boolean; name?: string; clip?: boolean; whole?: boolean };
+  type Member = { plate: [number, number]; sprite?: [number, number, number, number]; byValue?: boolean; name?: string; clip?: boolean; whole?: boolean; said?: string };
   const plant = (members: Member[]): string => `(() => {
     const host = document.createElement("div");
     host.dataset.plateFixture = "";
@@ -217,6 +220,13 @@ async function selfTest(page: Page): Promise<void> {
       name.textContent = m.name || ("P" + i);
       name.style.cssText = m.clip ? "display:block;width:40px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis" : "display:block";
       plate.append(name);
+      if (m.said) {
+        // the plate's words for a screen reader: the page's own 1px clip, on purpose
+        const said = document.createElement("span");
+        said.className = "visually-hidden";
+        said.textContent = m.said;
+        plate.append(said);
+      }
       member.append(sprite, plate);
       host.append(member);
     });
@@ -253,6 +263,8 @@ async function selfTest(page: Page): Promise<void> {
     },
     { what: "a plate that clips its name", members: [{ plate: [10, 10], name: longName(7), clip: true }], expect: 1 },
     { what: "a plate that shows its whole name", members: [{ plate: [10, 10], name: "Ada" }], expect: 0 },
+    { what: "a plate whose screen-reader words are clipped to 1px on purpose", members: [{ plate: [10, 10], name: "Ada", said: longName(7) }], expect: 0 },
+    { what: "a plate that clips its name beside its screen-reader words", members: [{ plate: [10, 10], name: longName(7), clip: true, said: longName(6) }], expect: 1 },
   ];
   for (const c of cases) {
     const found = await run(c.members);
@@ -260,7 +272,9 @@ async function selfTest(page: Page): Promise<void> {
       throw new ProbeError(`self-test: ${c.what} gave ${found.length} finding(s), expected ${c.expect}${found.length ? `: ${found.join("; ")}` : ""}`);
     }
   }
-  console.log("✓ self-test: a planted overlap, covered plate and clipped name are seen; touching plates and a sprite over its own plate are not");
+  console.log(
+    "✓ self-test: a planted overlap, covered plate and clipped name are seen; touching plates, a sprite over its own plate and 1px screen-reader words are not",
+  );
 }
 
 /** The page's own session cookie, HttpOnly and all, as a Cookie header. */
