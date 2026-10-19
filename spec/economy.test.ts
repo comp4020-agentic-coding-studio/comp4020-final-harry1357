@@ -238,8 +238,11 @@ describe("the action economy", () => {
 
   it("each player has one Reaction per boss turn, against a card already on the strip", async () => {
     const e = await engine();
-    let b = table(e, ["warden", "striker"]);
-    b = e.announce(b, { intent: "eclipse", targetId: "striker-2", amount: 30, countdown: 1 });
+    // The strip cleared first: a Reaction answers only the card the server names, the soonest it
+    // can (rule 2; phase two's gate, B1), and the Orrery's own cards could come before this one.
+    const clean = structuredClone(table(e, ["warden", "striker"]));
+    clean.cards = [];
+    const b = e.announce(clean, { intent: "eclipse", targetId: "striker-2", amount: 30, countdown: 1 });
     const card = announced(b);
     expect(fighter(b, "warden-1").reactionReady, "a Reaction is ready at the start").toBe(true);
 

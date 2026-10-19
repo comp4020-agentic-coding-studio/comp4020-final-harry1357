@@ -41,7 +41,7 @@
 //   "system" lines; a timeout writes its "timeout" line (spec/pacing.test.ts
 //   counts those).
 
-import { ACTIONS, type ActionId, type ExposedStack, type RingId, type RoleId } from "../shared/protocol.ts";
+import { ACTIONS, ROLES, type ActionId, type BossCard, type ExposedStack, type RingId, type RoleId } from "../shared/protocol.ts";
 import { ATTACK_RANK } from "./ctb.ts";
 import { STATS } from "./roles.ts";
 import { reset, wound, type Battle, type Ctx, type Fighter, type Refusal } from "./rules.ts";
@@ -159,6 +159,36 @@ export function checkReaction(b: Battle, actor: Fighter, action: ActionId, cardI
   if (!actor.reactionReady) return { status: 409, error: "You've used your Reaction; it comes back after the Orrery's next turn." };
   const card = cardId === null ? undefined : b.cards.find((c) => c.id === cardId);
   if (!card) return { status: 409, error: "There's no announced card on the strip to react to." };
+  const refused = answers(b, actor, action, card);
+  if (refused) return refused;
+  // Live only against the card the server names (rule 2; the token's reactionCard): the soonest it answers.
+  if (reactionCardOf(b, actor) !== card.id) {
+    return { status: 409, error: `${ACTIONS[action].label} answers the card the server names, the soonest it can; this one lands later.` };
+  }
+  return null;
+}
+
+/**
+ * The card this fighter's Reaction may answer now: the soonest card it would
+ * answer, first on the strip on a tie (rule 2, "the card the server names").
+ * Null when it has no Reaction, has spent it, or nothing it answers is up.
+ * The token's reactionCard, and the one card checkReaction takes.
+ */
+export function reactionCardOf(b: Battle, f: Fighter): string | null {
+  if (f.kind !== "character" || !f.reactionReady || b.status !== "fighting") return null;
+  const reactions = ROLES[f.role as RoleId].actions.filter((a) => ACTIONS[a].reaction);
+  let best: { id: string; countdown: number } | null = null;
+  for (const action of reactions) {
+    for (const card of b.cards) {
+      if (answers(b, f, action, card) !== null) continue;
+      if (!best || card.countdown < best.countdown) best = { id: card.id, countdown: card.countdown };
+    }
+  }
+  return best?.id ?? null;
+}
+
+/** Whether this Reaction could answer this card at all: what it's for, not which card is named. */
+function answers(b: Battle, actor: Fighter, action: ActionId, card: BossCard): Refusal | null {
   switch (action) {
     case "intercept": {
       // A single-target card: aimed at one character, not the room or the strip.

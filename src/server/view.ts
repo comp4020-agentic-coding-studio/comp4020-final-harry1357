@@ -9,7 +9,7 @@
 
 import { ACTIONS, ROLES, type ActionId, type ActionPreview, type BattleState, type BattleStatus, type LogEntry, type RoleId, type Token } from "../shared/protocol.ts";
 import { counterReset } from "./ctb.ts";
-import { checkReaction } from "./economy.ts";
+import { reactionCardOf } from "./economy.ts";
 import { alignmentLeft, bastionCard } from "./orrery.ts";
 import { previewRank } from "./roles.ts";
 import { act, checkAction, echoRolesOpen, plateMs, type Battle, type Fighter } from "./rules.ts";
@@ -18,23 +18,6 @@ export interface Timing {
   tickMs: number;
   turnMs: number;
   beatMs?: number;
-}
-
-/**
- * The card this fighter's Reaction may answer now: the soonest card the
- * server's own check would accept (rule 2, "the card the server names").
- */
-function reactionCard(b: Battle, f: Fighter): string | null {
-  if (f.kind !== "character" || !f.reactionReady || b.status !== "fighting") return null;
-  const reactions = ROLES[f.role as RoleId].actions.filter((a) => ACTIONS[a].reaction);
-  let best: { id: string; countdown: number } | null = null;
-  for (const action of reactions) {
-    for (const card of b.cards) {
-      if (checkReaction(b, f, action, card.id) !== null) continue;
-      if (!best || card.countdown < best.countdown) best = { id: card.id, countdown: card.countdown };
-    }
-  }
-  return best?.id ?? null;
 }
 
 /**
@@ -127,7 +110,7 @@ function token(f: Fighter, b: Battle): Token {
     reactionReady: f.reactionReady,
     warded: f.warded,
     seatedBy: f.seatedBy,
-    reactionCard: reactionCard(b, f),
+    reactionCard: reactionCardOf(b, f),
   };
 }
 

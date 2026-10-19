@@ -151,6 +151,24 @@ describe("the server names the card a Reaction answers", () => {
     expect(reactionCard(e, b, "warden-1"), "of two blows on allies, the one landing first").toBe(soonest);
   });
 
+  it("takes a Reaction only at the card it names (B1)", async () => {
+    // Phase two's gate, the breaker's B1 (rule 2: a Reaction is live "only
+    // against the card the server names"): with two blows on allies on the
+    // strip, the server named the soonest and accepted an Intercept at the other.
+    const e = await engine();
+    let b = table(e, ["warden", "mender", "striker"]);
+    const clean = structuredClone(b);
+    clean.cards = [];
+    b = e.announce(clean, { intent: "eclipse", targetId: "mender-2", amount: 20, countdown: 1 });
+    b = e.announce(b, { intent: "lunge", targetId: "striker-3", amount: 16, countdown: 0 });
+    const named = reactionCard(e, b, "warden-1");
+    const other = b.cards.find((c) => c.id !== named && c.intent === "eclipse")!.id;
+    const refused = e.checkAction(b, "warden-1", "intercept", other) as { status?: number; error?: string };
+    expect(refused.status, "an Intercept at the card the server didn't name is refused").toBe(409);
+    expect(refused.error, "and says which it answers").toMatch(/names|first/);
+    expect("status" in (e.checkAction(b, "warden-1", "intercept", named) as object), "at the card it named, taken").toBe(false);
+  });
+
   it("names no card the Reaction couldn't answer", async () => {
     const e = await engine();
     let b = table(e, ["warden", "mender"]);
