@@ -179,3 +179,71 @@ describe("reduced motion", () => {
     }
   });
 });
+
+// Phase two's gate, the reviewer's T1: EXPECTED_STATE is declared by the code
+// it holds, and its matcher can't name an event's own fields, so the field
+// that carries an event's meaning was a wildcard: an Alignment drawn as a wipe
+// every time, a Chain always broken, a Retrograde always flipped, an Echo mark
+// that never comes off, an empty end banner, a raid-wide blow flashing one
+// target, all passed; and full variants weren't run at all. These pins are the
+// spec's own, read off each event's fields, for both variants and both of an
+// event's branches. "=x" is the event's field x; a function reads the event;
+// "hit" stands for every target in the event's hits; ANY_BUT_NULL is anything
+// but null or undefined.
+const ANY_BUT_NULL = Symbol("any but null");
+type Pin = [string, ...unknown[]];
+const PINNED: Record<string, { branches: Record<string, unknown>[]; want: Pin[] }> = {
+  alignment: { branches: [{}, { countdown: 0, wipe: true }], want: [["strip.alignment", "=countdown", "=wipe"]] },
+  chain: { branches: [{}, { links: 0, broken: true }], want: [["strip.chain", "=links", "=broken"]] },
+  retrograde: {
+    branches: [{ slots: ["ally-1", "ally-2"] }, { flipped: false, cancelledBy: "ally-1", slots: [] }],
+    want: [["strip.retrograde", "=flipped", "=cancelledBy", "=slots"]],
+  },
+  echo: {
+    branches: [{}, { on: false }],
+    want: [
+      ["scene.echo", "me", "=on", "*"],
+      ["scene.drifting", "me", "=on"],
+      ["strip.flag", "me", (e: Record<string, unknown>) => (e.on ? "held" : "reclaimed")],
+    ],
+  },
+  end: { branches: [{}, { outcome: "lost" }, { outcome: "abandoned" }], want: [["scene.banner", ANY_BUT_NULL]] },
+  revolution: { branches: [{}], want: [["scene.hit", "hit"], ["scene.number", "hit", "*", "*"], ["scene.hp", "hit", "*", "*"]] },
+  perihelion: { branches: [{}], want: [["scene.hit", "hit"], ["scene.number", "hit", "*", "*"], ["scene.hp", "hit", "*", "*"]] },
+};
+
+function pinArg(arg: unknown, e: Record<string, unknown>): unknown {
+  if (typeof arg === "function") return (arg as (e: Record<string, unknown>) => unknown)(e);
+  if (typeof arg === "string" && arg.startsWith("=")) return e[arg.slice(1)];
+  return resolveArg(arg, e);
+}
+const pinned = (call: [string, ...unknown[]], want: Pin, e: Record<string, unknown>): boolean =>
+  call[0] === want[0] &&
+  want.slice(1).every((arg, i) => {
+    if (arg === "*") return true;
+    if (arg === ANY_BUT_NULL) return call[i + 1] !== null && call[i + 1] !== undefined;
+    const value = pinArg(arg, e);
+    return Array.isArray(value) ? JSON.stringify(call[i + 1]) === JSON.stringify(value) : Object.is(call[i + 1], value);
+  });
+/** A pin with "hit" in it stands for one pin per target the event hit. */
+const expand = (want: Pin, e: Record<string, unknown>): Pin[] =>
+  want.includes("hit") ? ((e.hits as { targetId: string }[]) ?? []).map((h) => want.map((a) => (a === "hit" ? h.targetId : a)) as Pin) : [want];
+
+describe("what each event means, drawn in both variants (T1)", () => {
+  for (const [kind, { branches, want }] of Object.entries(PINNED)) {
+    it(`"${kind}" draws what its fields say, full and reduced, on every branch`, async () => {
+      const mod = (await import(resolve("src/client/battle/registry.ts"))) as { RENDERERS: Record<string, { full: Effect; reduced: Effect }> };
+      for (const branch of branches) {
+        const e = { ...sample(kind), ...branch };
+        for (const variant of ["full", "reduced"] as const) {
+          const { made, ctx } = recordingContext(variant === "reduced");
+          await mod.RENDERERS[kind][variant](ctx, e);
+          for (const pin of want.flatMap((w) => expand(w, e))) {
+            const shown = pin.map((a) => (typeof a === "function" ? `=> ${String(pinArg(a, e))}` : a === ANY_BUT_NULL ? "(not null)" : a));
+            expect(made.some((call) => pinned(call, pin, e)), `"${kind}" (${variant}, ${JSON.stringify(branch)}) never made ${JSON.stringify(shown)}`).toBe(true);
+          }
+        }
+      }
+    });
+  }
+});
