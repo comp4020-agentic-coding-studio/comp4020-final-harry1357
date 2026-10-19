@@ -6,16 +6,31 @@
 // Numbers are state: one is drawn under any motion preference, and only its
 // pop-and-rise is CSS gated on no-preference. Everything else here is motion,
 // and the scene never calls it under reduced motion.
+//
+// A number's size is its share of the target's max HP, so a blow that takes a
+// fifth of someone is drawn larger than one that grazes the Orrery. Its tone
+// is never colour alone: harm is the bare figure, a heal carries "+", a blow a
+// Ward took is a shield glyph and the word WARD, and a Resonance (a weakness
+// or Broken ring struck) a star glyph. Harm on the Orrery is card-white and on
+// a person ember, so the side is drawn too.
 import type { Tone } from "../battle/api.ts";
 
 /** How long a number stays up. */
-const NUMBER_MS = 1_000;
+const NUMBER_MS = 1_100;
+/** A blow that takes this much of the target or more is drawn at full size, with the heavy outline. */
+const HEAVY_SHARE = 0.2;
 
 export type ProjectileKind = "slash" | "thrust" | "bolt" | "spark";
 
+export interface NumberLook {
+  /** amount ÷ the target's max HP, when known. */
+  share: number | null;
+  side: "boss" | "party";
+}
+
 export interface Fx {
   readonly layer: HTMLElement;
-  number(target: Element | null, id: string, amount: number, tone: Tone, seq?: number): void;
+  number(target: Element | null, id: string, amount: number, tone: Tone, seq: number | undefined, look: NumberLook): void;
   projectile(from: Element, to: Element, kind: ProjectileKind): Promise<void>;
   slash(target: Element): Promise<void>;
   pulse(from: Element): Promise<void>;
@@ -59,7 +74,7 @@ export function createFx(layer: HTMLElement): Fx {
   return {
     layer,
 
-    number(target, id, amount, tone, seq) {
+    number(target, id, amount, tone, seq, look) {
       const p = target ? at(target, 0.5, 0.28) : { x: layer.clientWidth * 0.5, y: layer.clientHeight * 0.4 };
       const stack = up.get(id) ?? 0;
       up.set(id, stack + 1);
@@ -67,11 +82,23 @@ export function createFx(layer: HTMLElement): Fx {
       node.dataset.number = "";
       node.dataset.target = id;
       node.dataset.tone = tone;
+      node.dataset.side = look.side;
       if (seq !== undefined) node.dataset.seq = String(seq);
       node.setAttribute("aria-hidden", "true"); // the log narrates it
       node.style.setProperty("--stack", String(stack));
+      // 0 → the smallest size, HEAVY_SHARE or more → the largest.
+      const share = look.share ?? 0.08;
+      node.style.setProperty("--size", Math.max(0, Math.min(1, share / HEAVY_SHARE)).toFixed(3));
+      if (share >= HEAVY_SHARE && tone !== "shield") node.dataset.heavy = "";
       const n = Math.abs(Math.round(amount));
-      node.textContent = tone === "heal" ? `+${n}` : String(n);
+      const text = tone === "heal" ? `+${n}` : tone === "shield" && n === 0 ? "WARD" : String(n);
+      if (tone === "shield" || tone === "resonance") {
+        const glyph = document.createElement("span");
+        glyph.className = "fx-number-glyph";
+        node.append(glyph, text);
+      } else {
+        node.textContent = text;
+      }
       setTimeout(() => {
         node.remove();
         const left = (up.get(id) ?? 1) - 1;

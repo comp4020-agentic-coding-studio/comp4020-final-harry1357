@@ -10,15 +10,27 @@
 //
 // It renders, it never decides (CLAUDE.md rule 1): who stands where follows
 // arrival, and every HP, mark and fall comes from the server's tokens.
-import { BOSS_ID, type BattleState, type Ring, type RoleId } from "../../shared/protocol.ts";
+//
+// Phase two: reconcile() also draws, from the state and on every call, each
+// character's status marks, Echo, drifting and Ward, the server's rings on the
+// Orrery's rings, and the Orrery's phase, so a page that joins late sees the
+// same marks as one that watched them happen. The two new motions are the
+// anticipation (windUp: a sprite or the Orrery draws back) and the hit-stop
+// (hitStop: the whole field holds for a few frames on impact).
+import { BOSS_ID, type BattleState, type Ring, type RoleId, type Token } from "../../shared/protocol.ts";
 import type { Anim, PartsOptions, Scene, StatusMark, Tone } from "../battle/api.ts";
 import { createFx } from "./fx.ts";
+import { marksOf } from "./marks.ts";
 import { createOrrery } from "./orrery.ts";
 import { createParty, type Actor } from "./party.ts";
 
 /** How long an entrance or an exit takes under no-preference (scene.css matches). */
 const ENTER_MS = 700;
 const LEAVE_MS = 650;
+/** The anticipation before an action lands (docs/design/overhaul.md: 0.2-0.3 s). */
+const WINDUP_MS = 240;
+/** The hit-stop: a few frames' hold on impact. */
+const HITSTOP_MS = 90;
 
 function div(className: string, hook?: string): HTMLDivElement {
   const node = document.createElement("div");
@@ -63,6 +75,36 @@ export function createScene(root: HTMLElement, { manifest, orrerySvg }: PartsOpt
   const summoned = new Set<string>();
   const leaving = new Map<string, number>();
   let targeted: HTMLElement | null = null;
+  /** Each combatant's max HP as last drawn: a number is sized by its share of it. */
+  const maxHp = new Map<string, number>();
+  /** The highest counter seen since each Brace went up: the Brace's ring drains toward their turn. */
+  const bracePeak = new Map<string, number>();
+
+  /** Who set each Exposed stack, by role: every seat the state names, standing or not. */
+  function appliersOf(state: BattleState): Record<string, RoleId> {
+    const out: Record<string, RoleId> = {};
+    for (const t of [...state.queue, ...state.fallen]) if (t.role !== "orrery") out[t.id] = t.role;
+    return out;
+  }
+
+  /** How much of a Brace is left: it holds until their next turn, so it drains as their counter does. */
+  function braceLeft(t: Token): number | null {
+    if (!t.braced) {
+      bracePeak.delete(t.id);
+      return null;
+    }
+    const peak = Math.max(bracePeak.get(t.id) ?? 0, t.counter);
+    bracePeak.set(t.id, peak);
+    return peak > 0 ? t.counter / peak : 1;
+  }
+
+  /** Every state-drawn phase-two mark on one character. */
+  function seatMarks(a: Actor, t: Token): void {
+    party.setMarks(a, marksOf(t, braceLeft(t)));
+    party.setEcho(a, t.echo ? (t.seatedBy ? "seated" : "timeout") : null);
+    party.setDrifting(a, t.drifting && t.hp > 0);
+    party.setWard(a, t.warded);
+  }
 
   /** What an effect aims at: the Orrery's art or a sprite's footprint. */
   function anchor(id: string): Element | null {
@@ -125,19 +167,24 @@ export function createScene(root: HTMLElement, { manifest, orrerySvg }: PartsOpt
       return a ? party.play(a, anim) : Promise.resolve();
     },
 
-    hp(id: string, hp: number, maxHp: number): void {
+    hp(id: string, hp: number, max: number): void {
+      if (max > 0) maxHp.set(id, max);
       if (id === BOSS_ID) {
-        orrery.plate.hp(hp, maxHp);
+        orrery.plate.hp(hp, max);
         // The rings are the Orrery's HP bar too: they shed with it.
-        orrery.rings(hp, maxHp);
+        orrery.rings(hp, max);
         return;
       }
       const a = party.get(id);
-      if (a && !a.down) a.plate.hp(hp, maxHp);
+      if (a && !a.down) a.plate.hp(hp, max);
     },
 
     number(id: string, amount: number, tone: Tone, seq?: number): void {
-      fx.number(anchor(id), id, amount, tone, seq);
+      const max = maxHp.get(id);
+      fx.number(anchor(id), id, amount, tone, seq, {
+        share: max ? Math.abs(amount) / max : null,
+        side: id === BOSS_ID ? "boss" : "party",
+      });
     },
 
     hit(id: string): void {
@@ -173,6 +220,9 @@ export function createScene(root: HTMLElement, { manifest, orrerySvg }: PartsOpt
       party.lay(a);
       party.setGuard(a, false);
       party.setHaste(a, false);
+      party.setWard(a, false);
+      party.setDrifting(a, false);
+      party.setMarks(a, []);
     },
 
     arrive(id: string): void {
@@ -180,6 +230,9 @@ export function createScene(root: HTMLElement, { manifest, orrerySvg }: PartsOpt
       const known = party.get(id);
       if (known) {
         stay(known);
+        // Taking a place on the field means standing on it: a Restore brings
+        // a fallen sprite back up here, before reconcile catches up.
+        if (known.down) party.revive(known);
         if (known.role) {
           entrance(known);
           return;
@@ -281,21 +334,60 @@ export function createScene(root: HTMLElement, { manifest, orrerySvg }: PartsOpt
       if (node) await flag(node, "data-afterimage", "", 480);
     },
 
-    // --- phase two (area c fills these in) ------------------------------------
-    status(_id: string, _marks: readonly StatusMark[]): void {},
-    ringMarks(_rings: readonly Ring[], _appliers: Readonly<Record<string, RoleId>>): void {},
-    echo(_id: string, _on: boolean, _seated: boolean): void {},
-    drifting(_id: string, _on: boolean): void {},
-    ward(_id: string, _on: boolean): void {},
-    phase(_phase: 1 | 2 | 3): void {},
-    async windUp(_id: string): Promise<void> {},
-    async hitStop(): Promise<void> {},
+    async windUp(id: string): Promise<void> {
+      if (reduced()) return;
+      if (id === BOSS_ID) {
+        await orrery.windUp();
+        return;
+      }
+      const a = party.get(id);
+      if (a && !a.down) await flag(a.el, "data-windup", "", WINDUP_MS);
+    },
+
+    async hitStop(): Promise<void> {
+      if (reduced()) return;
+      // Every CSS animation on the field holds (scene.css), and so does every
+      // sprite's frame clock, for a few frames; then all of it carries on from
+      // where it stood.
+      party.freeze(HITSTOP_MS);
+      await flag(root, "data-hitstop", "", HITSTOP_MS);
+    },
+
+    // --- phase two: marks drawn from state ----------------------------------
+    status(id: string, marks: readonly StatusMark[]): void {
+      const a = party.get(id);
+      if (a) party.setMarks(a, marks);
+    },
+
+    ringMarks(rings: readonly Ring[], appliers: Readonly<Record<string, RoleId>>): void {
+      orrery.ringMarks(rings, appliers);
+    },
+
+    echo(id: string, on: boolean, seated: boolean): void {
+      const a = party.get(id);
+      if (a) party.setEcho(a, on ? (seated ? "seated" : "timeout") : null);
+    },
+
+    drifting(id: string, on: boolean): void {
+      const a = party.get(id);
+      if (a) party.setDrifting(a, on && !a.down);
+    },
+
+    ward(id: string, on: boolean): void {
+      const a = party.get(id);
+      if (a) party.setWard(a, on);
+    },
+
+    phase(phase: 1 | 2 | 3): void {
+      orrery.phase(phase);
+    },
 
     // --- the truth ---------------------------------------------------------
     reconcile(state: BattleState, myId: string | null): void {
       const seen = new Set<string>();
 
       for (const t of state.queue) {
+        if (t.maxHp > 0) maxHp.set(t.id, t.maxHp);
         if (t.kind === "boss") {
           orrery.plate.hp(t.hp, t.maxHp);
           orrery.rings(t.hp, t.maxHp);
@@ -313,6 +405,7 @@ export function createScene(root: HTMLElement, { manifest, orrerySvg }: PartsOpt
         party.setGuard(a, t.braced);
         party.setHaste(a, t.hasted);
         party.setMine(a, t.id === myId);
+        seatMarks(a, t);
       }
 
       for (const t of state.fallen) {
@@ -329,11 +422,21 @@ export function createScene(root: HTMLElement, { manifest, orrerySvg }: PartsOpt
         party.setGuard(a, false);
         party.setHaste(a, false);
         party.setMine(a, t.id === myId);
+        // A fallen seat carries nothing, but an Echo is still the Echo's.
+        bracePeak.delete(t.id);
+        party.setMarks(a, []);
+        party.setWard(a, false);
+        party.setDrifting(a, false);
+        party.setEcho(a, t.echo ? (t.seatedBy ? "seated" : "timeout") : null);
       }
 
       for (const a of [...party.all()]) {
         if (!seen.has(a.id) && !a.leaving) drop(a);
       }
+      for (const id of [...bracePeak.keys()]) if (!seen.has(id)) bracePeak.delete(id);
+
+      orrery.ringMarks(state.rings ?? [], appliersOf(state));
+      orrery.phase(state.phase ?? 1);
     },
   };
 }

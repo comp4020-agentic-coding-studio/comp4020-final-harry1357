@@ -10,10 +10,20 @@
 // Placement on the floor follows `seat` (arrival), never the queue: the field
 // doesn't reshuffle every turn, and nothing about where someone stands says
 // anything about when they act (CLAUDE.md rule 1).
+//
+// Phase two's marks are all state, set from the server's tokens: status marks
+// on the plate's edge, a Ward's pane in front of the sprite, an Echo drawn as
+// a brass ghost that can never pass for a person (a spectral sprite, a dashed
+// plate, the word ECHO), and a drifting seat dimmed with the word DRIFT.
 import type { RoleId, Token } from "../../shared/protocol.ts";
-import type { Anim, SpriteAnimation, SpriteManifest, SpriteRole } from "../battle/api.ts";
+import type { Anim, SpriteAnimation, SpriteManifest, SpriteRole, StatusMark } from "../battle/api.ts";
+import { MARK_GLYPHS, glyphSvg } from "./glyphs.ts";
+import { MAX_MARKS, markWords, sortMarks } from "./marks.ts";
 import { createPlate, type Plate } from "./plate.ts";
 import { spriteFor } from "../sprites.ts";
+
+/** A seat the server plays: seated on purpose, or a person's seat timed out into one (rule 8, 25). */
+export type EchoKind = "seated" | "timeout" | null;
 
 const ASSET_ROOT = "/assets/";
 /** Reduced motion: frame() resolves this soon, showing the key frame... */
@@ -37,6 +47,12 @@ export interface Actor {
   mine: boolean;
   down: boolean;
   leaving: boolean;
+  echo: EchoKind;
+  drifting: boolean;
+  ward: boolean;
+  /** The status marks drawn, as a key, so a tick that changes nothing writes nothing. */
+  marksKey: string;
+  marks: StatusMark[];
   /** The animation playing (always one the role has). */
   anim: string;
   started: number;
@@ -63,9 +79,16 @@ export interface Party {
   setGuard(actor: Actor, on: boolean): void;
   setHaste(actor: Actor, on: boolean): void;
   setMine(actor: Actor, on: boolean): void;
+  /** Status marks on the plate's edge: at most four drawn, the rest counted. */
+  setMarks(actor: Actor, marks: readonly StatusMark[]): void;
+  setEcho(actor: Actor, kind: EchoKind): void;
+  setDrifting(actor: Actor, on: boolean): void;
+  setWard(actor: Actor, on: boolean): void;
   remove(actor: Actor): void;
   /** Motion preference changed: stop or restart the idle clock. */
   motionChanged(): void;
+  /** The hit-stop: every sprite's frame holds for `ms`, then carries on from where it stood. */
+  freeze(ms: number): void;
 }
 
 function el<K extends keyof HTMLElementTagNameMap>(tag: K, className: string): HTMLElementTagNameMap[K] {
@@ -82,6 +105,13 @@ function keyFrame(anim: SpriteAnimation): number {
 export function createParty(host: HTMLElement, manifest: SpriteManifest, reduced: () => boolean): Party {
   const actors = new Map<string, Actor>();
   let raf = 0;
+
+  // The frame clock: wall time less every hit-stop so far, and held still
+  // during one, so a frozen sprite resumes on the frame it stopped at.
+  let offset = 0;
+  let frozenUntil = 0;
+  let heldAt = 0;
+  const clockAt = (now: number): number => (now < frozenUntil ? heldAt : now - offset);
 
   // Warm the cache so a first frame (or a first fall) never draws blank.
   for (const role of Object.values(manifest.roles)) {
@@ -122,12 +152,13 @@ export function createParty(host: HTMLElement, manifest: SpriteManifest, reduced
   function idleIndex(a: Actor, now: number): number {
     const idle = animOf(a, "idle");
     if (!idle || reduced()) return 0;
-    return Math.floor(((now + a.phase) * idle.fps) / 1000) % idle.frames.length;
+    return Math.floor(((clockAt(now) + a.phase) * idle.fps) / 1000) % idle.frames.length;
   }
 
-  function tick(now: number): void {
+  function tick(wall: number): void {
     raf = 0;
     if (reduced()) return;
+    const now = clockAt(wall);
     let live = false;
     for (const a of actors.values()) {
       if (!a.role || a.down) continue;
@@ -169,11 +200,47 @@ export function createParty(host: HTMLElement, manifest: SpriteManifest, reduced
   function words(a: Actor): void {
     const w: string[] = [];
     if (a.mine) w.push("you");
+    if (a.echo) w.push(a.echo === "seated" ? "an Echo, played by the server" : "an Echo: the server plays this seat until its person acts");
+    if (a.drifting) w.push("drifting: timed out last turn");
     if (a.down) w.push("down");
-    if (a.guard) w.push("braced");
-    if (a.haste) w.push("hasted");
+    // The marks name braced and hasted when they're drawn; the older flags
+    // carry them otherwise.
+    const marked = new Set(a.marks.map((m) => m.kind));
+    if (a.guard && !marked.has("braced")) w.push("braced");
+    if (a.haste && !marked.has("hasted")) w.push("hasted");
+    if (a.ward && !marked.has("warded")) w.push("warded");
+    w.push(...markWords(a.marks));
     const text = w.length ? `${a.name}: ${w.join(", ")}` : "";
     if (a.said.textContent !== text) a.said.textContent = text;
+  }
+
+  /** The words on the plate's corner: what the sprite's look means, said in letters. */
+  function tags(a: Actor): void {
+    const t: string[] = [];
+    if (a.echo) t.push("ECHO");
+    else if (a.drifting) t.push("DRIFT");
+    a.plate.tags(t);
+  }
+
+  function attr(node: HTMLElement, name: string, value: string | null): void {
+    if (value === null) node.removeAttribute(name);
+    else if (node.getAttribute(name) !== value) node.setAttribute(name, value);
+  }
+
+  /** One status mark: a pixel glyph in an ink disc, ringed by how much of it is left. */
+  function markEl(m: StatusMark): HTMLElement {
+    const node = el("span", "mark");
+    node.dataset.mark = m.kind;
+    if (m.left === null) node.dataset.lasting = "";
+    else node.style.setProperty("--left", Math.max(0, Math.min(1, m.left)).toFixed(3));
+    if (m.kind === "gravity" && (m.count ?? 0) >= 3) node.dataset.lethal = "";
+    node.innerHTML = glyphSvg(MARK_GLYPHS[m.kind], "mark-glyph");
+    if (m.count !== undefined && m.count > 0) {
+      const n = el("span", "mark-count");
+      n.textContent = String(m.count);
+      node.append(n);
+    }
+    return node;
   }
 
   function lay(a: Actor): void {
@@ -221,6 +288,9 @@ export function createParty(host: HTMLElement, manifest: SpriteManifest, reduced
       body.setAttribute("aria-hidden", "true");
       body.append(el("span", "actor-ring"), el("span", "actor-cel actor-art"), el("span", "actor-cel actor-flash"));
       body.append(el("span", "actor-ward"), el("span", "actor-haste"), el("span", "actor-cursor"));
+      // A Mender's Ward: a pane standing between the sprite and the Orrery.
+      // (The body is mirrored, so its left is the screen's right.)
+      body.append(el("span", "actor-shield"));
       const plate = createPlate();
       plate.el.dataset.plate = id;
       const said = el("span", "visually-hidden");
@@ -239,6 +309,11 @@ export function createParty(host: HTMLElement, manifest: SpriteManifest, reduced
         mine: false,
         down: false,
         leaving: false,
+        echo: null,
+        drifting: false,
+        ward: false,
+        marksKey: "",
+        marks: [],
         anim: "idle",
         started: 0,
         phase: Math.floor(Math.random() * 1000),
@@ -298,7 +373,7 @@ export function createParty(host: HTMLElement, manifest: SpriteManifest, reduced
         return Promise.resolve();
       }
       a.anim = name;
-      a.started = performance.now();
+      a.started = clockAt(performance.now());
       if (reduced()) {
         paint(a, name, keyFrame(anim));
         return new Promise<void>((resolve) => {
@@ -352,6 +427,58 @@ export function createParty(host: HTMLElement, manifest: SpriteManifest, reduced
       words(a);
     },
 
+    setMarks(a, given) {
+      const marks = a.down ? [] : sortMarks(given);
+      const key = marks.map((m) => `${m.kind}:${m.left === null ? "-" : m.left.toFixed(2)}:${m.count ?? ""}`).join("|");
+      if (key === a.marksKey) return;
+      const kinds = (list: readonly StatusMark[]): string => list.map((m) => `${m.kind}${m.count ?? ""}`).join();
+      const sameKinds = kinds(marks) === kinds(a.marks);
+      a.marksKey = key;
+      a.marks = marks;
+      const host = a.plate.marks;
+      const shown = marks.slice(0, MAX_MARKS);
+      if (sameKinds && host.children.length >= shown.length) {
+        // Only the rings moved (a Brace draining as its turn comes): set them in place.
+        shown.forEach((m, i) => {
+          const node = host.children[i] as HTMLElement;
+          if (m.left !== null) node.style.setProperty("--left", Math.max(0, Math.min(1, m.left)).toFixed(3));
+        });
+      } else {
+        const nodes = shown.map(markEl);
+        if (marks.length > MAX_MARKS) {
+          const more = el("span", "mark mark-more");
+          more.textContent = `+${marks.length - MAX_MARKS}`;
+          nodes.push(more);
+        }
+        host.replaceChildren(...nodes);
+      }
+      words(a);
+    },
+
+    setEcho(a, kind) {
+      if (a.echo === kind) return;
+      a.echo = kind;
+      attr(a.el, "data-echo", kind);
+      tags(a);
+      words(a);
+    },
+
+    setDrifting(a, on) {
+      if (a.drifting === on) return;
+      a.drifting = on;
+      attr(a.el, "data-drifting", on ? "" : null);
+      tags(a);
+      words(a);
+    },
+
+    setWard(a, on) {
+      const next = on && !a.down;
+      if (a.ward === next) return;
+      a.ward = next;
+      attr(a.el, "data-ward", next ? "" : null);
+      words(a);
+    },
+
     remove(a) {
       settle(a);
       actors.delete(a.id);
@@ -367,6 +494,20 @@ export function createParty(host: HTMLElement, manifest: SpriteManifest, reduced
       } else {
         clock();
       }
+    },
+
+    freeze(ms) {
+      const wall = performance.now();
+      if (wall < frozenUntil) {
+        // Already held: hold a little longer from the same frame.
+        const more = Math.max(0, wall + ms - frozenUntil);
+        frozenUntil += more;
+        offset += more;
+        return;
+      }
+      heldAt = wall - offset;
+      frozenUntil = wall + ms;
+      offset += ms;
     },
   };
 }
