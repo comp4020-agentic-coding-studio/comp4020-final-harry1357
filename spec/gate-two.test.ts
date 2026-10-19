@@ -164,6 +164,40 @@ describe("phase two's gate", () => {
     expect(written, "shown, so written; the event nothing showed is never written down").toEqual(["Jab line."]);
   });
 
+  it("B2 (rule 22): a code is folded in ASCII case only, so a look-alike is never made a real code", async () => {
+    // Phase two's gate, the breaker's B2: JavaScript's full case mapping makes
+    // a dotless ı an I and a long ſ an S, so "raıd" opened RAID and "Z7ZſC" a
+    // real room the server refuses by those letters (404).
+    const { door } = (await import(resolve("src/client/door.ts"))) as { door: (search: string, ask: (p: string) => Promise<unknown>) => Promise<string> };
+    const ask = async () => ({ code: "QZ7MK" });
+    expect(await door("?room=ra%C4%B1d", ask), "a dotless i stays what it is: the server will refuse it").toBe("RA\u0131D");
+    expect(await door("?room=z7z%C5%BFc", ask), "a long s too").toBe("Z7Z\u017FC");
+    expect(await door("?room=k3x9p", ask), "ASCII case, as the server folds it").toBe("K3X9P");
+
+    const { mountJoin } = (await import(resolve("src/client/join/join.ts"))) as {
+      mountJoin: (root: HTMLElement, o: unknown) => { show(me: unknown, here?: unknown): void };
+    };
+    const root = document.createElement("section");
+    document.body.append(root);
+    const sent: unknown[] = [];
+    const join = mountJoin(root, { manifest: { facing: "left", required: [], roles: {} }, onJoin: async (d: unknown) => (sent.push(d), { ok: true }) });
+    join.show(null, { code: "RAID", isPublic: true });
+    const form = root.querySelector<HTMLFormElement>("form[data-join]")!;
+    form.querySelector<HTMLInputElement>('input[name="door"][value="code"]')!.click();
+    const field = form.querySelector<HTMLInputElement>('input[name="code"]')!;
+    const name = form.querySelector<HTMLInputElement>('input[name="name"]')!;
+    name.value = "Look Alike";
+    form.querySelector<HTMLInputElement>('input[name="role"][value="mender"]')!.click();
+    for (const typed of ["ra\u0131d", "Z7Z\u017FC"]) {
+      field.value = typed;
+      field.dispatchEvent(new Event("input", { bubbles: true }));
+      expect(field.value, `the field doesn't turn ${typed} into ASCII`).not.toMatch(/^[A-Z0-9]+$/);
+      form.requestSubmit();
+      await new Promise((r) => setTimeout(r, 0));
+    }
+    expect(sent, "neither look-alike is sent as a real code").toEqual([]);
+  });
+
   it("P3: a person back from their Echo has a strip flag of their own, not Restore's", async () => {
     const { RENDERERS } = (await import(resolve("src/client/battle/registry.ts"))) as {
       RENDERERS: Record<string, { reduced: (ctx: unknown, e: unknown) => Promise<void> | void }>;

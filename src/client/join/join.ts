@@ -18,6 +18,7 @@
 // 24). On a bare battle opened by id (the sensors'), there are no doors.
 import { ACTIONS, NAME_MAX, ROLE_IDS, ROLES, type CharacterInfo, type MeResponse, type RoleId } from "../../shared/protocol.ts";
 import type { Door, Here, Join, JoinOptions, JoinResult, Next, SpriteManifest, SpriteRole } from "../battle/api.ts";
+import { foldCode } from "../door.ts";
 
 type Outcome = "won" | "lost" | "abandoned";
 
@@ -348,7 +349,7 @@ export function mountJoin(root: HTMLElement, opts: JoinOptions): Join {
       if (name.hasAttribute("aria-invalid")) clearError();
     });
     code.addEventListener("input", () => {
-      code.value = code.value.toUpperCase();
+      code.value = foldCode(code.value);
       if (code.hasAttribute("aria-invalid")) clearError();
     });
     for (const input of door.values()) {
@@ -403,7 +404,7 @@ export function mountJoin(root: HTMLElement, opts: JoinOptions): Join {
   function chosenDoor(): Door {
     if (!parts || parts.doors.hidden) return { kind: "here" };
     const kind = ([...parts.door].find(([, input]) => input.checked)?.[0] ?? "raid") as DoorKind;
-    return kind === "code" ? { kind, code: parts.code.value.trim().toUpperCase() } : { kind };
+    return kind === "code" ? { kind, code: foldCode(parts.code.value.trim()) } : { kind };
   }
 
   /** The code field shows only behind its door, and the button says where it leads. */
