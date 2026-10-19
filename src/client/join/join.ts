@@ -419,6 +419,13 @@ export function mountJoin(root: HTMLElement, opts: JoinOptions): Join {
   function refuse(message: string): void {
     if (!parts) return;
     parts.error.textContent = message;
+    if (parts.name.hidden) {
+      // A returning session's name is fixed and its field hidden (rule 24): the refusal itself takes focus,
+      // so it's read, and focus doesn't fall to the page body (breaker H20's note).
+      parts.error.tabIndex = -1;
+      parts.error.focus({ preventScroll: true });
+      return;
+    }
     parts.name.setAttribute("aria-invalid", "true");
     parts.name.focus({ preventScroll: true });
     parts.name.select();

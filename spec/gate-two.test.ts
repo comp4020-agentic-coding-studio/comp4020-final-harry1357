@@ -207,6 +207,34 @@ describe("phase two's gate", () => {
     expect(asked, "asked only for the empty one").toEqual(["/api/raid"]);
   });
 
+  it("H20's note: a refusal for a returning session keeps focus on something it can see", async () => {
+    // Phase two's gate, the breaker's note under H20: a returning session's
+    // name is fixed and its field hidden, and a refusal focused that hidden
+    // field, so focus fell to the page body.
+    const { mountJoin } = (await import(resolve("src/client/join/join.ts"))) as {
+      mountJoin: (root: HTMLElement, o: unknown) => { show(me: unknown, here?: unknown): void };
+    };
+    const root = document.createElement("section");
+    document.body.append(root);
+    const join = mountJoin(root, {
+      manifest: { facing: "left", required: [], roles: {} },
+      onJoin: async () => ({ ok: false, error: "You sat down as Ret, and a name stays with you: sit down as Ret." }),
+    });
+    const me = { character: { id: "c1", name: "Ret", role: "warden", turns: 3, damage: 0, healing: 0, wins: 0, losses: 0 }, battles: [] };
+    join.show(me, { code: "RAID", isPublic: true });
+    const form = root.querySelector<HTMLFormElement>("form[data-join]")!;
+    const name = form.querySelector<HTMLInputElement>('input[name="name"]')!;
+    expect(name.hidden, "a returning session's name field is hidden (rule 24)").toBe(true);
+    form.querySelector<HTMLInputElement>('input[name="role"][value="warden"]')!.click();
+    form.requestSubmit();
+    await new Promise((r) => setTimeout(r, 0));
+    const at = document.activeElement as HTMLElement | null;
+    expect(at, "focus is somewhere").not.toBeNull();
+    expect(at === name || !!at?.closest("[hidden]"), "focus isn't on the hidden name field").toBe(false);
+    expect(form.contains(at), "it stays in the form, where the refusal is").toBe(true);
+    expect(form.querySelector(".join-error")?.textContent, "and the refusal is said").toMatch(/name stays/);
+  });
+
   it("P3: a person back from their Echo has a strip flag of their own, not Restore's", async () => {
     const { RENDERERS } = (await import(resolve("src/client/battle/registry.ts"))) as {
       RENDERERS: Record<string, { reduced: (ctx: unknown, e: unknown) => Promise<void> | void }>;
