@@ -2,11 +2,11 @@
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
-// The review gate's open findings outside phase one's surface (docs/review/
-// phase-one.md). Phase one was server-only, so these are client work carried
-// into phase two. Each is a red test now, so phase two can't skip it, and the
-// branch doesn't merge to main while any of them is open (CLAUDE.md, the
-// review gate). Every one is red on purpose until the client does the work.
+// The review gate's findings outside phase one's surface (docs/review/
+// phase-one.md, phase-one-b.md): client work carried into phase two, each
+// committed red so phase two couldn't skip it (CLAUDE.md, the review gate).
+// Phase two did the work and they're green; they stay as the record that it
+// holds. Phase two's own gate (docs/review/phase-two.md) strengthened several.
 
 // jsdom has no matchMedia; the client asks it about reduced motion. A stub that
 // always says "no preference", so these fail on their findings, not on that.
