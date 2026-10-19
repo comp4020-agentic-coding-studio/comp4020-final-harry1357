@@ -34,6 +34,43 @@ async function nextEvent(w: Watcher, from: number, test: (e: Event) => boolean, 
 }
 
 describe("the fight is shown", () => {
+  it("the server broadcasts a strike within one tick of taking it (T4)", async () => {
+    // Phase two's gate, the reviewer's T4: the Chrome test below times B's
+    // screen from B's own receipt of the message (so a slow runner's browser
+    // can't fail it), with a generous ceiling from the strike. That left the
+    // server's half unbounded: one holding the strike's broadcast 800 ms
+    // passed. This is the server's half on its own, with no browser in it: a
+    // watcher has the strike within one tick of the POST being sent.
+    const battleId = await newBattle(base);
+    const a = await join(base, battleId, `Swift ${suffix()}`, "striker");
+    expect(a.status, "seated").toBe(200);
+    const url = new URL(`/ws?battle=${encodeURIComponent(battleId)}`, base);
+    url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
+    const arrivals: { t: number; kinds: string[]; activeId: string | null; tickMs: number }[] = [];
+    const ws = new WebSocket(url);
+    ws.addEventListener("message", (event) => {
+      const t = performance.now();
+      const m = JSON.parse(String(event.data)) as { type?: string; battle?: { activeId: string | null; tickMs: number }; events?: { kind: string }[] };
+      if (m.type === "state" && m.battle) arrivals.push({ t, kinds: (m.events ?? []).map((e) => e.kind), activeId: m.battle.activeId, tickMs: m.battle.tickMs });
+    });
+    try {
+      for (const deadline = Date.now() + 40_000; !arrivals.some((x) => x.activeId === a.characterId); await sleep(10)) {
+        if (Date.now() > deadline) throw new Error("the striker never reached the plate in 40s");
+      }
+      const from = arrivals.length;
+      const sent = performance.now();
+      const res = await act(base, battleId, a.cookie, "jab");
+      expect(res.status, `the Jab was taken (${res.error ?? ""})`).toBe(200);
+      for (const deadline = Date.now() + 5_000; !arrivals.slice(from).some((x) => x.kinds.includes("jab")); await sleep(2)) {
+        if (Date.now() > deadline) throw new Error("the Jab was never broadcast");
+      }
+      const got = arrivals.slice(from).find((x) => x.kinds.includes("jab"))!;
+      expect(got.t - sent, `the watcher had the Jab ${(got.t - sent).toFixed(1)} ms after it was sent; one tick is ${got.tickMs} ms`).toBeLessThanOrEqual(got.tickMs);
+    } finally {
+      ws.close();
+    }
+  }, 60_000);
+
   it("every broadcast event type has a battle-screen renderer registered", async () => {
     const { EVENT_KINDS } = await provided<{ EVENT_KINDS?: readonly string[] }>("src/shared/protocol.ts", "the protocol");
     expect(Array.isArray(EVENT_KINDS) && EVENT_KINDS.length > 0, "src/shared/protocol.ts exports no EVENT_KINDS").toBe(true);
