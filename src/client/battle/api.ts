@@ -103,7 +103,7 @@ export interface SceneApi {
 export interface StripApi {
   // --- state ---
   /** A transient mark on a portrait: "held" when a turn was held, "plate" when it reached the plate, and phase two's moments. */
-  flag(id: string, flag: "held" | "plate" | "jump" | "quickened" | "reacted" | "relayed" | "restored"): void;
+  flag(id: string, flag: "held" | "plate" | "jump" | "quickened" | "reacted" | "relayed" | "reclaimed"): void;
   /** Phase two: a boss card's moment (announced, landed, passed over, pushed back, frozen, retargeted, cancelled). */
   card(cardId: string, moment: CardMoment): void;
   /** Phase two: the Chain as it now stands: links lit between consecutive player portraits, or broken by a boss turn. */

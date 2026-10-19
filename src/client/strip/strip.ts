@@ -50,7 +50,7 @@ const BEAT_MS = 100;
 const CHAIN_PIPS = 5;
 
 type Out = "down" | "away";
-type Flag = "held" | "plate" | "jump" | "quickened" | "reacted" | "relayed" | "restored";
+type Flag = "held" | "plate" | "jump" | "quickened" | "reacted" | "relayed" | "reclaimed";
 
 /** The word a flag stamps across a portrait's face. */
 const FLAG_WORD: Readonly<Record<Flag, string>> = {
@@ -60,7 +60,8 @@ const FLAG_WORD: Readonly<Record<Flag, string>> = {
   quickened: "Quick!",
   reacted: "React!",
   relayed: "Relay",
-  restored: "Back!",
+  // a person taking their seat back from their Echo (not the Mender's Restore)
+  reclaimed: "Back!",
 };
 
 interface Entry {

@@ -1085,7 +1085,7 @@
 
 #battle [data-flag="reacted"] .strip-plate,
 #battle [data-flag="holds"] .strip-plate,
-#battle [data-flag="restored"] .strip-plate {
+#battle [data-flag="reclaimed"] .strip-plate {
   outline: 2px solid var(--card);
   outline-offset: 2px;
 }

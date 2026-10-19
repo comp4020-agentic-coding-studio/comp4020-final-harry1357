@@ -60,7 +60,7 @@ function marked(ctx: EffectContext, id: string, on: boolean): void {
   const seated = (tokenOf(ctx, id)?.seatedBy ?? null) !== null;
   ctx.scene.echo(id, on, seated);
   ctx.scene.drifting(id, on);
-  ctx.strip.flag(id, on ? "held" : "restored");
+  ctx.strip.flag(id, on ? "held" : "reclaimed");
 }
 
 export const echo: Fx<"echo"> = async (raw, e) => {
