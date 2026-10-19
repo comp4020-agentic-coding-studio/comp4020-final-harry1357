@@ -12,7 +12,7 @@ import { counterReset } from "./ctb.ts";
 import { checkReaction } from "./economy.ts";
 import { alignmentLeft, bastionCard } from "./orrery.ts";
 import { previewRank } from "./roles.ts";
-import { checkAction, echoRolesOpen, plateMs, type Battle, type Fighter } from "./rules.ts";
+import { act, checkAction, echoRolesOpen, plateMs, type Battle, type Fighter } from "./rules.ts";
 
 export interface Timing {
   tickMs: number;
@@ -39,22 +39,51 @@ function reactionCard(b: Battle, f: Fighter): string | null {
 
 /**
  * Where each turn action would leave whoever is on the plate: the counter it
- * resets to and the slot it lands in, with everyone else where they are, and
- * the refusal the server would give. The server's arithmetic, so the client's
- * ghost is drawn, never predicted (rule 1).
+ * resets to and the slot it lands in, and the refusal the server would give.
+ * An action the server would take is played on a copy (act() never touches
+ * its input) at the target it would take, so whatever the action does to its
+ * actor first (Haste on yourself halves your own next wait: review T3), or to
+ * the strip, is in the preview. One it would refuse is shown at its rank, with
+ * everyone else where they are. The server's, so the client's ghost is drawn,
+ * never predicted (rule 1).
  */
-function preview(b: Battle): BattleState["preview"] {
+function preview(b: Battle, turnMs: number): BattleState["preview"] {
   const up = b.standing.find((f) => f.id === b.activeId && f.kind === "character");
   if (!up || b.status !== "fighting") return null;
   const actions: Partial<Record<ActionId, ActionPreview>> = {};
   for (const action of ROLES[up.role as RoleId].actions) {
     if (ACTIONS[action].reaction) continue;
     const { rank, resonance } = previewRank(b, up, action);
-    const counter = counterReset(up.agility, up.hasteLeft > 0 ? "haste" : "normal", rank);
-    const slot = b.standing.filter((f) => f !== up && (f.counter < counter || (f.counter === counter && f.seat < up.seat))).length;
+    const target = previewTarget(b, up, action);
+    const after = target === undefined ? null : played(b, up.id, action, target, turnMs);
+    const me = after?.standing.find((f) => f.id === up.id);
+    const counter = me ? me.counter : counterReset(up.agility, up.hasteLeft > 0 ? "haste" : "normal", rank);
+    const around = after && me ? after.standing : b.standing;
+    const slot = around.filter((f) => f.id !== up.id && (f.counter < counter || (f.counter === counter && f.seat < up.seat))).length;
     actions[action] = { counter, slot, resonance, refusal: refusalOf(b, up, action) };
   }
   return { actorId: up.id, actions };
+}
+
+/** The battle after this action, played on a copy; null if playing it threw, so a preview never breaks a broadcast. */
+function played(b: Battle, id: string, action: ActionId, target: string | null, turnMs: number): Battle | null {
+  try {
+    return act(b, id, action, target, { now: Date.now(), turnMs }).battle;
+  } catch (err) {
+    console.error(`previewing ${action} for ${id} failed`, err);
+    return null;
+  }
+}
+
+/**
+ * The target the server would take for this action with none chosen (null),
+ * or, for an ally action it won't take on yourself (Quicken), the first ally it
+ * would; undefined when it would take none.
+ */
+function previewTarget(b: Battle, up: Fighter, action: ActionId): string | null | undefined {
+  if (!("status" in checkAction(b, up.id, action, null))) return null;
+  if (ACTIONS[action].target !== "ally" || action === "restore") return undefined;
+  return b.standing.find((f) => f.kind === "character" && f.id !== up.id && !("status" in checkAction(b, up.id, action, f.id)))?.id;
 }
 
 /**
@@ -128,7 +157,7 @@ export function view(b: Battle, timing: Timing): BattleState {
     spentExposed: b.spentExposed.map((x) => ({ ...x })),
     room: b.room ? { code: b.room, isPublic: b.isPublic } : null,
     echoRoles: echoRolesOpen(b),
-    preview: preview(b),
+    preview: preview(b, timing.turnMs),
     alignmentLeft: alignmentLeft(b),
     bastion: b.bastion,
     bastionCard: bastionCard(b),
