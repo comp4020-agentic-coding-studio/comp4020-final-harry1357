@@ -25,7 +25,9 @@
 
    shared (index.html, main.ts):
    - #battle > .stage holds .scene[data-scene], aside.strip[data-rail],
-     section.command[data-command] and section.log-window; the join screen,
+     section.command[data-command], section.seats[data-seats] (phase two:
+     the table, a row of its own after the command window) and
+     section.log-window; the join screen,
      section.join[data-join-screen], is the stage's sibling inside #battle.
    - #battle[data-phase] is "fight" exactly while this page has a character
      standing in the battle, and "join" or "ended" while the join screen is
@@ -64,6 +66,7 @@
       "strip" auto
       "party" auto
       "command" auto
+      "seats" auto
       "log" auto
       / minmax(0, 1fr);
     gap: 0.4rem;

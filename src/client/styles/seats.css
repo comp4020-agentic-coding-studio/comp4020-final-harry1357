@@ -72,6 +72,10 @@
   gap: 0.35rem 0.6rem;
 }
 
+#battle .seats-echoes[hidden] {
+  display: none;
+}
+
 #battle .seats-echo-title,
 #battle .seats-none,
 #battle .seats-said {

@@ -75,13 +75,16 @@ export function createSeats(root: HTMLElement, opts: SeatsOptions): Seats {
     if (key === shownKey) return;
     shownKey = key;
 
-    // The code, where it can be read out; the public raid has no secret to read.
-    const isPublic = state.room?.isPublic ?? roomCode === null;
-    codeLabel.textContent = isPublic ? "The public raid" : "Room code";
-    code.textContent = isPublic ? "" : (roomCode ?? state.room?.code ?? "");
-    code.hidden = isPublic;
+    // The code, where it can be read out; the public raid has no secret to
+    // read; a bare battle by id (the sensors') has no room, and no Echoes.
+    const inRoom = state.room !== null && roomCode !== null;
+    const isPublic = state.room?.isPublic ?? false;
+    codeLabel.textContent = !inRoom ? "This table" : isPublic ? "The public raid" : "Room code";
+    code.textContent = inRoom && !isPublic ? roomCode : "";
+    code.hidden = !inRoom || isPublic;
     root.dataset.public = String(isPublic);
-    if (!isPublic) code.setAttribute("aria-label", `Room code ${[...(code.textContent ?? "")].join(" ")}`);
+    echoes.hidden = !inRoom;
+    if (inRoom && !isPublic) code.setAttribute("aria-label", `Room code ${[...roomCode].join(" ")}`);
 
     const names = new Map(seats.map((t) => [t.id, t.name]));
     list.replaceChildren(
