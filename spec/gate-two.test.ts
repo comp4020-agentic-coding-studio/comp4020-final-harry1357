@@ -57,6 +57,31 @@ describe("phase two's gate", () => {
     win.destroy();
   });
 
+  it("N4: the target lit on the field and strip is the one the window aims at", async () => {
+    // Phase two's re-review, N4: T6 started the aim at the server's target but
+    // still lit the first of the list, so Anchor marked the raid-wide card on
+    // the strip while Confirm would send the blow on an ally.
+    const { mountCommandWindow } = (await import(resolve("src/client/command/window.ts"))) as { mountCommandWindow: Mount };
+    const root = document.createElement("div");
+    document.body.append(root);
+    const lit: (string | null)[] = [];
+    const win = mountCommandWindow(root, {
+      actions: ["brace", "intercept", "anchor", "bastion", "counterweight"],
+      allies: () => [{ id: "me", name: "Me (you)" }],
+      cards: () => [
+        { id: "rev", name: "Revolution on everyone, next" },
+        { id: "ecl", name: "Eclipse on Mae, in 1" },
+      ],
+      onTarget: (t: string | null) => lit.push(t),
+      onChoose: () => {},
+    });
+    win.setEnabled(true);
+    win.setSeat({ token: null, preview: { anchor: { counter: 6, slot: 1, resonance: false, refusal: null, target: "ecl" } } });
+    root.querySelector<HTMLButtonElement>('button[data-action="anchor"]')?.click();
+    expect(lit.at(-1), "the strip marks the card the window is aimed at").toBe("ecl");
+    win.destroy();
+  });
+
   it("T6: a command starts aimed at the target the server would take", async () => {
     const { mountCommandWindow } = (await import(resolve("src/client/command/window.ts"))) as { mountCommandWindow: Mount };
     const root = document.createElement("div");
