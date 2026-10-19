@@ -9,7 +9,10 @@ import { describe, expect, it } from "vitest";
 // Warden's screen says so twice: on the Perihelion card ("Answer: Bastion"),
 // and on the Bastion command, in the note where a refusal or a Reaction's card
 // goes. Nobody else is prompted. Once one stands (the state's `bastion`), every
-// screen marks the blow on everyone it will meet, and the prompt goes.
+// screen marks the blow it will meet, and the prompt goes. Which blow that is
+// is the server's to say (the state's `bastionCard`, phase two's gate R2): an
+// Alignment is aimed at everyone but doesn't spend a Bastion, and a frozen card
+// waits a cycle, so "the first card aimed at everyone" is the wrong answer.
 
 globalThis.matchMedia ??= ((query: string) => ({
   matches: false,
@@ -33,7 +36,7 @@ function state(over: Record<string, unknown> = {}) {
     battleId: "b", version: 1, tick: 1, tickMs: 150, turnMs: 12_000, plateMs: null, status: "fighting", activeId: null, turnDeadline: null,
     queue: [token("wren", "warden"), token("mae", "mender"), token("orrery", "orrery", "boss")],
     fallen: [], log: [], phase: 1, rings: [], chain: { links: 0, potency: 1 }, pullSeats: 2, spentExposed: [],
-    room: null, preview: null, alignmentLeft: null, echoRoles: [], bastion: false,
+    room: null, preview: null, alignmentLeft: null, echoRoles: [], bastion: false, bastionCard: "rev",
     cards: [
       { id: "rev", intent: "revolution", targetId: "party", amount: 8, countdown: 0, frozen: false },
       { id: "ecl", intent: "eclipse", targetId: "mae", amount: 20, countdown: 1, frozen: false },
@@ -72,11 +75,32 @@ describe("the Warden's Bastion prompt", () => {
       const s = await strip();
       s.strip.render(state({ bastion: true }), me);
       expect(card(s.root, "peri")?.dataset.prompt, `${me}: no prompt while one stands`).toBeUndefined();
-      // The server spends it on the soonest blow on everyone: here the Revolution, not the Perihelion.
-      expect(card(s.root, "rev")?.dataset.bastion, `${me}: the Revolution next is the one it meets`).toBe("true");
+      // The server names the card it meets: here the Revolution, not the Perihelion.
+      expect(card(s.root, "rev")?.dataset.bastion, `${me}: the Revolution the server names is the one it meets`).toBe("true");
       expect(card(s.root, "rev")?.textContent, `${me}: said in words`).toContain("Bastion");
       expect(card(s.root, "peri")?.dataset.bastion, `${me}: not the Perihelion behind it`).toBeUndefined();
     }
+  });
+
+  it("the card marked is the one the server names, not the first card aimed at everyone", async () => {
+    const cards = [
+      { id: "align", intent: "alignment", targetId: "party", amount: null, countdown: 0, frozen: false },
+      { id: "rev", intent: "revolution", targetId: "party", amount: 12, countdown: 1, frozen: false },
+      { id: "peri", intent: "perihelion", targetId: "party", amount: 48, countdown: 4, frozen: false },
+    ];
+    const s = await strip();
+    s.strip.render(state({ phase: 3, cards, bastion: true, bastionCard: "rev" }), "mae");
+    expect(card(s.root, "align")?.dataset.bastion, "an Alignment doesn't spend a Bastion, and isn't marked").toBeUndefined();
+    expect(card(s.root, "rev")?.dataset.bastion, "the card the server names is").toBe("true");
+
+    const later = await strip();
+    later.strip.render(state({ bastion: true, bastionCard: "peri" }), "mae");
+    expect(card(later.root, "rev")?.dataset.bastion, "even the soonest blow on everyone isn't marked if the server names another").toBeUndefined();
+    expect(card(later.root, "peri")?.dataset.bastion, "the server's word is the mark").toBe("true");
+
+    const none = await strip();
+    none.strip.render(state({ bastion: true, bastionCard: null }), "mae");
+    expect(none.root.querySelector("[data-bastion]"), "no card named: none marked").toBeNull();
   });
 
   it("the Bastion command carries the prompt in its note, on the turn and off it; a refusal takes its place", async () => {

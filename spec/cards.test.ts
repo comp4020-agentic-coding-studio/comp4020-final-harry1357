@@ -83,4 +83,36 @@ describe("Retrograde and the Alignment, for the strip", () => {
     expect(stands(raised), "raised: it stands").toBe(true);
     expect(stands(bossTurn(e, raised).battle), "the Revolution met it: gone").toBe(false);
   });
+
+  // Phase two's gate (R2, T2): which card a Bastion meets is the server's to
+  // say, as the Reaction's card is (rule 2). Only a Revolution or a Perihelion
+  // spends one; an Alignment doesn't, and a frozen card waits a cycle. The
+  // state's bastionCard must name the card whose resolution actually spends it.
+  for (const [what, phase, cards, frozen] of [
+    ["an Alignment ahead of a Revolution", 3, [["alignment", "party", null, 0], ["revolution", "party", 12, 1]], [] as number[]],
+    ["a frozen Revolution beside a Perihelion due now", 1, [["revolution", "party", 8, 0], ["perihelion", "party", 32, 0]], [0]],
+  ] as const) {
+    it(`the state names the card a Bastion meets: ${what}`, async () => {
+      const e = await engine();
+      let b = structuredClone(table(e, ["warden", "mender"]));
+      b.phase = phase;
+      b.cards = [];
+      for (const [intent, targetId, amount, countdown] of cards) b = e.announce(b, { intent, targetId, amount, countdown });
+      b = structuredClone(b);
+      const ids = b.cards.map((c) => c.id);
+      for (const i of frozen) b.cards.find((c) => c.id === ids[i])!.frozen = true;
+      b.bastion = true;
+      const named = (sent(e, b) as { bastionCard?: unknown }).bastionCard;
+      // Play the Orrery's turns until the Bastion is spent, and see on whose resolution.
+      let spentOn: unknown = "never";
+      for (let i = 0; i < 4 && spentOn === "never"; i++) {
+        const step = bossTurn(e, b);
+        const line = (step.battle.log as { seq?: number; text: string }[]).find((l) => l.text.includes("a Bastion took"));
+        if (line) spentOn = step.effects.events.find((ev) => ev.seq === line.seq)?.cardId ?? "an event with no card";
+        b = step.battle;
+      }
+      expect(spentOn, "the Bastion was spent within four Orrery turns").not.toBe("never");
+      expect(named, "the state named, beforehand, the card that spent it").toBe(spentOn);
+    });
+  }
 });
