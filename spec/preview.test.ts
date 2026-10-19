@@ -68,6 +68,36 @@ describe("the ghost is the server's", () => {
     expect(previewOf(e, alone)?.actions.quicken?.refusal, "alone, there's nobody to Quicken: refused, in the server's words").toMatch(/Quicken/);
   });
 
+  it("for every role, every action's preview is where the action, sent, leaves you (T3)", async () => {
+    // Phase two's gate, the reviewer's T3: the first test checks three of a
+    // Striker's actions. The preview's own arithmetic missed what an action
+    // does to its actor before the reset: a Chronist's Haste on themselves
+    // (its default target) halves their own next wait, and the ghost showed it
+    // whole. Each action is sent at the target the server would take: none
+    // given, or, for an ally action it won't take on yourself, the first ally
+    // it would.
+    const e = await engine();
+    // Each role's turn actions: all five, but the Warden's Intercept is a Reaction.
+    const turnActions: Record<string, number> = { warden: 4, mender: 5, striker: 5, breaker: 5, chronist: 5 };
+    for (const role of Object.keys(turnActions)) {
+      const id = `${role}-1`;
+      const b = e.plate(table(e, [role, "mender", "warden", "striker"]), id, clock());
+      const preview = previewOf(e, b);
+      const shown = Object.entries(preview?.actions ?? {});
+      expect(shown.length, `a ${role} on the plate is previewed every turn action`).toBe(turnActions[role]);
+      for (const [action, p] of shown) {
+        if (p.refusal !== null) continue;
+        const refusedBare = "status" in (e.checkAction(b, id, action, null) as object);
+        const target = refusedBare
+          ? (b.standing.find((f) => f.kind === "character" && f.id !== id && !("status" in (e.checkAction(b, id, action, f.id) as object)))?.id ?? null)
+          : null;
+        const after = e.act(b, id, action, target, clock()).battle;
+        expect(p.counter, `${role} ${action}: the counter the preview shows is the one the turn leaves`).toBe(fighter(after, id).counter);
+        expect(p.slot, `${role} ${action}: and the slot it lands in`).toBe(slotOf(after, id));
+      }
+    }
+  });
+
   it("previews nothing while the clock runs or the Orrery is on the plate", async () => {
     const e = await engine();
     const b = table(e, ["striker"]);
@@ -88,6 +118,17 @@ describe("the server names the card a Reaction answers", () => {
     expect(reactionCard(e, b, "mender-2"), "a Mender has no Reaction to name a card for").toBeNull();
     const spent = e.act(b, "warden-1", "intercept", card, clock()).battle;
     expect(reactionCard(e, spent, "warden-1"), "a spent Reaction names no card").toBeNull();
+  });
+
+  it("names the soonest of two cards it could answer (T3)", async () => {
+    const e = await engine();
+    let b = table(e, ["warden", "mender", "striker"]);
+    const clean = structuredClone(b);
+    clean.cards = [];
+    b = e.announce(clean, { intent: "eclipse", targetId: "mender-2", amount: 20, countdown: 1 });
+    b = e.announce(b, { intent: "lunge", targetId: "striker-3", amount: 16, countdown: 0 });
+    const soonest = b.cards.find((c) => c.countdown === 0)!.id;
+    expect(reactionCard(e, b, "warden-1"), "of two blows on allies, the one landing first").toBe(soonest);
   });
 
   it("names no card the Reaction couldn't answer", async () => {
