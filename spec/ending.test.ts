@@ -100,3 +100,53 @@ describe("a room's ending is shown before its next fight", () => {
     expect(plain.defaultPrevented, "the link navigates as a link").toBe(false);
   });
 });
+
+describe("two fights in one room, in the real log window (N1)", () => {
+  it("the next fight's lines are written, though its line numbers start again at 1", async () => {
+    // Phase two's re-review, N1 (rule 11, its log half): the log window refused
+    // any line number it had already seen, and every fight numbers its lines
+    // from 1, so after one fight ended the next fight's lines were dropped until
+    // their numbers passed the last fight's. Lines are a fight's and a number,
+    // not a number alone. The real log window here, not a stub.
+    const { createConductor } = (await import(resolve("src/client/battle/conductor.ts"))) as {
+      createConductor: (o: unknown) => { receive(m: unknown): void; next(): void };
+    };
+    const { createLog } = (await import(resolve("src/client/battle/log.ts"))) as { createLog: (list: HTMLElement) => unknown };
+    const list = document.createElement("ol");
+    document.body.append(list);
+    const noop = () => {};
+    const quiet = new Proxy({}, { get: () => noop });
+    const conductor = createConductor({
+      scene: quiet,
+      strip: quiet,
+      audio: { play: noop },
+      log: createLog(list),
+      registry: { end: { full: noop, reduced: noop }, join: { full: noop, reduced: noop }, jab: { full: noop, reduced: noop } },
+      onState: noop,
+    });
+    const lines = () => [...list.querySelectorAll("li")].map((li) => li.textContent);
+    conductor.receive({ type: "state", battle: state("A", "fighting", [{ seq: 1, text: "A: Ada sits down." }]), events: [] });
+    conductor.receive({
+      type: "state",
+      battle: state("A", "won", [{ seq: 1, text: "A: Ada sits down." }, { seq: 2, text: "A: Ada jabs." }, { seq: 3, text: "A: The table wins." }]),
+      events: [{ kind: "jab", seq: 2 }, { kind: "end", seq: 3, outcome: "won" }],
+    });
+    await sleep(20);
+    conductor.next();
+    conductor.receive({ type: "state", battle: state("B", "waiting"), events: [] });
+    conductor.receive({ type: "state", battle: state("B", "waiting", [{ seq: 1, text: "B: Bo sits down." }]), events: [{ kind: "join", seq: 1 }] });
+    conductor.receive({
+      type: "state",
+      battle: state("B", "fighting", [{ seq: 1, text: "B: Bo sits down." }, { seq: 2, text: "B: Bo jabs." }]),
+      events: [{ kind: "jab", seq: 2 }],
+    });
+    await sleep(20);
+    expect(lines(), "the last fight's lines, then every one of the next fight's").toEqual([
+      "A: Ada sits down.",
+      "A: Ada jabs.",
+      "A: The table wins.",
+      "B: Bo sits down.",
+      "B: Bo jabs.",
+    ]);
+  });
+});
