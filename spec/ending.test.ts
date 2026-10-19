@@ -53,7 +53,7 @@ describe("a room's ending is shown before its next fight", () => {
       strip,
       audio: { play: noop },
       log: { append: (l: { text: string }) => written.push(l.text), history: (ls: { text: string }[]) => histories.push(ls.map((l) => l.text).join("/")) },
-      registry: { end: { full: () => sleep(150), reduced: () => sleep(150) } },
+      registry: { end: { full: () => sleep(150), reduced: () => sleep(150) }, join: { full: () => {}, reduced: () => {} } },
       onState: (s: { battleId: string; status: string }) => seen.push(`${s.battleId}:${s.status}`),
     });
     expect(typeof conductor.next, "the conductor is told when a room's fight changes: next()").toBe("function");
@@ -68,7 +68,12 @@ describe("a room's ending is shown before its next fight", () => {
     await sleep(300);
     expect(written, "the ending was shown, then written down (rule 11)").toEqual(["The table wins."]);
     expect(seen.at(-1), "and only then is the next fight drawn").toBe("B:waiting");
-    expect(histories.at(-1), "whole, from its own log").toBe("");
+    // Phase two's gate, the breaker's Q1: the next fight's empty log replaced the window, and the end line was
+    // on screen for no frame at all. The last fight's lines stay, and the next fight's follow them.
+    expect(histories.length, "the log window isn't replaced by the next fight's: only the first fight's history was drawn").toBe(1);
+    conductor.receive({ type: "state", battle: state("B", "waiting", [{ seq: 1, text: "Someone new sits down." }]), events: [{ kind: "join", seq: 1 }] });
+    await sleep(50);
+    expect(written, "the next fight's lines follow the last fight's, which stay").toEqual(["The table wins.", "Someone new sits down."]);
   });
 
   it("in a room, the end panel's link goes on to the room's next fight; elsewhere it goes to the front door", async () => {

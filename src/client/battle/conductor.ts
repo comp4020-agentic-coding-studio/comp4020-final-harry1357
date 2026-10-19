@@ -24,7 +24,8 @@ export interface Conductor {
   /**
    * A room's fight changed (rule 24): the next message is the next fight's
    * whole truth, but the last fight's events still waiting are shown and
-   * written down first, so its ending isn't dropped (rule 11).
+   * written down first, so its ending isn't dropped (rule 11), and its lines
+   * stay in the log window, the next fight's following them.
    */
   next(): void;
 }
@@ -50,6 +51,8 @@ export function createConductor(opts: ConductorOptions): Conductor {
   /** After next(): the next fight's message, held until the last fight's events have played. */
   let finishing = false;
   let held: ServerMessage | null = null;
+  /** After next(): the last fight's lines stay in the window, and the next fight's follow them (breaker Q1). */
+  let carry = false;
 
   const wait = (ms: number): Promise<void> =>
     new Promise((resolve) => setTimeout(resolve, reducedQuery.matches ? Math.min(ms, 120) : ms));
@@ -140,7 +143,10 @@ export function createConductor(opts: ConductorOptions): Conductor {
       fresh = false;
       finishing = false;
       queue.length = 0;
-      opts.log.history(latest.log);
+      if (carry) {
+        carry = false;
+        for (const line of latest.log) opts.log.append(line);
+      } else opts.log.history(latest.log);
       opts.scene.reconcile(latest, me);
       return;
     }
@@ -163,10 +169,12 @@ export function createConductor(opts: ConductorOptions): Conductor {
       fresh = true;
       finishing = false;
       held = null;
+      carry = false;
     },
     next() {
       fresh = true;
       finishing = true;
+      carry = true;
     },
   };
 }
