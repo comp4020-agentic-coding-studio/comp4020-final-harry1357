@@ -104,6 +104,8 @@ function mountCommand(role: RoleId): void {
       const mine = party.filter((t) => t.id === app.myId);
       return [...mine, ...party.filter((t) => t.id !== app.myId)].map((t) => ({ id: t.id, name: t.id === app.myId ? `${t.name} (you)` : t.name }));
     },
+    // Restore aims at the fallen: those downed, not those who left (phase two's gate, P2).
+    fallen: () => (app.state?.fallen ?? []).filter((t) => t.kind === "character" && t.hp <= 0).map((t) => ({ id: t.id, name: t.name })),
     // Card-target actions aim at the strip's boss cards, never at ally ids (review F7).
     cards: () => (app.state?.cards ?? []).map((c) => ({ id: c.id, name: cardName(c.intent, c.targetId, c.countdown) })),
     // A card aim marks the card on the strip; any other aim lights its target on the field.

@@ -47,6 +47,8 @@ export interface CommandOptions {
   allies: () => { id: string; name: string }[];
   /** Phase two: the boss cards on the strip, for card-target actions (Anchor, Delay, Stillpoint, a Reaction). Never ally ids. */
   cards?: () => { id: string; name: string }[];
+  /** Phase two's gate (P2): the allies who have fallen, for Restore. */
+  fallen?: () => { id: string; name: string }[];
   onTarget: (targetId: string | null) => void;
   onChoose: (action: ActionId, targetId: string | null) => void;
   /** Phase two: a command hovered or focused (null when none): the strip ghosts your portrait where the server's preview puts it. */
@@ -66,8 +68,7 @@ export function countdownFraction(state: Pick<BattleState, "turnDeadline" | "pla
 }
 
 interface Target {
-  /** Null: sent with no target, and the server picks (Restore's fallen ally). */
-  id: string | null;
+  id: string;
   name: string;
 }
 
@@ -81,14 +82,11 @@ interface Aim {
 const BOSS_NAME = "The Orrery";
 
 /**
- * Ally actions whose target the window can't offer: Restore brings back
- * someone who has fallen, and the window is given only the allies standing
- * (CommandOptions.allies). So it is sent with no target, and the server brings
- * back the first who fell (server/roles.ts resolve); its preview says so when
- * nobody has.
+ * Ally actions aimed at the fallen, not the standing: Restore brings back
+ * someone who has fallen, chosen from CommandOptions.fallen (phase two's gate,
+ * P2). The server still refuses one who isn't down (server/roles.ts resolve).
  */
-const SERVER_PICKS: ReadonlySet<ActionId> = new Set(["restore"]);
-const SERVER_PICK_NAME = "The first ally to fall";
+const AT_THE_FALLEN: ReadonlySet<ActionId> = new Set(["restore"]);
 
 /** The rank as a word: how long you'll wait after this, never how many ticks. */
 function rankWord(rank: number): string {
@@ -539,7 +537,7 @@ export function mountCommandWindow(root: HTMLElement, opts: CommandOptions): Com
   /** An option whose target the player steps through: allies, or the strip's cards. Not a Reaction (one card), not a server's pick. */
   function choosable(i: number): boolean {
     const info = infos[i];
-    return !info.reaction && !SERVER_PICKS.has(info.id) && (info.target === "ally" || info.target === "card");
+    return !info.reaction && (info.target === "ally" || info.target === "card");
   }
 
   /** Who option i can be aimed at, as the window is told now. */
@@ -550,12 +548,13 @@ export function mountCommandWindow(root: HTMLElement, opts: CommandOptions): Com
     if (info.target === "boss") return [{ id: BOSS_ID, name: BOSS_NAME }];
     // Anchor, Delay, Stillpoint: the strip's boss cards, never an ally id (review F7).
     if (info.target === "card") return opts.cards?.() ?? [];
-    if (SERVER_PICKS.has(info.id)) return [{ id: null, name: SERVER_PICK_NAME }];
-    return opts.allies();
+    return fresh(i);
   }
 
   function fresh(i: number): Target[] {
-    return infos[i].target === "card" ? (opts.cards?.() ?? []) : opts.allies();
+    const info = infos[i];
+    if (info.target === "card") return opts.cards?.() ?? [];
+    return AT_THE_FALLEN.has(info.id) ? (opts.fallen?.() ?? []) : opts.allies();
   }
 
   function cancel(): void {
@@ -583,7 +582,12 @@ export function mountCommandWindow(root: HTMLElement, opts: CommandOptions): Com
     if (info.target === "self") return choose(info.id, null);
     const targets = targetsFor(i);
     if (targets.length === 0) {
-      voice.textContent = info.target === "card" ? "There's no boss card on the strip to aim that at." : "There's no one to aim that at.";
+      voice.textContent =
+        info.target === "card"
+          ? "There's no boss card on the strip to aim that at."
+          : AT_THE_FALLEN.has(info.id)
+            ? "Nobody has fallen, so there's no one to bring back."
+            : "There's no one to aim that at.";
       return;
     }
     aim = { option: i, targets, at: 0 };

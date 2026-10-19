@@ -16,7 +16,47 @@ globalThis.matchMedia ??= ((query: string) => ({
   dispatchEvent: () => false,
 })) as unknown as typeof matchMedia;
 
+type Win = { setEnabled(on: boolean): void; setSeat(info: unknown): void; destroy(): void };
+type Mount = (root: HTMLElement, o: Record<string, unknown>) => Win;
+
 describe("phase two's gate", () => {
+  it("P2: Restore offers the fallen to choose from, and sends the one chosen", async () => {
+    const { mountCommandWindow } = (await import(resolve("src/client/command/window.ts"))) as { mountCommandWindow: Mount };
+    const root = document.createElement("div");
+    document.body.append(root);
+    const chosen: [string, string | null][] = [];
+    let fallen = [
+      { id: "bo", name: "Bo" },
+      { id: "cy", name: "Cy" },
+    ];
+    const win = mountCommandWindow(root, {
+      actions: ["brace", "mend", "ward", "quicken", "restore"],
+      allies: () => [
+        { id: "me", name: "Me (you)" },
+        { id: "al", name: "Al" },
+      ],
+      fallen: () => fallen,
+      onTarget: () => {},
+      onChoose: (a: string, t: string | null) => chosen.push([a, t]),
+    });
+    win.setEnabled(true);
+    const restore = () => root.querySelector<HTMLButtonElement>('button[data-action="restore"]') as HTMLButtonElement;
+    const aimed = () => root.querySelector<HTMLElement>("[data-aim-name]")?.textContent;
+
+    restore().click();
+    expect(aimed(), "Restore aims at the first of the fallen, not at a standing ally or the server's pick").toBe("Bo");
+    root.querySelector<HTMLButtonElement>('.command-step[data-step="1"]')?.click();
+    expect(aimed(), "and steps through the fallen").toBe("Cy");
+    root.querySelector<HTMLButtonElement>("[data-confirm]")?.click();
+    expect(chosen.at(-1), "the fallen ally chosen is the one sent").toEqual(["restore", "cy"]);
+
+    fallen = [];
+    restore().click();
+    expect(root.querySelector<HTMLElement>(".command-aim")?.hidden, "nobody fallen: nothing to aim at").toBe(true);
+    expect(chosen.length, "and nothing sent").toBe(1);
+    win.destroy();
+  });
+
   it("P3: a person back from their Echo has a strip flag of their own, not Restore's", async () => {
     const { RENDERERS } = (await import(resolve("src/client/battle/registry.ts"))) as {
       RENDERERS: Record<string, { reduced: (ctx: unknown, e: unknown) => Promise<void> | void }>;
