@@ -1,6 +1,11 @@
 # ADR-007: A room is a code, a bot is an Echo
 
-- **Status:** accepted.
+- **Status:** accepted. Amended in phase two (2026-10-19) in "Decision": a
+  room can also be made by someone with no character yet, by asking with a
+  name and a role, which seats them in it as its first seat (rule 22). The
+  "create a room" door needs it, since a newcomer has no character to be a
+  seated player with. A founder the seat refuses makes no room. Otherwise a
+  room is still made only by someone sitting down.
 - **Date:** 2026-10-17
 - **Builds on:** ADR-001 (one process, one tick, one volume), ADR-002 (a room
   can't wait on one person), ADR-005 (two at once, the clock decides) and
