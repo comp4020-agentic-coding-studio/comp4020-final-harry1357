@@ -315,10 +315,7 @@ describe("open findings carried into phase two", () => {
     asked.length = 0;
     expect(await door!("?room=k3x9p", ask), "a code in the address: that room").toBe("K3X9P");
     expect(asked, "with a code, the default door isn't asked").toEqual([]);
-    // And the client's boot goes through it: a door module nothing calls is the
-    // fresh-battle client R9 named, still standing (re-review N7).
-    const { readFileSync } = await import("node:fs");
-    const boot = readFileSync(resolve("src/client/main.ts"), "utf8");
-    expect(boot, "src/client/main.ts doesn't take its fight from the door").toMatch(/from\s+["']\.\/door\.ts["']/);
+    // That the client's boot goes through it, and opens no battle of its own, is
+    // held in Chrome (spec/gate-two-page.test.ts, T7): an import line was no proof.
   });
 });

@@ -114,3 +114,28 @@ it("U2 (rule 2): the Reaction offered off-turn is at the card the server names, 
   expect(await tab.evaluate<boolean>(`document.querySelector('button[data-action="intercept"]').disabled`), "the server names no card: the Reaction is dark").toBe(true);
 }, 60_000);
 
+it("T7 (rule 23): with no code, the page opens the room the server's default door names, and no bare battle", async () => {
+  // The default door is made to answer a code the client couldn't know (the real
+  // one is "RAID", which a client could hard-code). Whatever happens next, the
+  // page must have asked for that room, and never made or watched a battle of its own.
+  const t = await chrome.open("about:blank");
+  await t.send("Page.addScriptToEvaluateOnNewDocument", { source: `${SOCKET_TAMPER}
+  (() => {
+    window.__fetches = [];
+    const real = window.fetch.bind(window);
+    window.fetch = (input, init) => {
+      const url = typeof input === "string" ? input : input.url;
+      window.__fetches.push(((init && init.method) || "GET") + " " + url);
+      if (/\\/api\\/raid$/.test(url)) return Promise.resolve(new Response(JSON.stringify({ code: "QZXWV", isPublic: true, battleId: "b-elsewhere" }), { headers: { "content-type": "application/json" } }));
+      return real(input, init);
+    };
+  })();` });
+  // There's no such room, so the join form may never show; the page is judged by what it asked for.
+  await t.send("Page.navigate", { url: `${server.base}/` });
+  await t.until(`(window.__sockets || []).length > 0`, "a socket opened", 15_000);
+  const sockets = await t.evaluate<string[]>(`window.__sockets`);
+  const fetches = await t.evaluate<string[]>(`window.__fetches`);
+  expect(sockets.some((u) => /\/ws\?room=QZXWV$/.test(u)), `the room the default door named (sockets: ${sockets.join(", ")})`).toBe(true);
+  expect(sockets.filter((u) => /[?&]battle=/.test(u)), "no battle socket of its own").toEqual([]);
+  expect(fetches.filter((f) => /^POST .*\/api\/battles$/.test(f)), "and no bare battle made").toEqual([]);
+}, 60_000);
