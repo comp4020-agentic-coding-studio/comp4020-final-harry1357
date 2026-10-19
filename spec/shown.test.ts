@@ -68,6 +68,11 @@ describe("the fight is shown", () => {
       }
       expect((await join(server.base, battleId, `idler-${s}`, "chronist")).status).toBe(200);
 
+      // The pull comes ten seconds after the last seat (docs/adr/006); until
+      // then the fight is "waiting", which isn't over.
+      for (const pull = Date.now() + 20_000; (await battle(server.base, battleId)).status === "waiting"; await sleep(50)) {
+        if (Date.now() > pull) throw new Error("the fight never pulled in 20s");
+      }
       for (const deadline = Date.now() + 60_000; ; ) {
         const st = await battle(server.base, battleId);
         if (st.status !== "fighting") break;
