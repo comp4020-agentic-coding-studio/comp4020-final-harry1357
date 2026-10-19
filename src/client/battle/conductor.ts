@@ -110,7 +110,7 @@ export function createConductor(opts: ConductorOptions): Conductor {
       // Shown; now it may be written down.
       if (event.seq !== undefined) {
         const line = lines.get(event.seq);
-        if (line) opts.log.append(line);
+        if (line) opts.log.append(line, latest?.battleId);
       }
     }
     playing = false;
@@ -145,8 +145,8 @@ export function createConductor(opts: ConductorOptions): Conductor {
       queue.length = 0;
       if (carry) {
         carry = false;
-        for (const line of latest.log) opts.log.append(line);
-      } else opts.log.history(latest.log);
+        for (const line of latest.log) opts.log.append(line, latest.battleId);
+      } else opts.log.history(latest.log, latest.battleId);
       opts.scene.reconcile(latest, me);
       return;
     }
