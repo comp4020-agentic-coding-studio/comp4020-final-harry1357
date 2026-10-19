@@ -72,11 +72,9 @@ const expected: Expected = {
   lunge: [...ONE_TARGET, ["strip.card", "card", "resolved"]],
   gravity: [["scene.frame", "target", "*"], ["scene.status", "target", "*"]],
 
-  // The phase-one shim's two (src/client/sprites.ts registers them; their
-  // renderers are this area's, in ./party.ts, so their states are declared
-  // here until the shim is gone and they're registered with the rest).
-  jab: [...blow("harm")],
-  haste: [ACTED, ["scene.haste", "target", true]],
+  // Jab plays the Striker's own jab; Haste the Chronist's own cast.
+  jab: [["scene.frame", "me", "jab"], ACTED, ["scene.hit", "orrery"], ["scene.number", "orrery", "*", "harm"]],
+  haste: [["scene.frame", "me", "cast"], ACTED, ["scene.haste", "target", true]],
 };
 
 export const FEEL: AreaRenderers = {
@@ -86,6 +84,8 @@ export const FEEL: AreaRenderers = {
     leave: { full: table.leave, reduced: table.leaveReduced },
     down: { full: table.down, reduced: table.downReduced },
     end: { full: table.end, reduced: table.endReduced },
+    jab: { full: party.jab, reduced: party.jabReduced },
+    haste: { full: party.haste, reduced: party.hasteReduced },
     brace: { full: party.brace, reduced: party.braceReduced },
     exposed: { full: orrery.exposed, reduced: orrery.exposedReduced },
     bastion: { full: party.bastion, reduced: party.bastionReduced },

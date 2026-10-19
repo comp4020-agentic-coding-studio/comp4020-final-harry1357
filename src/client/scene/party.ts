@@ -20,7 +20,6 @@ import type { Anim, SpriteAnimation, SpriteManifest, SpriteRole, StatusMark } fr
 import { MARK_GLYPHS, glyphSvg } from "./glyphs.ts";
 import { MAX_MARKS, markWords, sortMarks } from "./marks.ts";
 import { createPlate, type Plate } from "./plate.ts";
-import { spriteFor } from "../sprites.ts";
 
 /** A seat the server plays: seated on purpose, or a person's seat timed out into one (rule 8, 25). */
 export type EchoKind = "seated" | "timeout" | null;
@@ -119,7 +118,7 @@ export function createParty(host: HTMLElement, manifest: SpriteManifest, reduced
     for (const sheet of sheets) new Image().src = ASSET_ROOT + sheet;
   }
 
-  const roleOf = (a: Actor): SpriteRole | null => (a.role ? (manifest.roles[spriteFor(a.role) ?? ""] ?? null) : null);
+  const roleOf = (a: Actor): SpriteRole | null => (a.role ? (manifest.roles[a.role] ?? null) : null);
   const animOf = (a: Actor, name: string): SpriteAnimation | null => roleOf(a)?.animations[name] ?? null;
 
   /** Show cell `index` of `name`: only what changed is written. */
@@ -333,7 +332,7 @@ export function createParty(host: HTMLElement, manifest: SpriteManifest, reduced
       if (token.role !== "orrery" && token.role !== a.role) {
         a.role = token.role;
         a.el.dataset.role = token.role;
-        const role = manifest.roles[spriteFor(token.role) ?? ""];
+        const role = manifest.roles[token.role];
         const s = a.el.style;
         s.setProperty("--foot-x", String(role.anchor[0] - role.box[0]));
         s.setProperty("--foot-y", String(role.anchor[1] - role.box[1]));

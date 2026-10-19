@@ -14,10 +14,9 @@ import type { EventKind } from "../../shared/protocol.ts";
 import { COMMAND } from "./effects/command.ts";
 import { FEEL } from "./effects/feel.ts";
 import { STRIP } from "./effects/strip.ts";
-import { SHIM_RENDERERS } from "../sprites.ts";
 
 /** Which area draws each event kind (phase two). Every kind in EVENT_KINDS appears exactly once. */
-export const OWNERS: Readonly<Record<"strip" | "command" | "feel" | "shim", readonly EventKind[]>> = {
+export const OWNERS: Readonly<Record<"strip" | "command" | "feel", readonly EventKind[]>> = {
   // (a) the strip as the play surface: ./effects/strip.ts
   strip: ["plate", "card", "chain", "resonance", "reaction", "intercept", "anchor", "quicken", "delay", "relay", "stillpoint", "retrograde", "alignment"],
   // (b) the command window and the roles' surface: ./effects/command.ts
@@ -26,15 +25,11 @@ export const OWNERS: Readonly<Record<"strip" | "command" | "feel" | "shim", read
   feel: [
     "join", "seat", "leave", "down", "end", "brace", "exposed", "bastion", "counterweight", "mend", "ward", "restore",
     "cleave", "finisher", "feint", "scan", "pry", "mark", "shatter", "pull", "phase", "break", "revolution", "eclipse",
-    "lunge", "gravity", "perihelion",
+    "lunge", "gravity", "perihelion", "jab", "haste",
   ],
-  // the phase-one shim, until Jab and Haste have animations of their own (src/client/sprites.ts)
-  shim: ["jab", "haste"],
 };
 
 export const RENDERERS: Registry = {
-  // Phase-one stand-ins that borrow another event's animation (src/client/sprites.ts).
-  ...SHIM_RENDERERS,
   ...FEEL.renderers,
   ...STRIP.renderers,
   ...COMMAND.renderers,

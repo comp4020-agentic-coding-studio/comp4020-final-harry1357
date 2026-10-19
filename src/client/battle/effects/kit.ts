@@ -6,7 +6,6 @@ import type { BattleState, EventKind, EventOf, RoleId, Token } from "../../../sh
 import type { Anim, EffectContext, Tone } from "../api.ts";
 import { BOSS_ID } from "../../../shared/protocol.ts";
 import { marksOf } from "../../scene/marks.ts";
-import { spriteFor } from "../../sprites.ts";
 
 /** The event a renderer for kind K receives. */
 export type Ev<K extends EventKind> = EventOf<K>;
@@ -145,21 +144,21 @@ export async function impact(ctx: EffectContext, id: string, ms = 180): Promise<
 
 // --- role to picture ----------------------------------------------------------
 
-/** What crosses the field when this role strikes. By the sprite it borrows (src/client/sprites.ts, a phase-one shim). */
+/** What crosses the field when this role strikes, by its own sprite's weapon. */
 export function projectileFor(role: RoleId | "orrery" | undefined): "slash" | "thrust" | "bolt" | "spark" {
-  switch (spriteFor(role)) {
-    case "lancer":
-      return "thrust";
-    case "bulwark":
-      return "slash";
+  switch (role) {
+    case "striker":
+      return "thrust"; // the spear
+    case "warden":
+      return "slash"; // the sword behind the shield
     case "mender":
       return "spark";
     default:
-      return "bolt";
+      return "bolt"; // the Breaker's fist, the Chronist's arrow
   }
 }
 
-/** The casting pose: the Herald sprite's is its special; everyone else's is cast (the scene falls back to idle). */
+/** The casting pose: the Breaker's sheet calls it special; everyone else's is cast (the scene falls back to idle where a sheet has none). */
 export function castFor(role: RoleId | "orrery" | undefined): Anim {
-  return spriteFor(role) === "herald" ? "special" : "cast";
+  return role === "breaker" ? "special" : "cast";
 }

@@ -34,7 +34,6 @@ import { countdownFraction } from "../command/window.ts";
 import { INTENT_ART, INTENT_LABEL, createCardLane } from "./cards.ts";
 import { orreryPortrait } from "./orrery.ts";
 import { BRACE, DOWN, DRIFT, ECHO, HASTE, LINK, LINK_ACROSS, STAR, pixelIcon } from "./pixels.ts";
-import { spriteFor } from "../sprites.ts";
 
 /** How long a flag (a held turn, a turn reached) stays on a portrait. */
 const FLAG_MS = 1_100;
@@ -243,7 +242,7 @@ export function createStrip(root: HTMLElement, opts: PartsOptions): Strip {
       if (orrery === undefined) orrery = orreryPortrait(opts.orrerySvg);
       return orrery ? orrery() : null;
     }
-    const role = opts.manifest.roles[spriteFor(token.role as RoleId) ?? ""];
+    const role = opts.manifest.roles[token.role];
     if (!role) return null;
     const img = document.createElement("img");
     img.src = `/assets/${role.portrait}`;

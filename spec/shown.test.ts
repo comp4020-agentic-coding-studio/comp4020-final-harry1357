@@ -158,7 +158,8 @@ describe("the fight is shown", () => {
         for (const el of log.querySelectorAll("[data-seq]")) seen.log[el.dataset.seq] = -1;
         new MutationObserver(() => {
           const sprite = scene.querySelector('[data-sprite="${A}"]');
-          if (!seen.attack && sprite && sprite.dataset.anim === "attack") seen.attack = now();
+          // A's blow: the attack, or (phase two) the Jab's own animation.
+          if (!seen.attack && sprite && (sprite.dataset.anim === "attack" || sprite.dataset.anim === "jab")) seen.attack = now();
           if (!seen.number && scene.querySelector("[data-number]")) seen.number = now();
         }).observe(scene, { subtree: true, childList: true, attributes: true });
         new MutationObserver(() => {

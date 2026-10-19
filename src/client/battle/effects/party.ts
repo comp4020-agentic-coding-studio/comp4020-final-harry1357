@@ -8,7 +8,7 @@
 //
 // Acting ends a Brace (rules.ts clears `braced` at the start of every turn), so
 // every action but brace drops the actor's guard as it begins.
-import type { EffectContext, Tone } from "../api.ts";
+import type { Anim, EffectContext, Tone } from "../api.ts";
 import { BOSS_ID } from "../../../shared/protocol.ts";
 import {
   HOLD,
@@ -42,6 +42,8 @@ interface Blow {
 interface Look {
   weight: "quick" | "standard" | "heavy";
   tone: Tone;
+  /** The sprite's animation for this blow: its own where its sheet has one (a Striker's jab), else the attack. */
+  anim?: Anim;
   /** It changed the ring it struck (pips, stacks), so the ring's marks are redrawn as it lands. */
   ring?: boolean;
 }
@@ -54,7 +56,7 @@ const GATHER = { quick: 160, standard: 240, heavy: 300 } as const;
  */
 async function blow(raw: EffectContext, e: Blow, look: Look): Promise<void> {
   const ctx = stage(raw);
-  const attack = ctx.scene.frame(e.actorId, "attack");
+  const attack = ctx.scene.frame(e.actorId, look.anim ?? "attack");
   ctx.scene.guard(e.actorId, false);
   ctx.audio.play("strike");
   // anticipation
@@ -76,7 +78,7 @@ async function blow(raw: EffectContext, e: Blow, look: Look): Promise<void> {
 
 async function blowReduced(raw: EffectContext, e: Blow, look: Look): Promise<void> {
   const ctx = stage(raw);
-  void ctx.scene.frame(e.actorId, "attack");
+  void ctx.scene.frame(e.actorId, look.anim ?? "attack");
   ctx.scene.guard(e.actorId, false);
   ctx.audio.play("strike");
   ctx.scene.hit(BOSS_ID);
@@ -88,9 +90,9 @@ async function blowReduced(raw: EffectContext, e: Blow, look: Look): Promise<voi
   rest(ctx, e.actorId);
 }
 
-// Jab is registered through the phase-one shim (src/client/sprites.ts); its
-// blow is this one, quick: rank 1 gathers the least.
-const JAB: Look = { weight: "quick", tone: "harm" };
+// Jab: the Striker's own quick blow (its sheet's jab: ready, lunge, recover,
+// without the attack's wind-up), rank 1, gathering the least.
+const JAB: Look = { weight: "quick", tone: "harm", anim: "jab" };
 export const jab: Fx<"jab"> = (ctx, e) => blow(ctx, e, JAB);
 export const jabReduced: Fx<"jab"> = (ctx, e) => blowReduced(ctx, e, JAB);
 
@@ -306,8 +308,9 @@ export const restoreReduced: Fx<"restore"> = async (raw, e) => {
   rest(ctx, e.actorId);
 };
 
-// --- haste (the Chronist's; registered through the phase-one shim) -------------------
+// --- haste (the Chronist's own cast) ----------------------------------------------------
 
+/** Haste: the Chronist's own cast, the bow raised in its clock-circle, and the ally's next two waits marked halved. */
 export const haste: Fx<"haste"> = async (raw, e) => {
   const ctx = stage(raw);
   const cast = ctx.scene.frame(e.actorId, castFor(roleOf(ctx, e.actorId)));

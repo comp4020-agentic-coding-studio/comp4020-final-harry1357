@@ -186,7 +186,7 @@ export interface SpriteManifest {
   /** The art faces this way; the party is mirrored on screen to face the Orrery. */
   facing: "left";
   required: string[];
-  /** Keyed by sprite name, not role: a role finds its sprite through src/client/sprites.ts (a phase-one shim). */
+  /** Keyed by role: each of the five draws its own sheet (phase two removed the phase-one shim). */
   roles: Record<string, SpriteRole>;
 }
 

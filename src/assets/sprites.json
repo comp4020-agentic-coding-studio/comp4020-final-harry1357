@@ -7,9 +7,9 @@
     "down"
   ],
   "roles": {
-    "bulwark": {
-      "sheet": "party/bulwark/sheet.png",
-      "portrait": "party/bulwark/portrait.png",
+    "warden": {
+      "sheet": "party/warden/sheet.png",
+      "portrait": "party/warden/portrait.png",
       "cell": [
         182,
         123
@@ -75,7 +75,7 @@
           "loop": false
         },
         "down": {
-          "sheet": "party/bulwark/down.png",
+          "sheet": "party/warden/down.png",
           "cell": [
             91,
             114
@@ -93,9 +93,9 @@
         }
       }
     },
-    "lancer": {
-      "sheet": "party/lancer/sheet.png",
-      "portrait": "party/lancer/portrait.png",
+    "striker": {
+      "sheet": "party/striker/sheet.png",
+      "portrait": "party/striker/portrait.png",
       "cell": [
         240,
         104
@@ -165,7 +165,7 @@
           "loop": false
         },
         "down": {
-          "sheet": "party/lancer/down.png",
+          "sheet": "party/striker/down.png",
           "cell": [
             98,
             103
@@ -269,9 +269,9 @@
         }
       }
     },
-    "herald": {
-      "sheet": "party/herald/sheet.png",
-      "portrait": "party/herald/portrait.png",
+    "breaker": {
+      "sheet": "party/breaker/sheet.png",
+      "portrait": "party/breaker/portrait.png",
       "cell": [
         151,
         100
@@ -329,7 +329,7 @@
           "loop": false
         },
         "down": {
-          "sheet": "party/herald/down.png",
+          "sheet": "party/breaker/down.png",
           "cell": [
             101,
             72

@@ -25,10 +25,11 @@ const anim = (from: number, to: number, fps: number, loop = false): Animation =>
   loop,
 });
 
-export const ROLE_ART: Record<"bulwark" | "lancer" | "mender" | "herald" | "chronist", RoleArt> = {
-  // "warrior2": the shield knight
-  bulwark: {
-    dir: "party/bulwark",
+/** Keyed by role (docs/design/overhaul.md): each of the five draws its own sheet. */
+export const ROLE_ART: Record<"warden" | "striker" | "mender" | "breaker" | "chronist", RoleArt> = {
+  // "warrior2": the shield knight, the Warden
+  warden: {
+    dir: "party/warden",
     cell: [182, 123],
     columns: 6,
     // the knight is as wide as he is tall, so his recoil stands on end when
@@ -36,9 +37,9 @@ export const ROLE_ART: Record<"bulwark" | "lancer" | "mender" | "herald" | "chro
     downFrom: 0,
     animations: { idle: anim(0, 5, 8, true), attack: anim(6, 11, 12), hurt: anim(22, 24, 10), guard: anim(12, 20, 14) },
   },
-  // "warrior": the horned spearman
-  lancer: {
-    dir: "party/lancer",
+  // "warrior": the horned spearman, the Striker
+  striker: {
+    dir: "party/striker",
     cell: [240, 104],
     columns: 5,
     downFrom: 17,
@@ -52,7 +53,7 @@ export const ROLE_ART: Record<"bulwark" | "lancer" | "mender" | "herald" | "chro
       jab: { frames: [5, 9, 10, 11], fps: 14, loop: false },
     },
   },
-  // "Wizard": robe, hat and staff; the cast is the glow before the fireball, not the fireball
+  // "Wizard": robe, hat and staff, the Mender; the cast is the glow before the fireball, not the fireball
   mender: {
     dir: "party/mender",
     cell: [161, 106],
@@ -60,9 +61,9 @@ export const ROLE_ART: Record<"bulwark" | "lancer" | "mender" | "herald" | "chro
     downFrom: 35,
     animations: { idle: anim(0, 5, 8, true), attack: anim(6, 12, 12), hurt: anim(32, 35, 10), cast: anim(15, 21, 12) },
   },
-  // "mage": the spiky-haired brawler; the flying kick is his special
-  herald: {
-    dir: "party/herald",
+  // "mage": the spiky-haired brawler, the Breaker; the flying kick is his special
+  breaker: {
+    dir: "party/breaker",
     cell: [151, 100],
     columns: 5,
     downFrom: 15,
