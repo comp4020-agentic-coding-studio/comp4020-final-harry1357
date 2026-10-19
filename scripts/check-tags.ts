@@ -114,10 +114,12 @@ const COLLECT = (root: string, field: string): string => `(() => {
     // whose content is wider or taller than its box while it hides overflow.
     for (const el of [plate, ...plate.querySelectorAll("*")]) {
       if (!shown(el) || !(el.textContent || "").trim()) continue;
-      // Screen-reader words are clipped to 1px on purpose; a name nobody sees isn't cut off (as for sprites, below).
-      const r = el.getBoundingClientRect();
-      if (r.width <= 1 && r.height <= 1) continue;
       const s = getComputedStyle(el);
+      // Screen-reader words are clipped away on purpose (the page's visually-hidden: clip-path inset(50%), or
+      // an old-style clip rect); a name nobody is meant to see isn't cut off. Keyed on the clip, not the size,
+      // so a visible name a layout fault squeezes to 1px is still a finding (phase two's gate, T11).
+      const clippedAway = s.position === "absolute" && (s.clipPath === "inset(50%)" || /^rect\(0(px)?,? 0(px)?,? 0(px)?,? 0(px)?\)$/.test(s.clip));
+      if (clippedAway) continue;
       // (an ellipsis only ever shows where overflow is hidden, so this covers it)
       const hidesX = s.overflowX !== "visible";
       const hidesY = s.overflowY !== "visible";
@@ -201,7 +203,16 @@ async function selfTest(page: Page): Promise<void> {
   // and whether the plate names its owner by value or by sitting beside it.
   // `whole`: the scene's shape, where [data-sprite] is the member itself and
   // holds its art and its own plate; otherwise sprite and plate are siblings.
-  type Member = { plate: [number, number]; sprite?: [number, number, number, number]; byValue?: boolean; name?: string; clip?: boolean; whole?: boolean; said?: string };
+  type Member = {
+    plate: [number, number];
+    sprite?: [number, number, number, number];
+    byValue?: boolean;
+    name?: string;
+    clip?: boolean;
+    squeeze?: boolean;
+    whole?: boolean;
+    said?: string;
+  };
   const plant = (members: Member[]): string => `(() => {
     const host = document.createElement("div");
     host.dataset.plateFixture = "";
@@ -218,7 +229,11 @@ async function selfTest(page: Page): Promise<void> {
       plate.style.cssText = "position:absolute;width:100px;height:30px;left:" + m.plate[0] + "px;top:" + m.plate[1] + "px";
       const name = document.createElement("span");
       name.textContent = m.name || ("P" + i);
-      name.style.cssText = m.clip ? "display:block;width:40px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis" : "display:block";
+      name.style.cssText = m.squeeze
+        ? "display:block;width:1px;height:1px;overflow:hidden;white-space:nowrap"
+        : m.clip
+          ? "display:block;width:40px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis"
+          : "display:block";
       plate.append(name);
       if (m.said) {
         // the plate's words for a screen reader: the page's own 1px clip, on purpose
@@ -265,6 +280,7 @@ async function selfTest(page: Page): Promise<void> {
     { what: "a plate that shows its whole name", members: [{ plate: [10, 10], name: "Ada" }], expect: 0 },
     { what: "a plate whose screen-reader words are clipped to 1px on purpose", members: [{ plate: [10, 10], name: "Ada", said: longName(7) }], expect: 0 },
     { what: "a plate that clips its name beside its screen-reader words", members: [{ plate: [10, 10], name: longName(7), clip: true, said: longName(6) }], expect: 1 },
+    { what: "a visible name a layout fault squeezes to 1px", members: [{ plate: [10, 10], name: longName(7), squeeze: true }], expect: 1 },
   ];
   for (const c of cases) {
     const found = await run(c.members);
@@ -273,7 +289,7 @@ async function selfTest(page: Page): Promise<void> {
     }
   }
   console.log(
-    "✓ self-test: a planted overlap, covered plate and clipped name are seen; touching plates, a sprite over its own plate and 1px screen-reader words are not",
+    "✓ self-test: a planted overlap, covered plate and clipped name are seen; touching plates, a sprite over its own plate and screen-reader words are not; a name squeezed to 1px is",
   );
 }
 
