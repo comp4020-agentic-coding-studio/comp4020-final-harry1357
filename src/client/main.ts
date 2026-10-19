@@ -10,12 +10,14 @@ import {
   type ActionId,
   type ActionResponse,
   type BattleState,
+  type EchoResponse,
   type JoinResponse,
   type MeResponse,
   type RoleId,
   type RoomInfo,
+  type RoomJoinResponse,
 } from "../shared/protocol.ts";
-import type { JoinResult, SpriteManifest } from "./battle/api.ts";
+import type { Door, JoinResult, SpriteManifest } from "./battle/api.ts";
 import { createConductor } from "./battle/conductor.ts";
 import { createLog } from "./battle/log.ts";
 import { RENDERERS } from "./battle/registry.ts";
@@ -23,7 +25,8 @@ import { createAudio } from "./audio/audio.ts";
 import { countdownFraction, mountCommandWindow, type CommandWindow } from "./command/window.ts";
 import { door } from "./door.ts";
 import { mountJoin } from "./join/join.ts";
-import { getJSON, postJSON, watchBattle, watchRoom, type Link, type RoomGone } from "./net.ts";
+import { getJSON, postJSON, watchBattle, watchRoom, type Link, type RoomGone, type Watch } from "./net.ts";
+import { createSeats } from "./seats/seats.ts";
 import { createScene } from "./scene/scene.ts";
 import { createStrip } from "./strip/strip.ts";
 
@@ -47,6 +50,7 @@ const audio = createAudio({ muteButton: need<HTMLButtonElement>("[data-mute]") }
 const log = createLog(need<HTMLElement>("[data-log]"));
 const commandEl = need<HTMLElement>("[data-command]");
 const join = mountJoin(need<HTMLElement>("[data-join-screen]"), { manifest, onJoin });
+const seats = createSeats(need<HTMLElement>("[data-seats]"), { onEcho });
 
 const app = {
   /** The room this page is in (rules 22-24), or null on a bare battle opened by ?battle= (the sensors'). */
@@ -62,6 +66,10 @@ const app = {
   endedShown: false,
   /** The turn whose hold warning has already sounded (by its deadline). */
   warned: null as number | null,
+  /** The socket this page is watching, so a change of room can let it go. */
+  watch: null as Watch | null,
+  /** The public raid's code, once the server's default door has named it. */
+  publicCode: null as string | null,
 };
 
 const conductor = createConductor({ scene, strip, audio, log, registry: RENDERERS, onState });
@@ -127,6 +135,7 @@ function onState(state: BattleState): void {
   app.state = state;
   const mine = standing(state, app.myId);
   document.body.dataset.me = app.myId ?? "";
+  seats.render(state, app.myId, app.code);
 
   if (OVER.has(state.status)) {
     battleEl.dataset.phase = "ended";
@@ -159,19 +168,39 @@ function onState(state: BattleState): void {
     app.command?.setEnabled(false);
     if (!app.joinShown) {
       app.joinShown = true;
-      join.show(app.me);
+      join.show(app.me, { code: app.code, isPublic: state.room?.isPublic ?? false });
     }
   }
 }
 
-async function onJoin(name: string, role: RoleId): Promise<JoinResult> {
-  // In a room, by its code (rule 22); on a bare battle (the sensors'), by its id.
-  const path = app.code ? `/api/rooms/${encodeURIComponent(app.code)}/join` : `/api/battles/${app.battleId}/join`;
-  const res = await postJSON<JoinResponse>(path, { name, role });
+/**
+ * Sit down through the chosen door (rules 22-23). The public raid is whatever
+ * room the server's default door names; a new room is made by sitting down in
+ * it; a code is joined as given and refused if there's no such room. Once
+ * seated, the page watches the room it sat down in.
+ */
+async function onJoin(door: Door, name: string, role: RoleId): Promise<JoinResult> {
+  let res: { ok: boolean; data: JoinResponse | null; error: string | null };
+  let code: string | null = app.code;
+  if (door.kind === "here") {
+    // A bare battle by id (the sensors'), or the room this page already watches.
+    const path = app.code ? `/api/rooms/${encodeURIComponent(app.code)}/join` : `/api/battles/${app.battleId}/join`;
+    res = await postJSON<JoinResponse>(path, { name, role });
+  } else if (door.kind === "create") {
+    const made = await postJSON<RoomJoinResponse>("/api/rooms", { name, role });
+    res = made;
+    code = made.data?.code ?? null;
+  } else {
+    code = door.kind === "raid" ? await publicRaid() : door.code;
+    const joined = await postJSON<RoomJoinResponse>(`/api/rooms/${encodeURIComponent(code)}/join`, { name, role });
+    res = joined;
+    if (joined.status === 404) return { ok: false, error: "There's no room with that code." };
+  }
   if (!res.ok || !res.data) return { ok: false, error: res.error ?? "The table couldn't seat you." };
   app.myId = res.data.characterId;
   app.role = role;
   conductor.setMe(app.myId);
+  if (code && code !== app.code) enter(code);
   say(`You take your seat as ${ROLES[role].label}.`);
   // The broadcast that seated us usually lands before this POST answers, while
   // myId was still unknown, and the next one may be a whole turn away.
@@ -194,6 +223,40 @@ async function loadMe(): Promise<void> {
 function setLink(link: Link): void {
   linkEl.dataset.link = link;
   linkEl.textContent = link === "live" ? "Live" : link === "connecting" ? "Connecting" : "Reconnecting";
+}
+
+/** The public raid's code, as the server's default door names it (never assumed). */
+async function publicRaid(): Promise<string> {
+  app.publicCode ??= await door("", async (path) => (await getJSON<unknown>(path)).data);
+  return app.publicCode;
+}
+
+/** Watch another room from now on (after sitting down in it): the old socket goes, the conductor starts fresh. */
+function enter(code: string): void {
+  app.watch?.stop();
+  app.code = code;
+  app.battleId = "";
+  app.state = null;
+  app.endedShown = false;
+  battleEl.dataset.room = code;
+  delete battleEl.dataset.closed;
+  conductor.resync();
+  // The address carries a private room's code, so a reload, or a link, comes back to it.
+  const search = code === app.publicCode ? "" : `?room=${encodeURIComponent(code)}`;
+  if (location.search !== search) history.replaceState(null, "", `${location.pathname}${search}`);
+  app.watch = watchRoom(code, (msg) => conductor.receive(msg), onRoom, onLinkChange, onGone);
+}
+
+/** Seat an Echo in this room (rule 25): the server's refusal, or null. */
+async function onEcho(role: RoleId): Promise<string | null> {
+  if (!app.code) return "Echoes are seated in a room.";
+  const res = await postJSON<EchoResponse>(`/api/rooms/${encodeURIComponent(app.code)}/echoes`, { role });
+  return res.ok ? null : (res.error ?? "The table couldn't seat the Echo.");
+}
+
+function onLinkChange(link: Link): void {
+  setLink(link);
+  if (link === "reconnecting") conductor.resync();
 }
 
 /** The room's fight is now this one (on open, and when a fight ends and the next opens). */
@@ -229,23 +292,20 @@ async function boot(): Promise<void> {
   setLink("connecting");
   const me = loadMe();
   const bare = new URLSearchParams(location.search).get("battle")?.trim();
-  const onLink = (link: Link): void => {
-    setLink(link);
-    if (link === "reconnecting") conductor.resync();
-  };
   if (bare) {
     // A bare battle by id (POST /api/battles): the sensors' way in, kept until they move onto rooms.
     app.battleId = bare;
     battleEl.dataset.battle = bare;
     await me;
-    watchBattle(bare, (msg) => conductor.receive(msg), onLink, () => {});
+    app.watch = watchBattle(bare, (msg) => conductor.receive(msg), onLinkChange, () => {});
   } else {
     // The front door (rule 23): the address's code, or the room the server's default door names.
     const code = await door(location.search, async (path) => (await getJSON<unknown>(path)).data);
+    if (!new URLSearchParams(location.search).get("room")) app.publicCode = code;
     app.code = code;
     battleEl.dataset.room = code;
     await me;
-    watchRoom(code, (msg) => conductor.receive(msg), onRoom, onLink, onGone);
+    app.watch = watchRoom(code, (msg) => conductor.receive(msg), onRoom, onLinkChange, onGone);
   }
   // The countdown drains between messages too: the clock is stopped while
   // it's your turn, so the server sends nothing until someone acts.

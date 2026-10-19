@@ -130,6 +130,17 @@ const QUIET_GROUNDS: Readonly<Record<string, string>> = {
   "#battle .join-blurb": "ink",
   "#battle .join-move": "ink",
   "#battle .join-submit:disabled": "ink",
+  // Phase two: the doors are ink panels, and the table's seats sit in a window (ink).
+  "#battle .join-door-line": "ink",
+  "#battle .seats-room": "ink",
+  "#battle .seats-seat[data-seated-echo=true] .seats-name": "ink",
+  "#battle .seats-seat[data-echo=true] .seats-name": "ink",
+  "#battle .seats-seat[data-out]": "ink",
+  "#battle .seats-role": "ink",
+  "#battle .seats-echo-title": "ink",
+  "#battle .seats-none": "ink",
+  "#battle .seats-said": "ink",
+  "#battle .seats-add:disabled": "ink",
 };
 
 describe(`--${QUIET} on its grounds`, () => {

@@ -112,6 +112,8 @@ export const ROLES: Readonly<Record<RoleId, RoleInfo>> = {
 export const ROLE_IDS: readonly RoleId[] = ["warden", "mender", "striker", "breaker", "chronist"];
 
 export const BOSS_ID = "orrery";
+/** Rule 25: Echoes seated on purpose, one per role, at most this many in a room's fight. The server holds it; the client shows it. */
+export const ECHO_MAX = 4;
 export const NAME_MAX = 24;
 
 /** One combatant, as the server placed it. */

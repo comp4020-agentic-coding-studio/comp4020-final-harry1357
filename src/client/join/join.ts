@@ -9,11 +9,15 @@
 // [value=<roleId>] and button[type="submit"]. The form is built on the first
 // show(), so it exists only once it can be seen and clicked.
 //
-// DOM order is role, then name, then submit, which is also the reading order
-// and the Tab order: arrows, Tab, type, Tab, Enter. You choose who you are at
-// the table before you say what it calls you.
+// DOM order is door, then role, then name, then submit, which is also the
+// reading order and the Tab order: arrows, Tab, arrows, Tab, type, Tab, Enter.
+// You choose where you sit, then who you are at the table, then what it calls
+// you. Phase two adds the doors (join the public raid, make a room, enter a
+// code: rules 22-23, input[name="door"]) and each role's signature action, and
+// a returning session's name is shown fixed, never offered for a rename (rule
+// 24). On a bare battle opened by id (the sensors'), there are no doors.
 import { ACTIONS, NAME_MAX, ROLE_IDS, ROLES, type CharacterInfo, type MeResponse, type RoleId } from "../../shared/protocol.ts";
-import type { Join, JoinOptions, JoinResult, SpriteManifest, SpriteRole } from "../battle/api.ts";
+import type { Door, Here, Join, JoinOptions, JoinResult, SpriteManifest, SpriteRole } from "../battle/api.ts";
 import { spriteFor } from "../sprites.ts";
 
 type Outcome = "won" | "lost" | "abandoned";
@@ -58,9 +62,17 @@ interface Puppet {
   shown: number;
 }
 
+type DoorKind = "raid" | "create" | "code";
+
 interface Form {
   form: HTMLFormElement;
   greeting: HTMLElement;
+  doors: HTMLFieldSetElement;
+  door: Map<DoorKind, HTMLInputElement>;
+  code: HTMLInputElement;
+  codeRow: HTMLElement;
+  fixedName: HTMLElement;
+  nameLabel: HTMLElement;
   name: HTMLInputElement;
   error: HTMLElement;
   radios: Map<RoleId, HTMLInputElement>;
@@ -88,7 +100,23 @@ function welcome(c: CharacterInfo): string {
   return `Welcome back, ${c.name}: ${count(c.turns, "turn")}, ${count(c.wins, "win")}`;
 }
 
-const TAGLINE = "A raid for whoever is at the table. Choose a role, give a name, take a seat.";
+const TAGLINE = "A raid for whoever is at the table. Choose where, choose a role, take a seat.";
+
+/** Each role's signature: the one action that says what it is for (docs/design/overhaul.md). */
+const SIGNATURE: Readonly<Record<RoleId, keyof typeof ACTIONS>> = {
+  warden: "intercept",
+  mender: "ward",
+  striker: "finisher",
+  breaker: "shatter",
+  chronist: "delay",
+};
+
+/** The doors, in order, and what each button says. */
+const DOORS: readonly { kind: DoorKind; label: string; line: string; submit: string }[] = [
+  { kind: "raid", label: "Join the public raid", line: "Sit down with whoever is here now.", submit: "Take a seat" },
+  { kind: "create", label: "Create a room", line: "A table of your own, behind a code you read out.", submit: "Make the room and sit down" },
+  { kind: "code", label: "Enter a code", line: "Someone read you a room's code.", submit: "Sit down in that room" },
+];
 
 export function mountJoin(root: HTMLElement, opts: JoinOptions): Join {
   const manifest: SpriteManifest = opts.manifest;
@@ -201,10 +229,17 @@ export function mountJoin(root: HTMLElement, opts: JoinOptions): Join {
 
     const moves = make("span", "join-moves");
     moves.id = `join-moves-${role}`;
-    info.actions.forEach((id, i) => {
-      if (i > 0) moves.append(make("span", "visually-hidden", ", "));
-      moves.append(make("span", "join-move", ACTIONS[id].label));
-    });
+    // Its signature action, named first and marked; then the rest of the role's actions.
+    const signature = make("span", "join-signature");
+    signature.dataset.signature = SIGNATURE[role];
+    signature.append(make("span", "join-signature-label", "Signature "), make("span", "join-move", ACTIONS[SIGNATURE[role]].label));
+    moves.append(signature, make("span", "visually-hidden", ". Also: "));
+    info.actions
+      .filter((id) => id !== SIGNATURE[role])
+      .forEach((id, i) => {
+        if (i > 0) moves.append(make("span", "visually-hidden", ", "));
+        moves.append(make("span", "join-move", ACTIONS[id].label));
+      });
 
     label.append(radio, plinth, heading, blurb, moves);
     return { label, radio };
@@ -220,6 +255,43 @@ export function mountJoin(root: HTMLElement, opts: JoinOptions): Join {
 
     const greeting = make("p", "join-greeting");
     greeting.id = "join-greeting";
+
+    // The doors (rules 22-23): where you'll sit.
+    const doors = make("fieldset", "join-doors");
+    doors.append(make("legend", "join-label", "Where to sit"));
+    const doorList = make("div", "join-door-list");
+    const door = new Map<DoorKind, HTMLInputElement>();
+    for (const d of DOORS) {
+      const option = make("label", "join-door");
+      option.dataset.door = d.kind;
+      const input = make("input", "join-radio");
+      input.type = "radio";
+      input.name = "door";
+      input.value = d.kind;
+      const words = make("span", "join-door-words");
+      const doorMark = make("span", "join-mark");
+      doorMark.innerHTML = CURSOR;
+      words.append(make("span", "join-door-label", d.label), make("span", "join-door-line", d.line));
+      option.append(input, doorMark, words);
+      doorList.append(option);
+      door.set(d.kind, input);
+    }
+    const codeRow = make("div", "join-code-row");
+    const codeLabel = make("label", "join-label", "Room code");
+    codeLabel.htmlFor = "join-code";
+    const code = make("input", "join-code");
+    code.id = "join-code";
+    code.name = "code";
+    code.type = "text";
+    code.maxLength = 8;
+    code.spellcheck = false;
+    code.setAttribute("autocomplete", "off");
+    code.setAttribute("autocapitalize", "characters");
+    code.placeholder = "e.g. K3X9P";
+    code.setAttribute("aria-describedby", "join-error");
+    codeRow.append(codeLabel, code);
+    codeRow.hidden = true;
+    doors.append(doorList, codeRow);
 
     const plate = make("div", "join-plate");
     const nameLabel = make("label", "join-label", "Your name");
@@ -239,7 +311,10 @@ export function mountJoin(root: HTMLElement, opts: JoinOptions): Join {
     error.id = "join-error";
     error.setAttribute("aria-live", "polite");
     error.setAttribute("aria-atomic", "true");
-    plate.append(nameLabel, name, error);
+    // A returning session's name, fixed for life (rule 24): shown, never offered for a rename.
+    const fixedName = make("p", "join-fixed-name");
+    fixedName.hidden = true;
+    plate.append(nameLabel, name, fixedName, error);
 
     const cast = make("fieldset", "join-cast");
     const legend = make("legend", "join-label", "Choose your role");
@@ -265,18 +340,28 @@ export function mountJoin(root: HTMLElement, opts: JoinOptions): Join {
     submit.append(submitCursor, submitText);
     actions.append(submit);
 
-    form.append(greeting, cast, plate, actions);
+    form.append(greeting, doors, cast, plate, actions);
     host.append(form);
 
     name.addEventListener("input", () => {
       if (name.hasAttribute("aria-invalid")) clearError();
     });
+    code.addEventListener("input", () => {
+      code.value = code.value.toUpperCase();
+      if (code.hasAttribute("aria-invalid")) clearError();
+    });
+    for (const input of door.values()) {
+      input.addEventListener("change", () => {
+        form.dataset.doorChosen = ""; // the person's choice: a redraw doesn't undo it
+        doorChanged();
+      });
+    }
     form.addEventListener("submit", (event) => {
       event.preventDefault();
       void submitJoin();
     });
 
-    parts = { form, greeting, name, error, radios, submit, submitText };
+    parts = { form, greeting, doors, door, code, codeRow, fixedName, nameLabel, name, error, radios, submit, submitText };
     return parts;
   }
 
@@ -305,6 +390,22 @@ export function mountJoin(root: HTMLElement, opts: JoinOptions): Join {
     if (!parts) return;
     parts.error.textContent = "";
     parts.name.removeAttribute("aria-invalid");
+    parts.code.removeAttribute("aria-invalid");
+  }
+
+  /** The chosen door, or "here" when there are no doors (a bare battle). */
+  function chosenDoor(): Door {
+    if (!parts || parts.doors.hidden) return { kind: "here" };
+    const kind = ([...parts.door].find(([, input]) => input.checked)?.[0] ?? "raid") as DoorKind;
+    return kind === "code" ? { kind, code: parts.code.value.trim().toUpperCase() } : { kind };
+  }
+
+  /** The code field shows only behind its door, and the button says where it leads. */
+  function doorChanged(): void {
+    if (!parts) return;
+    const d = chosenDoor();
+    parts.codeRow.hidden = d.kind !== "code";
+    if (!pending) parts.submitText.textContent = DOORS.find((x) => x.kind === d.kind)?.submit ?? "Take a seat";
   }
 
   /** Say what went wrong, in the live region, and keep the person in the form. */
@@ -322,7 +423,7 @@ export function mountJoin(root: HTMLElement, opts: JoinOptions): Join {
     parts.submit.disabled = on;
     if (on) parts.form.setAttribute("aria-busy", "true");
     else parts.form.removeAttribute("aria-busy");
-    parts.submitText.textContent = on ? "Taking a seat…" : "Take a seat";
+    parts.submitText.textContent = on ? "Taking a seat…" : (DOORS.find((x) => x.kind === chosenDoor().kind)?.submit ?? "Take a seat");
   }
 
   function chosen(): RoleId | null {
@@ -344,11 +445,18 @@ export function mountJoin(root: HTMLElement, opts: JoinOptions): Join {
       parts.radios.get(ROLE_IDS[0])?.focus({ preventScroll: true });
       return;
     }
+    const door = chosenDoor();
+    if (door.kind === "code" && !/^[A-Z0-9]{4,8}$/.test(door.code)) {
+      parts.error.textContent = "A room code is the letters and numbers someone read out.";
+      parts.code.setAttribute("aria-invalid", "true");
+      parts.code.focus({ preventScroll: true });
+      return;
+    }
     clearError();
     busy(true);
     let result: JoinResult;
     try {
-      result = await opts.onJoin(name, role);
+      result = await opts.onJoin(door, name, role);
     } catch {
       result = { ok: false, error: "The table couldn't seat you." };
     }
@@ -368,8 +476,17 @@ export function mountJoin(root: HTMLElement, opts: JoinOptions): Join {
   }
 
   return {
-    show(me: MeResponse | null) {
+    show(me: MeResponse | null, here?: Here) {
       const f = ensureForm();
+      // The doors, in a room; none on a bare battle. Opened by a private room's
+      // code, its door is the code's, filled in; otherwise the public raid's.
+      f.doors.hidden = !here || here.code === null;
+      if (here && here.code !== null && !f.form.dataset.doorChosen) {
+        const fromCode = !here.isPublic;
+        (f.door.get(fromCode ? "code" : "raid") as HTMLInputElement).checked = true;
+        if (fromCode) f.code.value = here.code;
+      }
+      doorChanged();
       if (end) end.panel.hidden = true;
       if (shell) delete shell.dataset.outcome;
       root.setAttribute("aria-label", screenLabel);
@@ -378,6 +495,11 @@ export function mountJoin(root: HTMLElement, opts: JoinOptions): Join {
       clearError();
 
       const known = me?.character ?? null;
+      // A name is for life (rule 24): a returning session sees its own, fixed.
+      f.name.hidden = !!known;
+      f.nameLabel.hidden = !!known;
+      f.fixedName.hidden = !known;
+      if (known) f.fixedName.textContent = `You sit down as ${known.name}. A name stays with you; your role is yours to choose each fight.`;
       if (known) {
         f.name.value = known.name;
         pick(known.role);

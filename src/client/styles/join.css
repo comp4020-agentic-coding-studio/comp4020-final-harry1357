@@ -481,6 +481,136 @@
   outline-offset: 3px;
 }
 
+/* ---- the doors (phase two): where to sit ---------------------------------------
+   Three doors before the roles, drawn like the cards: the radio is the
+   control, the door is what you see of it, and the chosen one is lit. */
+
+#battle .join-doors {
+  display: grid;
+  gap: 0.6rem;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+#battle .join-doors[hidden] {
+  display: none;
+}
+
+#battle .join-doors > legend {
+  float: left;
+  width: 100%;
+  margin-block-end: 0.6rem;
+}
+
+#battle .join-door-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr));
+  gap: 0.6rem;
+  clear: both;
+}
+
+#battle .join-door {
+  position: relative;
+  display: flex;
+  gap: 0.5rem;
+  align-items: flex-start;
+  padding: 0.6rem 0.7rem;
+  cursor: pointer;
+  color: var(--card);
+  background: var(--ink);
+  border: 2px solid var(--brass-dim);
+  border-radius: 5px;
+}
+
+#battle .join-door-words {
+  display: grid;
+  gap: 0.15rem;
+}
+
+#battle .join-door-label {
+  font-family: var(--font-display);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+#battle .join-door-line {
+  font-size: 1.15rem;
+  line-height: 1.1;
+  color: var(--card-quiet);
+}
+
+#battle .join-code-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  align-items: center;
+}
+
+#battle .join-code-row[hidden] {
+  display: none;
+}
+
+#battle .join-code {
+  width: 9ch;
+  padding: 0.25rem 0.5rem;
+  font-family: var(--font-display);
+  font-size: 16px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--card);
+  background: var(--void);
+  border: 2px solid var(--brass-dim);
+  border-radius: 2px;
+}
+
+#battle .join-code:focus-visible {
+  outline: 3px solid var(--brass-lit);
+  outline-offset: 2px;
+}
+
+#battle .join-signature {
+  display: inline-flex;
+  gap: 0.3rem;
+  align-items: center;
+  width: 100%;
+}
+
+#battle .join-signature-label {
+  font-family: var(--font-display);
+  font-size: 9px;
+  color: var(--brass);
+}
+
+#battle .join-fixed-name {
+  margin: 0;
+  font-size: 1.3rem;
+  color: var(--card);
+}
+
+#battle .join-door:hover {
+  border-color: var(--brass);
+}
+
+#battle .join-door:has(.join-radio:checked) {
+  border-color: var(--brass-lit);
+  box-shadow: 0 0 0 1px var(--brass);
+}
+
+#battle .join-door:has(.join-radio:checked) .join-mark {
+  visibility: visible;
+}
+
+#battle .join-door:has(.join-radio:checked) .join-door-label {
+  color: var(--brass-lit);
+}
+
+#battle .join-door:has(.join-radio:focus-visible) {
+  outline: 3px solid var(--brass-lit);
+  outline-offset: 3px;
+}
+
 /* ---- the seat button and the next-raid link ---------------------------------- */
 
 #battle .join-actions {

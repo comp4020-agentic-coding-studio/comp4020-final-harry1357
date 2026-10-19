@@ -1,0 +1,116 @@
+/* The table: every seat, the room's code to read out, and the Echoes that can
+   still be seated. A window like the others (base.css), in the stage's middle
+   column above the log. An Echo is marked in words ("Echo"), never by colour
+   alone. */
+#battle .seats {
+  grid-area: seats;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding-block: 0.5rem;
+}
+
+#battle .seats-room {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  margin: 0;
+  color: var(--card-quiet);
+  font-size: 1.1rem;
+}
+
+#battle .seats-code {
+  font-family: var(--font-display);
+  font-size: 1.1rem;
+  letter-spacing: 0.3em;
+  color: var(--brass-lit);
+}
+
+#battle .seats-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.9rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 1.15rem;
+}
+
+#battle .seats-seat {
+  display: flex;
+  align-items: baseline;
+  gap: 0.35rem;
+}
+
+#battle .seats-mark {
+  min-width: 2.6em;
+  font-family: var(--font-display);
+  font-size: 0.55rem;
+  color: var(--brass);
+}
+
+#battle .seats-seat[data-seated-echo="true"] .seats-name,
+#battle .seats-seat[data-echo="true"] .seats-name {
+  font-style: italic;
+  color: var(--card-quiet);
+}
+
+#battle .seats-seat[data-out] {
+  text-decoration: line-through;
+  color: var(--card-quiet);
+}
+
+#battle .seats-role {
+  color: var(--card-quiet);
+}
+
+#battle .seats-echoes {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem 0.6rem;
+}
+
+#battle .seats-echo-title,
+#battle .seats-none,
+#battle .seats-said {
+  margin: 0;
+  color: var(--card-quiet);
+  font-size: 1.05rem;
+}
+
+#battle .seats-echo-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+#battle .seats-add {
+  padding: 0.2rem 0.5rem;
+  border: 2px solid var(--brass-dim);
+  border-radius: 2px;
+  background: var(--ink);
+  color: var(--card);
+  font-family: var(--font-body);
+  font-size: 1.05rem;
+  cursor: pointer;
+}
+
+#battle .seats-add:focus-visible {
+  outline: 3px solid var(--brass-lit);
+  outline-offset: 2px;
+}
+
+#battle .seats-add:disabled {
+  color: var(--card-quiet);
+  cursor: not-allowed;
+}
+
+#battle[data-phase="closed"] .seats-add {
+  display: none;
+}
+
+#battle .seats-add:hover:not(:disabled) {
+  border-color: var(--brass);
+}

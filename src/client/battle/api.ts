@@ -228,13 +228,25 @@ export interface SeatInfo {
 
 /** src/client/join/join.ts: the character select. */
 export type JoinResult = { ok: true } | { ok: false; error: string };
+/**
+ * Which door (phase two; rules 22-23): the public raid, a room of your own
+ * made as you sit down in it, or a room by its code; or, on a bare battle
+ * opened by id (the sensors'), the fight you're looking at. The server's answer
+ * decides where each leads; the client never assumes the public raid's code.
+ */
+export type Door = { kind: "here" } | { kind: "raid" } | { kind: "create" } | { kind: "code"; code: string };
 export interface JoinOptions {
   manifest: SpriteManifest;
-  onJoin(name: string, role: RoleId): Promise<JoinResult>;
+  onJoin(door: Door, name: string, role: RoleId): Promise<JoinResult>;
+}
+/** Where the page is now, for the doors: the room it opened, and whether that's the public raid. */
+export interface Here {
+  code: string | null;
+  isPublic: boolean;
 }
 export interface Join {
-  /** Show the select, prefilled from a returning visitor's character and record. */
-  show(me: import("../../shared/protocol.ts").MeResponse | null): void;
+  /** Show the select, prefilled from a returning visitor's character and record (their name fixed: rule 24). */
+  show(me: import("../../shared/protocol.ts").MeResponse | null, here?: Here): void;
   hide(): void;
   /** The battle is over: say how, and offer the next raid. */
   ended(outcome: "won" | "lost" | "abandoned"): void;
