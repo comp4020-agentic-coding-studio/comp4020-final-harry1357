@@ -65,10 +65,11 @@ const expected: Expected = {
   pull: [["scene.rings", "*", "*"], ["scene.hp", "orrery", "*", "*"], RINGS, ["scene.phase", "*"]],
   phase: [["scene.phase", "*"]],
   break: [RINGS, ["scene.hit", "orrery"]],
-  revolution: [...RAID_WIDE],
-  perihelion: [...RAID_WIDE, RINGS],
-  eclipse: [...ONE_TARGET],
-  lunge: [...ONE_TARGET],
+  // each blow's card leaves the strip as it lands (the sample's isn't spent)
+  revolution: [...RAID_WIDE, ["strip.card", "card", "resolved"]],
+  perihelion: [...RAID_WIDE, RINGS, ["strip.card", "card", "resolved"]],
+  eclipse: [...ONE_TARGET, ["strip.card", "card", "resolved"]],
+  lunge: [...ONE_TARGET, ["strip.card", "card", "resolved"]],
   gravity: [["scene.frame", "target", "*"], ["scene.status", "target", "*"]],
 
   // The phase-one shim's two (src/client/sprites.ts registers them; their

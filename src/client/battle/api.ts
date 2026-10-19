@@ -110,8 +110,8 @@ export interface StripApi {
   chain(links: number, broken: boolean): void;
   /** Phase two: a Resonance, a portrait jumping forward from one rank to another. */
   jump(id: string, from: number, to: number): void;
-  /** Phase two: a Retrograde, the next five slots visibly flipping, or a Chronist cancelling it. */
-  retrograde(flipped: boolean, cancelledBy: string | null): void;
+  /** Phase two: a Retrograde, the slots it turned about (the event's, in the order they stood) visibly flipping, or a Chronist cancelling it. */
+  retrograde(flipped: boolean, cancelledBy: string | null, slots?: readonly string[]): void;
   /** Phase two: the Grand Alignment's clock, a card that grows as it nears the wipe. */
   alignment(countdown: number, wipe: boolean): void;
   // --- motion ---

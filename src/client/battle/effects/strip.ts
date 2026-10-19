@@ -203,7 +203,7 @@ export const retrograde: Fx<"retrograde"> = async (raw, e) => {
   ctx.audio.play("revolution");
   void ctx.scene.frame(BOSS_ID, "attack");
   if (e.flipped) await bounded(ctx, ctx.scene.spinUp(), 400);
-  ctx.strip.retrograde(e.flipped, e.cancelledBy);
+  ctx.strip.retrograde(e.flipped, e.cancelledBy, e.slots ?? []);
   await ctx.wait(500);
   rest(ctx, BOSS_ID);
 };
@@ -212,7 +212,7 @@ export const retrogradeReduced: Fx<"retrograde"> = async (raw, e) => {
   const ctx = stage(raw);
   ctx.audio.play("revolution");
   void ctx.scene.frame(BOSS_ID, "attack");
-  ctx.strip.retrograde(e.flipped, e.cancelledBy);
+  ctx.strip.retrograde(e.flipped, e.cancelledBy, e.slots ?? []);
   await ctx.wait(HOLD);
   rest(ctx, BOSS_ID);
 };

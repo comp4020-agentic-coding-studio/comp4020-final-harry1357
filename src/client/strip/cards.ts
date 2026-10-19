@@ -6,8 +6,8 @@
 // the order sent (the server keeps it soonest first); nothing here sorts it,
 // counts a countdown down, or works out when a card lands. The countdown is
 // the server's: 0 is "next" (the Orrery's next turn), anything else "in N".
-// The one thing the lane remembers that isn't in the state is the Grand
-// Alignment's clock, which only the alignment event carries (see alignment()).
+// The Grand Alignment's clock is the state's (alignmentLeft), so a client that
+// joins in phase III draws it at once; the alignment event marks its moment.
 //
 // Hooks other code reads: each card is [data-card-id] with data-intent,
 // data-target (a character id, "party", or "strip" for a card that touches
@@ -261,6 +261,13 @@ export function createCardLane(): CardLane {
       alignWipe = false;
       departed.clear();
       for (const node of [...list.querySelectorAll<HTMLElement>("[data-leaving]")]) node.remove();
+    }
+    // The clock, from the state: how many Alignments are left, or none before phase III.
+    const left = state.alignmentLeft ?? null;
+    if (left !== alignClock && !(alignWipe && left === 0)) {
+      alignClock = left;
+      if (left !== 0) alignWipe = false;
+      drawClock();
     }
     const cards = state.cards ?? [];
     const mine = myId ? state.queue.find((t) => t.id === myId) : undefined;

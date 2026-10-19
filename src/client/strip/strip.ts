@@ -47,7 +47,6 @@ const LOW_HP = 1 / 3;
 /** How often the plate's clock is redrawn between messages (the server sends none while someone's on the plate). */
 const BEAT_MS = 100;
 /** Retrograde flips "the next five slots" (the server's RETROGRADE_SLOTS): the portraits its event is about. */
-const FLIP_SLOTS = 5;
 /** The Chain's potency is capped at +50% (rule 15): five pips, one per +10% the server reports. */
 const CHAIN_PIPS = 5;
 
@@ -700,11 +699,11 @@ export function createStrip(root: HTMLElement, opts: PartsOptions): Strip {
     if (entry) stampOn(entry, "jump", FLAG_WORD.jump);
   }
 
-  function retrograde(flipped: boolean, cancelledBy: string | null): void {
-    if (flipped && latest) {
-      // The next five on the strip, as the server's event says: already drawn in their new order, marked flipped.
-      for (const token of latest.queue.filter((t) => t.kind === "character").slice(0, FLIP_SLOTS)) {
-        const entry = entries.get(token.id);
+  function retrograde(flipped: boolean, cancelledBy: string | null, slots: readonly string[] = []): void {
+    if (flipped) {
+      // Exactly the portraits the server turned about (the event's slots), already drawn in their new order, marked flipped.
+      for (const id of slots) {
+        const entry = entries.get(id);
         if (entry) stampOn(entry, "flip", "Flip");
       }
     }

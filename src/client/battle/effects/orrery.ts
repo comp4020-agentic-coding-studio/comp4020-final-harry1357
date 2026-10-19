@@ -20,11 +20,19 @@ interface Single {
   amount: number;
   seq?: number;
   spent?: true;
+  /** The strip card that resolved into this blow (phase two). */
+  cardId?: string;
+}
+
+/** The card on the strip leaves as it resolves: landing, or passing over a target who fell (never drawn as a hit). */
+function cardLeaves(ctx: EffectContext, cardId: string | undefined, spent: boolean): void {
+  if (cardId) ctx.strip.card(cardId, spent ? "spent" : "resolved");
 }
 
 /** The Orrery gathers, leans in, sends its blow, and it lands: flash, hold, number, bar, marks. */
 async function strike(raw: EffectContext, e: Single, bolt: "bolt" | "thrust"): Promise<void> {
   const ctx = stage(raw);
+  cardLeaves(ctx, e.cardId, !!e.spent);
   // anticipation
   await bounded(ctx, ctx.scene.windUp(BOSS_ID), 300);
   void ctx.scene.frame(BOSS_ID, "attack");
@@ -52,6 +60,7 @@ async function strike(raw: EffectContext, e: Single, bolt: "bolt" | "thrust"): P
 
 async function strikeReduced(raw: EffectContext, e: Single): Promise<void> {
   const ctx = stage(raw);
+  cardLeaves(ctx, e.cardId, !!e.spent);
   void ctx.scene.frame(BOSS_ID, "attack");
   showHp(ctx, e.targetId);
   if (!e.spent) {
@@ -162,12 +171,21 @@ async function sweepReduced(ctx: EffectContext, hits: readonly Hit[], seq: numbe
   for (const hit of hits) rest(ctx, hit.targetId);
 }
 
-export const revolution: Fx<"revolution"> = (raw, e) => sweep(stage(raw), e.hits ?? [], e.seq);
-export const revolutionReduced: Fx<"revolution"> = (raw, e) => sweepReduced(stage(raw), e.hits ?? [], e.seq);
+export const revolution: Fx<"revolution"> = (raw, e) => {
+  const ctx = stage(raw);
+  cardLeaves(ctx, e.cardId, false);
+  return sweep(ctx, e.hits ?? [], e.seq);
+};
+export const revolutionReduced: Fx<"revolution"> = (raw, e) => {
+  const ctx = stage(raw);
+  cardLeaves(ctx, e.cardId, false);
+  return sweepReduced(ctx, e.hits ?? [], e.seq);
+};
 
 /** Perihelion: the Orrery swings in close (a push-in) and burns everyone; its outer ring's shield is the Break check. */
 export const perihelion: Fx<"perihelion"> = async (raw, e) => {
   const ctx = stage(raw);
+  cardLeaves(ctx, e.cardId, false);
   void ctx.scene.pushIn();
   await sweep(ctx, e.hits ?? [], e.seq);
   showRingMarks(ctx);
@@ -175,6 +193,7 @@ export const perihelion: Fx<"perihelion"> = async (raw, e) => {
 
 export const perihelionReduced: Fx<"perihelion"> = async (raw, e) => {
   const ctx = stage(raw);
+  cardLeaves(ctx, e.cardId, false);
   showRingMarks(ctx);
   await sweepReduced(ctx, e.hits ?? [], e.seq);
 };
