@@ -33,9 +33,24 @@ it("every role is drawn with its own sprite, not another role's", async () => {
     "these roles are still drawn with another role's sprite: the phase-one shim in src/client/sprites.ts is still in use",
   ).toEqual([]);
 
-  const manifest = JSON.parse(readFileSync("src/assets/sprites.json", "utf8")) as { roles?: Record<string, unknown> };
+  const manifest = JSON.parse(readFileSync("src/assets/sprites.json", "utf8")) as { roles?: Record<string, { sheet: string }> };
   const missing = ROLES.filter((r) => !manifest.roles?.[r]);
   expect(missing, "these roles have no sprite of their own in src/assets/sprites.json").toEqual([]);
+
+  // With the shim file gone, a borrowed sprite would be another role's sheet
+  // under this role's name, or a copy of it (phase two's gate, T9): every
+  // role's sheet is its own file, with its own pixels.
+  const { createHash } = await import("node:crypto");
+  const sheets = ROLES.map((r) => {
+    const path = manifest.roles?.[r]?.sheet ?? "";
+    return { role: r, path, hash: createHash("sha256").update(readFileSync(`src/assets/${path}`)).digest("hex") };
+  });
+  for (let i = 0; i < sheets.length; i++) {
+    for (let j = i + 1; j < sheets.length; j++) {
+      expect(sheets[i].path, `${sheets[i].role} and ${sheets[j].role} are drawn from the same sheet`).not.toBe(sheets[j].path);
+      expect(sheets[i].hash, `${sheets[i].role} and ${sheets[j].role} are drawn from the same pixels`).not.toBe(sheets[j].hash);
+    }
+  }
 });
 
 it("no renderer is a shim borrowing another event's animation", async () => {
@@ -51,6 +66,25 @@ it("no renderer is a shim borrowing another event's animation", async () => {
     Object.keys(shims).sort(),
     "these events are still drawn by a phase-one shim that borrows another event's animation (src/client/sprites.ts)",
   ).toEqual([]);
+
+  // With the shim file gone, a borrowed animation would be another event's
+  // renderer registered under this one (phase two's gate, T9): every kind's
+  // full and reduced renderers are its own.
+  globalThis.matchMedia ??= ((query: string) => ({ matches: false, media: query, addEventListener() {}, removeEventListener() {} })) as unknown as typeof matchMedia;
+  const { RENDERERS } = (await import(resolve("src/client/battle/registry.ts"))) as {
+    RENDERERS: Record<string, { full: unknown; reduced: unknown }>;
+  };
+  // (One renderer for both of a kind's variants is that kind's own: it has no motion to reduce.)
+  const owner = new Map<unknown, string>();
+  const borrowed: string[] = [];
+  for (const [kind, r] of Object.entries(RENDERERS)) {
+    for (const variant of ["full", "reduced"] as const) {
+      const was = owner.get(r[variant]);
+      if (was && was !== kind) borrowed.push(`${kind}.${variant} is ${was}'s`);
+      else owner.set(r[variant], kind);
+    }
+  }
+  expect(borrowed, "these events are drawn by another event's renderer").toEqual([]);
 });
 
 it("every role is told apart from every other by its silhouette at 24 px", () => {
