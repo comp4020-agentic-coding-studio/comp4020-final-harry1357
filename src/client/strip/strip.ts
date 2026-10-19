@@ -718,5 +718,15 @@ export function createStrip(root: HTMLElement, opts: PartsOptions): Strip {
     if (gone) cards.moment(gone, "resolved");
   }
 
-  return { render, flag, afterimage, preview, card, chain, jump, retrograde, alignment };
+  /** The card a command is being aimed at (Anchor, Delay, Stillpoint, a Reaction), or none: it is marked [data-aimed]. */
+  function aim(cardId: string | null): void {
+    for (const node of root.querySelectorAll<HTMLElement>("[data-card-id][data-aimed]")) {
+      if (node.dataset.cardId !== cardId) delete node.dataset.aimed;
+    }
+    if (!cardId) return;
+    const node = root.querySelector<HTMLElement>(`[data-card-id="${CSS.escape(cardId)}"]`);
+    if (node) node.dataset.aimed = "";
+  }
+
+  return { render, flag, afterimage, preview, card, chain, jump, retrograde, alignment, aim };
 }

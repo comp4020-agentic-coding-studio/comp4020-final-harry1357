@@ -100,7 +100,12 @@ function mountCommand(role: RoleId): void {
     },
     // Card-target actions aim at the strip's boss cards, never at ally ids (review F7).
     cards: () => (app.state?.cards ?? []).map((c) => ({ id: c.id, name: cardName(c.intent, c.targetId, c.countdown) })),
-    onTarget: (targetId) => scene.target(targetId),
+    // A card aim marks the card on the strip; any other aim lights its target on the field.
+    onTarget: (targetId) => {
+      const card = !!targetId && !!app.state?.cards.some((c) => c.id === targetId);
+      scene.target(card ? null : targetId);
+      strip.aim(card ? targetId : null);
+    },
     onChoose: (action, targetId) => void choose(action, targetId),
     // The ghost: where the server's preview puts your portrait for this command (rule 1).
     onPreview: (action) => {

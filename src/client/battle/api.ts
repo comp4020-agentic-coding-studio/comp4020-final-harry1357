@@ -212,6 +212,8 @@ export interface Strip extends StripApi {
    * or null to clear. Called while a command is hovered or focused.
    */
   preview(actorId: string | null, preview: ActionPreview | null): void;
+  /** The boss card a command is being aimed at, marked on the strip (null clears it). */
+  aim(cardId: string | null): void;
 }
 
 /** src/client/audio/audio.ts. */
