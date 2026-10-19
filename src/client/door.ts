@@ -8,7 +8,7 @@
  * A code as the server reads it: ASCII letters in either case, so ASCII case
  * is folded and nothing else is touched (phase two's gate, B2: JavaScript's
  * toUpperCase makes a dotless ı an I and a long ſ an S, turning a code the
- * server refuses into a real one).
+ * server refuses into a real one). Nothing is trimmed either (Q7).
  */
 export function foldCode(code: string): string {
   return code.replace(/[a-z]/g, (c) => c.toUpperCase());
@@ -18,7 +18,7 @@ export function foldCode(code: string): string {
 export async function door(search: string, ask: (path: string) => Promise<unknown>): Promise<string> {
   const given = new URLSearchParams(search).get("room");
   // An address with no code in it (absent, empty, only spaces) goes through the default door.
-  if (given && given.trim() !== "") return foldCode(given.trim());
+  if (given && given.trim() !== "") return foldCode(given);
   for (let attempt = 0; ; attempt++) {
     let answer: unknown = null;
     try {

@@ -404,7 +404,7 @@ export function mountJoin(root: HTMLElement, opts: JoinOptions): Join {
   function chosenDoor(): Door {
     if (!parts || parts.doors.hidden) return { kind: "here" };
     const kind = ([...parts.door].find(([, input]) => input.checked)?.[0] ?? "raid") as DoorKind;
-    return kind === "code" ? { kind, code: foldCode(parts.code.value.trim()) } : { kind };
+    return kind === "code" ? { kind, code: foldCode(parts.code.value) } : { kind };
   }
 
   /** The code field shows only behind its door, and the button says where it leads. */

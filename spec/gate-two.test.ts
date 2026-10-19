@@ -198,6 +198,15 @@ describe("phase two's gate", () => {
     expect(sent, "neither look-alike is sent as a real code").toEqual([]);
   });
 
+  it("Q7 (rule 22): a padded code is the server's to refuse, not the client's to trim", async () => {
+    const { door } = (await import(resolve("src/client/door.ts"))) as { door: (search: string, ask: (p: string) => Promise<unknown>) => Promise<string> };
+    const asked: string[] = [];
+    const ask = async (p: string) => (asked.push(p), { code: "QZ7MK" });
+    expect(await door("?room=jkqp3%20", ask), "the padded code as given (ASCII case folded): the server refuses it").toBe("JKQP3 ");
+    expect(await door("?room=%20%20", ask), "an address with no code in it: the default door").toBe("QZ7MK");
+    expect(asked, "asked only for the empty one").toEqual(["/api/raid"]);
+  });
+
   it("P3: a person back from their Echo has a strip flag of their own, not Restore's", async () => {
     const { RENDERERS } = (await import(resolve("src/client/battle/registry.ts"))) as {
       RENDERERS: Record<string, { reduced: (ctx: unknown, e: unknown) => Promise<void> | void }>;
