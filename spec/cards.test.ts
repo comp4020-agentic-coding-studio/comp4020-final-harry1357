@@ -70,4 +70,17 @@ describe("Retrograde and the Alignment, for the strip", () => {
     const turned = bossTurn(e, only(e, three, { intent: "alignment", targetId: null, amount: null })).battle;
     expect(left(turned), "one resolved: two left").toBe(2);
   });
+
+  it("the state says whether a Bastion stands, until the blow on everyone it meets", async () => {
+    // The Warden's prompt to raise one, and the mark the room sees on the blow
+    // it will meet, are drawn from this, not from a bastion event remembered.
+    const e = await engine();
+    const b = only(e, table(e, ["warden", "mender"]), { intent: "revolution", targetId: "party", amount: 8 });
+    const stands = (x: Battle): unknown => (sent(e, x) as { bastion?: unknown }).bastion;
+    expect(stands(b), "none raised: none stands").toBe(false);
+    const raised = structuredClone(b);
+    raised.bastion = true;
+    expect(stands(raised), "raised: it stands").toBe(true);
+    expect(stands(bossTurn(e, raised).battle), "the Revolution met it: gone").toBe(false);
+  });
 });

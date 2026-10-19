@@ -66,6 +66,8 @@ export interface Battle {
   log: { kind: string; actorId: string | null; text: string }[];
   /** Exposed stacks once spent, with who set and who spent each (rule 16). */
   spentExposed?: { ringId: string; appliedBy: string; spentBy: string }[];
+  /** A Warden's Bastion stands against the next blow on everyone. */
+  bastion?: boolean;
 }
 
 export interface Step {
