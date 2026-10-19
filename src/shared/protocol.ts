@@ -276,6 +276,11 @@ export interface BattleState {
    *  Warden's prompt to raise one, and the room's mark on the blow it meets,
    *  are drawn from this. */
   bastion: boolean;
+  /** The card on the strip a Bastion, standing or raised now, would be spent on:
+   *  the first Revolution or Perihelion to resolve (an Alignment doesn't spend
+   *  one; a frozen card waits a cycle). Null if none is on the strip. The
+   *  server's to say, as the Reaction's card is (rule 2). */
+  bastionCard: string | null;
   /** The roles an Echo can still be seated as in this fight (rule 25): one per
    *  role, four at most, none once the fight is over. The server decides it;
    *  the client offers exactly these. */

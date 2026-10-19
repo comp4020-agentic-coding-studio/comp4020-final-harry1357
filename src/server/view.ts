@@ -10,7 +10,7 @@
 import { ACTIONS, ROLES, type ActionId, type ActionPreview, type BattleState, type BattleStatus, type LogEntry, type RoleId, type Token } from "../shared/protocol.ts";
 import { counterReset } from "./ctb.ts";
 import { checkReaction } from "./economy.ts";
-import { alignmentLeft } from "./orrery.ts";
+import { alignmentLeft, bastionCard } from "./orrery.ts";
 import { previewRank } from "./roles.ts";
 import { checkAction, echoRolesOpen, plateMs, type Battle, type Fighter } from "./rules.ts";
 
@@ -131,6 +131,7 @@ export function view(b: Battle, timing: Timing): BattleState {
     preview: preview(b),
     alignmentLeft: alignmentLeft(b),
     bastion: b.bastion,
+    bastionCard: bastionCard(b),
   };
 }
 
@@ -160,5 +161,6 @@ export function archived(id: string, row: { status: BattleStatus }, log: LogEntr
     preview: null,
     alignmentLeft: null,
     bastion: false,
+    bastionCard: null,
   };
 }

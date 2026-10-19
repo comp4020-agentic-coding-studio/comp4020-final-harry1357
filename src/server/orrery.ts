@@ -286,6 +286,24 @@ export function alignmentLeft(b: Battle): number | null {
   return Math.max(0, ALIGNMENT_STEPS - script(b).aligned);
 }
 
+/**
+ * The announced card a Bastion, standing or raised now, would be spent on: the
+ * first Revolution or Perihelion to resolve (raidWide() spends it; an
+ * Alignment's wipe ignores it). A frozen card skips one Orrery turn before it
+ * counts again, so it resolves a turn later than its countdown says; cards due
+ * on the same turn resolve in strip order. Null if none is on the strip. For
+ * the Warden's prompt and the room's mark (phase two's gate, R2).
+ */
+export function bastionCard(b: Battle): string | null {
+  let best: { id: string; turn: number } | null = null;
+  for (const c of b.cards) {
+    if (c.intent !== "revolution" && c.intent !== "perihelion") continue;
+    const turn = c.countdown + (c.frozen ? 1 : 0);
+    if (!best || turn < best.turn) best = { id: c.id, turn };
+  }
+  return best?.id ?? null;
+}
+
 /** The soonest card that passes the filter: lowest countdown, first on the strip on a tie. */
 export function nextCard(ctx: Ctx, filter?: (c: BossCard) => boolean): BossCard | undefined {
   let best: BossCard | undefined;

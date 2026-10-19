@@ -133,21 +133,22 @@ function reactionLabel(token: Token | undefined): { id: string; label: string } 
 
 /**
  * The Perihelion a Warden's Bastion is for, while none stands (the design:
- * "Bastion is how the room survives Perihelion"), and the blow on everyone the
- * server will resolve before it, which a Bastion raised now would meet first.
- * Read from the state's cards, soonest first as sent; null for anyone else.
+ * "Bastion is how the room survives Perihelion"), and, when the server says a
+ * Bastion raised now would be spent on another card first (bastionCard), that
+ * card. Null for anyone else. The client chooses neither card (review R2).
  */
 export function bastionFor(state: BattleState, mine: Token | undefined): { card: BossCard; first: BossCard | null } | null {
   if (!mine || mine.role !== "warden" || state.status !== "fighting" || state.bastion === true) return null;
   const cards = state.cards ?? [];
-  const at = cards.findIndex((c) => c.intent === "perihelion");
-  if (at < 0) return null;
-  return { card: cards[at], first: cards.slice(0, at).find((c) => c.targetId === "party") ?? null };
+  const card = cards.find((c) => c.intent === "perihelion");
+  if (!card) return null;
+  const named = state.bastionCard ?? null;
+  return { card, first: named !== null && named !== card.id ? (cards.find((c) => c.id === named) ?? null) : null };
 }
 
-/** The blow on everyone a standing Bastion meets: the soonest, as the server spends it. */
+/** The card a standing Bastion meets, as the server names it. */
 function bastionMeets(state: BattleState): string | null {
-  return state.bastion === true ? ((state.cards ?? []).find((c) => c.targetId === "party")?.id ?? null) : null;
+  return state.bastion === true ? (state.bastionCard ?? null) : null;
 }
 
 export function createCardLane(): CardLane {
