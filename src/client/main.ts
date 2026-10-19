@@ -51,7 +51,8 @@ const strip = createStrip(need<HTMLElement>("[data-rail]"), parts);
 const audio = createAudio({ muteButton: need<HTMLButtonElement>("[data-mute]") });
 const log = createLog(need<HTMLElement>("[data-log]"));
 const commandEl = need<HTMLElement>("[data-command]");
-const join = mountJoin(need<HTMLElement>("[data-join-screen]"), { manifest, onJoin });
+const joinEl = need<HTMLElement>("[data-join-screen]");
+const join = mountJoin(joinEl, { manifest, onJoin });
 const seats = createSeats(need<HTMLElement>("[data-seats]"), { onEcho });
 
 const app = {
@@ -175,7 +176,8 @@ function onState(state: BattleState): void {
   }
 
   if (mine) {
-    if (app.joinShown || app.afterEnding) {
+    const sat = app.joinShown || app.afterEnding;
+    if (sat) {
       app.joinShown = false;
       app.afterEnding = false;
       join.hide();
@@ -194,6 +196,11 @@ function onState(state: BattleState): void {
       prompts: prompts(state, token),
     });
     app.command?.setCountdown(myTurn ? countdownFraction(state, Date.now()) : null);
+    // Just sat down: the join screen hid with the focused field in it. Focus goes to the commands, not the
+    // page body (phase two's gate, P1), unless the person has already put it somewhere else.
+    if (sat && (!document.activeElement || document.activeElement === document.body || joinEl.contains(document.activeElement))) {
+      app.command?.focus();
+    }
   } else if (app.afterEnding) {
     // The room has moved on to its next fight; the last one's ending stays up until the person goes on.
     battleEl.dataset.phase = "ended";

@@ -39,6 +39,8 @@ export interface CommandWindow {
   setReactionReady(cardId: string | null): void;
   /** Phase two: your seat as the server has it: resource meters, Charge, Echo, and each action's previewed wait and refusal. */
   setSeat(info: SeatInfo): void;
+  /** Take focus (phase two's gate, P1): the live command, or the list while it's dark; it moves to the command once one goes live. */
+  focus(): void;
   destroy(): void;
 }
 
@@ -745,6 +747,10 @@ export function mountCommandWindow(root: HTMLElement, opts: CommandOptions): Com
       refresh();
       // The server's numbers changed under a hovered or focused option: the ghost follows them.
       if (moved && previewing !== null) syncPreview(true);
+    },
+
+    focus() {
+      focusMenu();
     },
 
     destroy() {
