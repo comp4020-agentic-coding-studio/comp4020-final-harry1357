@@ -146,16 +146,22 @@ describe("open findings carried into phase two", () => {
   });
 
   it("R1 (rule 11): a spent card is drawn passing over, not as a hit on the fallen", async () => {
-    const { RENDERERS } = await client<{ RENDERERS: Record<string, { reduced?: (c: unknown, e: unknown) => unknown }> }>(
-      "src/client/battle/registry.ts",
-    );
+    // Both variants (phase two's gate, T5: the full one, where the fault first was, went unchecked).
+    const { RENDERERS } = await client<{
+      RENDERERS: Record<string, { full?: (c: unknown, e: unknown) => unknown; reduced?: (c: unknown, e: unknown) => unknown }>;
+    }>("src/client/battle/registry.ts");
     for (const kind of ["eclipse", "lunge"]) {
-      const calls: string[] = [];
-      const api = (ns: string) =>
-        new Proxy({}, { get: (_t, p) => (p === "then" ? undefined : (..._a: unknown[]) => (calls.push(`${ns}.${String(p)}`), Promise.resolve())) });
-      const ctx = { scene: api("scene"), strip: api("strip"), audio: api("audio"), reduced: true, wait: () => Promise.resolve(), state: stateWithCard() };
-      await RENDERERS[kind]?.reduced?.(ctx, { kind, actorId: "orrery", targetId: "me", amount: 0, gravity: 0, spent: true, tick: 10, seq: 4 });
-      expect(calls.filter((c) => c === "scene.hit" || c === "scene.number"), `a spent ${kind} draws a hit or a number on its fallen target`).toEqual([]);
+      for (const variant of ["full", "reduced"] as const) {
+        const calls: [string, unknown[]][] = [];
+        const api = (ns: string) =>
+          new Proxy({}, { get: (_t, p) => (p === "then" ? undefined : (...a: unknown[]) => (calls.push([`${ns}.${String(p)}`, a]), Promise.resolve())) });
+        const ctx = { scene: api("scene"), strip: api("strip"), audio: api("audio"), reduced: variant === "reduced", wait: () => Promise.resolve(), state: stateWithCard() };
+        await RENDERERS[kind]?.[variant]?.(ctx, { kind, actorId: "orrery", targetId: "me", amount: 0, gravity: 0, spent: true, tick: 10, seq: 4 });
+        const landed = calls.filter(
+          ([name, a]) => name === "scene.hit" || name === "scene.number" || name === "scene.projectile" || (name === "scene.frame" && a[0] === "me" && a[1] === "hurt"),
+        );
+        expect(landed.map(([name]) => name), `a spent ${kind} (${variant}) draws a blow landing on its fallen target`).toEqual([]);
+      }
     }
   });
 
