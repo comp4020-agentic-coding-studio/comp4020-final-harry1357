@@ -617,3 +617,185 @@ Typecheck and lint are clean. `check:keyboard`, `check:viewports` and
 
 **Propagation probe**, on the image at `a05d4e9`: another browser shows a
 strike in a median 6.3 ms, worst 7.9 ms (n=6).
+
+## Re-review
+
+The reviewer again, on a fresh context with no part in building the work or in
+the first review, reading the fixes (`git diff 9b7ef0b...HEAD`, HEAD `c2fd321`)
+against the disposition above. It stopped once on a usage limit and was resumed
+with the same brief. Kept as given.
+
+### What was read and run
+
+**Read in full:**
+- `.claude/agents/reviewer.md` and `reviewer-bash.sh`, CLAUDE.md, ADRs 001–007, `docs/review/phase-two.md`.
+- Every file in `spec/`: all 31 test files, plus `raid.ts`, `engine.ts`, `boot.ts`, `browser.ts`, `served-css.ts`, `global-setup.ts` and `README.md`.
+- Changed source, in full: `server/app.ts`, `table.ts`, `economy.ts`, `orrery.ts`, `view.ts`, `server/main.ts`, `shared/protocol.ts`, `client/main.ts`, `conductor.ts`, `command/window.ts`, `door.ts`, `join/join.ts`, `strip/cards.ts`, `battle/api.ts`, `effects/command.ts`.
+- Changed source, in part: `effects/party.ts` (bastion section), `strip/strip.ts` (diff, plus the ghost code at 593–682), `scene.css` (head, 640–720, and its whole diff since b1ea0d3), `strip.css` (diff only), `check-tags.ts` (lines 90–299).
+- Read for context: `rules.ts`, `echoes.ts`, `rooms.ts`, `battle/log.ts`, `effects/table.ts`, `effects/feel.ts` (1–80), `base.css` (head), `pixels.ts`.
+
+**Ran (all read-only):**
+- `git diff --stat 9b7ef0b...HEAD`. Also `git diff 9b7ef0b...HEAD -- src CLAUDE.md docs/adr` and `-- spec scripts`.
+- `git diff --stat <c>^ <c>` for all 38 cited commits.
+- Ancestry checks: `git diff --stat X...Y` comes back empty when Y is an ancestor of X. With these and the commit stats I established the order a03a38a → f5f6cd3 → 9e14d5d → a05d4e9. `git diff --stat a05d4e9 HEAD` shows only the review doc.
+- Searches: `git diff --name-only -G <pattern>` against the empty tree, plus a few `-U` diffs.
+- `APP_URL=http://localhost:8090 npx vitest run`: 31 files, 210 tests, **209 passed, 1 failed** (91 s). The failure is `spec/owner.test.ts` R7: README.md:78, "Rooms and lobbies: there's one fight".
+- `APP_URL=http://localhost:8090 pnpm check`: `tsc --noEmit` passed, stylelint passed, then vitest gave the same 209/1, so it exited 1.
+- This matches the disposition's "209 green, 1 red (R7)".
+
+**Deviations from the brief:**
+- My first five commands began `cd <repo> &&`, and some used `-G`, `--stat=200` or `-U40`. None of these is on `reviewer-bash.sh`'s allowlist. That hook isn't active in this session, and every command was read-only.
+- This session has no Grep or Glob tool, so I searched with `git diff -G`.
+- Background test output was read from the harness's task files.
+- No file was written.
+
+**Not run:** `check:tags`, `check:keyboard`, `check:viewports` and `probe`. They're off the roster and outside my allowed commands, so T11 is judged by reading.
+
+**Can't verify:** the disposition says "every fix's test was red before its fix". For the 15 commits that carry a test and its fix together, history can't show that.
+
+### (A) The original findings, re-checked
+
+**Counts (40 rows):**
+- **21 hold.**
+- **13 are overstated.** In each, the code fix is there, but the row claims more than the test holds, or the test passes under a named wrong implementation.
+- **0 unfixed.** Two items are open by design: R6's cyan and phase-one-b R7.
+- **4 are "no change"** (Q3, Q4, Q8, Q10).
+- **2 are records** ("Could not check", "Not attempted").
+
+#### The reviewer's findings (22 rows)
+
+| Row | Verdict |
+|---|---|
+| R1 | **Overstated.** `main.ts:158-161` restores the server's last word, which is correct. But `gate-two-page.test.ts:466-489` refuses only an on-turn action, where it's your turn either way. So `if (!res.ok) app.command?.setEnabled(true)` would also pass, and that version would light the turn's actions after a refused off-turn Reaction (rule 2: "The client decides nothing"). See N11. |
+| R2 | **Overstated.** The server half holds (`orrery.ts:297-305`; `cards.test.ts:91-117` checks the name against the card that actually spends the Bastion), and so does the strip's mark (`bastion.test.ts:85-104`). The row also says "the Warden's prompt reads it", and nothing tests that (N7). |
+| R3 | **Holds.** `app.ts:158-161` vets the seat before `createRoom`. `rooms.test.ts:594-624` reads the database, and would fail without the fix. |
+| R4 | **Holds.** ADR-007's status note is there. |
+| R5 | **Holds for throws** (`conductor.ts:72-91`). The test at `gate-two.test.ts:732-765` would fail on the old code, which wrote "Cleave line.". The cap case is kept on purpose, and its reason only partly stands: a renderer that stalls before drawing anything is still logged at 2.4 s, so "has been on screen that long" assumes something was drawn. |
+| R6 | **The fixed part holds**: `scene.css:276` uses a token, and `api.ts:28-30` and `party.ts:201-205` are now accurate (heal is `--card` with a brass stroke, `scene.css:676-680`). **The open part's reason stands**: it's the owner's call, and the branch doesn't merge while it's open. Side note: `scene.css:61` still has a literal `#000` in a mask. That predates phase two. |
+| U1 | **Holds** (`gate-two.test.ts:702-730`). |
+| U2 | **Holds**, but it only discriminates because the Orrery's opening card is a raid-wide Revolution. Nothing asserts that the card it names is one a self-picking client wouldn't offer. |
+| U3 | **Overstated** (N6). The test passes if the token is undefined, and it never measures a real number element. |
+| T1 | **Overstated** (N8). The `end` pin doesn't read `outcome`. Only 7 of 44 kinds are pinned; the other 37 still run reduced-only, against expected states the registry declares itself. |
+| T2 | **Holds**, together with R2's server half. |
+| T3 | **Overstated.** The Haste fault is caught. But "every turn action of all five roles is checked" skips every preview marked refused (`preview.test.ts:89`; N15). And "the soonest of two" can't tell soonest-to-resolve from lowest countdown (N16). |
+| T4 | **Holds** for the server half (`shown.test.ts:37-72`). CLAUDE.md:288-290 still claims "within one tick" on B's screen, end to end, and no test holds that (N17). |
+| T5 | **Holds.** |
+| T6 | **Overstated** (N4). The aim starts at the server's target, but `window.ts:600` lights `targets[0]` on the field and strip, and the test stubs `onTarget`. |
+| T7 | **Overstated (low).** The test reads the page at its first socket (`gate-two-page.test.ts:555-560`). A client that tries the room, gets 4404, then POSTs `/api/battles` would pass. |
+| T8 | **Holds**, via R3's test. |
+| T9 | **Overstated** (N10). The check catches only the same function object. |
+| T10 | **Overstated** (N9). The icon assertion can't fail. |
+| T11 | **Holds**, judged by reading: the check is keyed on the clip, and the squeeze fixture would be red on the old size-based skip. |
+| Header note | **Holds** (`phase-two.test.ts:5-9`). |
+| Could not check | **A record.** b5c62e4 is confirmed: a spec change inside a client commit. Not rewriting pushed history is a sound reason. 934e09e is confirmed to hold the CREDITS rows and the art in one commit. The same pattern recurs in these fixes (N3). |
+
+#### The breaker's findings (15 rows)
+
+| Row | Verdict |
+|---|---|
+| B1 | **Holds** (`economy.ts:162-167`; `preview.test.ts:154-170`). The Echo Warden's off-turn choice (`echoes.ts:95-99`) still matches `reactionCardOf`. |
+| B2 | **Holds** (`door.ts:13-15`, `join.ts:352,407`; the door and the form are both tested). |
+| B3 | **Overstated** (N5). The code holds, but the test can't tell "dropped from memory and still behind its code" from "never dropped". |
+| Q1 | **Overstated.** The last fight's end line does stay; `ending.test.ts` holds that exactly. But "the next fight's follow them" is false in the real page: the fix makes the log drop the next fight's lines (N1). |
+| Q2 | **Holds.** |
+| Q3 | **No change; the reason stands.** Rule 22 forbids reading the finished fight by id while the room is open, and `/api/me` keeps the result. |
+| Q4 | **No change; the reason stands on the letter of rules 4 and 25.** It answers the drawn marks but not the log. A person named "Wаrden Echo" or "The Echo of X" writes log lines indistinguishable from an Echo's. Rule 8 says an Echo's turns are "logged as the Echo's", and ADR-007 says the log speaks in names. |
+| Q5 | **Holds** (`app.ts:225-227`; `rooms.test.ts:555-574`). |
+| Q6 | **Holds**, with R3. |
+| Q7 | **Overstated (low).** The address half is tested. "The form refuses a padded code inline" is not: `gate-two.test.ts:801-808` tests `door()` only (N13). |
+| Q8 | **No change; the reason stands.** Rule 24 is the server's to hold. |
+| Q9 | **Holds.** |
+| Q10 | **No change; the reason stands** (unconfirmed). |
+| H20's note | **Holds.** |
+| Not attempted | **Stands, with two slips.** Rules 13 and 14 are held by `economy.test.ts` (CLAUDE.md:306, 311), not `queue.test.ts`. And rule 16's spender half is tested, on the engine (`economy.test.ts:123-155`). |
+
+#### The owner's findings (3 rows)
+
+| Row | Verdict |
+|---|---|
+| P1 | **Holds.** |
+| P2 | **Overstated (low).** The window holds. The `fallen` wiring in `main.ts:111` is untested (N12). |
+| P3 | **Holds.** |
+
+#### The no-change rows against CLAUDE.md
+
+CLAUDE.md's gate (lines 390-400) has two outcomes: fixed in a named commit, or carried as a red test and listed open. "Left with a reason" isn't one of them. On the merits, no numbered rule is broken by Q3, Q8 or Q10, and Q4 is broken only in intent. Whether a breaker's "questionable" counts as a review finding is the owner's decision. If it does, these four need a fix, or a red test and an open listing.
+
+#### Carried
+
+Phase-one-b R7 is still open and red, confirmed in my run (`owner.test.ts:19`). That stands: the README is the owner's. One wording point: "It lands with the merge" sits awkwardly with "the branch does not merge to main while any review finding is open". It has to land before the merge.
+
+### (B) New findings in the fixes
+
+**N1. Rule 11 (its log half), and kind 3. High: the Q1 fix drops the next fight's log lines.**
+- `conductor.ts:146-148` now *appends* the next fight's lines instead of calling `history()`. But `log.ts:42` drops any line whose `seq` it has seen, and `seen` is cleared only in `history()` (`log.ts:36`). Every fight's seq restarts at 1 (`rules.ts:355`).
+- So once a page sees a fight end in any room, the public raid included, every line of the next fight is silently dropped until its seq passes the last fight's highest. The breaker's first fight had 280 lines, so that is in effect the whole next fight. Going on and sitting down doesn't reset it, because there's no `enter()` for the same room.
+- Rule 11 says "Every state change is shown on the battle screen before it reaches the log". Here it never reaches it.
+- Nothing catches it. `ending.test.ts:55` stubs the log with a bare array push. `gate-two-page.test.ts:590` checks only the last fight's end line, with a loose `/…|fall/i`.
+- The disposition's Q1 row (line 583) states the opposite.
+
+**N2. Kind 1, CLAUDE.md:401 ("Never commit a red state"): three commits with a known-red test.**
+- a03a38a (Q5) made the actions route answer 404. `spec/rooms.test.ts:298` went on expecting 403 until a05d4e9.
+- f5f6cd3 and 9e14d5d were committed in between, with that test red.
+- This isn't the "unbuilt feature" exception. It's an existing test that the fix broke.
+
+**N3. Kind 1, CLAUDE.md:405-406 ("change it deliberately, in its own commit"): spec assertions changed inside fix commits.**
+- 3f047c8 replaced `ending.test.ts`'s `histories.at(-1)` / `""` assertion with `histories.length === 1` (`spec/ending.test.ts:73`).
+- e12ae83 rewrote the rule-18 test's set-up (`spec/economy.test.ts:241-245`).
+- This is the same pattern the disposition recorded for b5c62e4.
+
+**N4. Kind 3: T6's window marks a different target from the one it aims at.**
+- `window.ts:598` starts the aim at the server's target. Then `:600` calls `opts.onTarget(targets[0].id)`.
+- So for Quicken the field lights *you*, and for Anchor the strip marks the raid-wide card, while the window names the ally or card that Confirm will actually send.
+- `gate-two.test.ts:661-700` passes `onTarget: () => {}`, so it passes with this.
+
+**N5. Kind 3: the B3 test can't tell "dropped" from "never dropped".**
+- `rooms.test.ts:527-553` never observes the fight leaving memory. If `DROP_AFTER_MS` weren't read (`main.ts:37`) and `droppedBehind` were removed (`table.ts:135`), every assertion would still pass, and B3's bug would come back at ten minutes.
+- The dropped fight's `/ws?battle=` is never probed either.
+
+**N6. Kind 3: the U3 test passes on an undefined token.**
+- `contrast.test.ts:209-215` sets `color: var(--name)` on a probe. If the custom property is undefined, `color` inherits `--card`, which clears 16:1 on `--void`. The check at `:230` tests for the presence of a hex, not its value.
+- It resolves the token at `.scene`, not the ink of a real shield or Resonance number, though the comment at `:188-189` says "where it is used".
+- brass-lit is measured on flat `--ink`, not the window's 14% brass gradient that CLAUDE.md:61-62 asks for. By my arithmetic that is about 7.4:1, so it would still pass.
+
+**N7. Kind 3: R2's prompt half is untested.**
+- Every state in `bastion.test.ts` has `bastionCard: "rev"`, which is also what the old client logic picks.
+- So a `bastionFor` (`cards.ts:140-147`) that computed `first` itself would pass every test, and so would the Warden's prompt built from it (`main.ts:131-137`).
+
+**N8. Kind 3: T1's pins.**
+- `effects.test.ts:210` pins `end` with ANY_BUT_NULL, so `banner(OUTCOME_LINES.won)` passes for lost and for abandoned (`effects/table.ts:92-96`).
+- 37 of 44 kinds are still held only by expected states the registry declares itself, reduced variant only (`effects.test.ts:153-180`).
+
+**N9. Kind 3: T10's icon check.** `phase-two.test.ts:101` uses `querySelector("svg")`, which always finds the aim and frost icons every card carries (`cards.ts:203,209`). A card with no intent icon passes.
+
+**N10. Kind 3: T9's check.** `sprites.test.ts:78-87` compares function identity only. A wrapper like `haste = (c, e) => mend(c, e)`, or a renderer playing another kind's frames, passes.
+
+**N11. Kind 3 (R1).** See the R1 row: an unconditional re-enable on refusal passes `gate-two-page.test.ts:466-489`.
+
+**N12. Kind 3 (P2).** `gate-two.test.ts:623-658` hands the window its own `fallen` list. A `main.ts:111` that passed the standing allies, or those who left, would pass. That's the shape U2 used to have.
+
+**N13. Kind 3 (Q7).** A `chosenDoor` that trimmed again (`join.ts:407`) would pass every test.
+
+**N14. Kind 3 (T7).** See the T7 row: the fallback-to-a-bare-battle client passes.
+
+**N15. Kind 3 (T3).** `preview.test.ts:89` skips any preview marked refused. A preview that wrongly refuses an action is never compared.
+
+**N16. Kind 3, low: Reaction order and frozen cards.**
+- `reactionCardOf` orders by raw countdown (`economy.ts:177-188`). `bastionCard` (`orrery.ts:289-305`) says a frozen card resolves a turn later.
+- B1's fix makes that order binding: with a frozen single-target card first at countdown 0, the server refuses an Intercept at the blow that lands first, and says "this one lands later" (`economy.ts:166`).
+- `preview.test.ts:143-152` uses no frozen card.
+
+**N17. Kind 2 and stale docs, low.**
+- CLAUDE.md:288-290 says "on B's screen the strike shows within one tick". The tests now hold two separate one-tick bounds (`shown.test.ts:68` on the server, `:231` on the screen after receipt) plus a 1 s ceiling. A screen 1.9 ticks after the strike passes both.
+- `window.ts:539` still says "not a server's pick", though SERVER_PICKS is gone.
+- `protocol.ts:163` still says the slot is computed "with everyone else where they are", but the preview now plays the action, so others can move.
+- `conductor.ts:62-63` logs "failed after its cap" for failures before the cap as well, which `show()` then logs a second time.
+- `docs/review/phase-two.md:583` (Q1) and `:567` (T6) claim more than holds, per N1 and N4. `:594` names `queue.test.ts` for rules 13 and 14.
+
+**Kind 4, events with no renderer: none found.**
+- `EVENT_KINDS` is unchanged (44 kinds, `protocol.ts:306-355`), and the fixes raise no new `kind:` in `src/server`.
+- The only registry change is a flag name (`effects/command.ts:63`), and the strip CSS and type follow it.
+- New fields have both ends: `bastionCard` in `view()` and `archived()`, and `ActionPreview.target` consumed by `window.ts:597`.
+- `shown.test.ts` and both effects tests are green.
+
+I can't approve. This is what I found.
