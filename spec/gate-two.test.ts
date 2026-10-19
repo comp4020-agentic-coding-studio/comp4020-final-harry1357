@@ -99,6 +99,36 @@ describe("phase two's gate", () => {
     win2.destroy();
   });
 
+  it("U1 (rule 1): the ghost stands where the server's preview puts it, never where the counters would", async () => {
+    const { createStrip } = (await import(resolve("src/client/strip/strip.ts"))) as {
+      createStrip: (root: HTMLElement, o: unknown) => { render(s: unknown, me: string | null): void; preview(id: string | null, p: unknown): void };
+    };
+    const root = document.createElement("aside");
+    document.body.append(root);
+    const strip = createStrip(root, { manifest: { facing: "left", required: [], roles: {} }, orrerySvg: "<svg></svg>" });
+    const tok = (id: string, counter: number, kind = "character", role = "striker") => ({
+      id, kind, name: id, role, counter, hp: 100, maxHp: 100, hasted: false, braced: false, seat: 1,
+      charge: 0, resource: 0, gravity: 0, drifting: false, echo: false, reactionReady: true,
+    });
+    const p = (counter: number, slot: number) => ({ counter, slot, resonance: false, refusal: null, target: null });
+    const base = {
+      battleId: "b", version: 1, tick: 1, tickMs: 150, turnMs: 12_000, plateMs: 12_000, status: "fighting", activeId: "me", turnDeadline: null,
+      queue: [tok("me", 0), tok("al", 3), tok("orrery", 5, "boss", "orrery"), tok("bo", 8)],
+      fallen: [], log: [], phase: 1, rings: [], cards: [], chain: { links: 0, potency: 1 }, pullSeats: 3, spentExposed: [],
+      room: null, alignmentLeft: null, echoRoles: [], bastion: false, bastionCard: null,
+    };
+    // By the counters, a reset to 4 would land second (after Al's 3). The server says last: the ghost goes last.
+    strip.render({ ...base, preview: { actorId: "me", actions: { jab: p(4, 3) } } }, "me");
+    strip.preview("me", p(4, 3));
+    const order = () => [...root.querySelectorAll<HTMLElement>("[data-token-id], [data-ghost-of]")].map((el) => el.dataset.tokenId ?? `ghost`);
+    expect(order(), "the ghost in the slot the server named, not the counters' slot").toEqual(["me", "al", "orrery", "bo", "ghost"]);
+    strip.preview("me", p(99, 0));
+    expect(order(), "and a counter that would sort last, at the server's slot 0").toEqual(["me", "ghost", "al", "orrery", "bo"]);
+    // The server stops previewing (the clock runs): the ghost goes, whatever the page hovered.
+    strip.render({ ...base, activeId: null, preview: null }, "me");
+    expect(order(), "no preview from the server: no ghost").toEqual(["me", "al", "orrery", "bo"]);
+  });
+
   it("P3: a person back from their Echo has a strip flag of their own, not Restore's", async () => {
     const { RENDERERS } = (await import(resolve("src/client/battle/registry.ts"))) as {
       RENDERERS: Record<string, { reduced: (ctx: unknown, e: unknown) => Promise<void> | void }>;
