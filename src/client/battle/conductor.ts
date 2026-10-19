@@ -55,7 +55,36 @@ export function createConductor(opts: ConductorOptions): Conductor {
     new Promise((resolve) => setTimeout(resolve, reducedQuery.matches ? Math.min(ms, 120) : ms));
 
   function capped(work: Promise<void> | void): Promise<void> {
-    return Promise.race([Promise.resolve(work), new Promise<void>((resolve) => setTimeout(resolve, CAP_MS))]);
+    const running = Promise.resolve(work);
+    // A failure after the cap has nobody waiting on it: said, not left unhandled.
+    running.catch((err: unknown) => console.error("a renderer failed after its cap", err));
+    return Promise.race([running, new Promise<void>((resolve) => setTimeout(resolve, CAP_MS))]);
+  }
+
+  /**
+   * Show one event: its variant, and if the full one throws, the reduced one,
+   * which shows the same state change. True once something showed it. A
+   * renderer still running at the cap has been on screen that long, and counts.
+   */
+  async function show(
+    renderer: { full: (ctx: EffectContext, e: BattleEvent) => Promise<void> | void; reduced: (ctx: EffectContext, e: BattleEvent) => Promise<void> | void },
+    ctx: EffectContext,
+    event: BattleEvent,
+  ): Promise<boolean> {
+    try {
+      await capped((ctx.reduced ? renderer.reduced : renderer.full)(ctx, event));
+      return true;
+    } catch (err) {
+      console.error(`the ${event.kind} renderer failed`, err);
+    }
+    if (ctx.reduced) return false;
+    try {
+      await capped(renderer.reduced({ ...ctx, reduced: true }, event));
+      return true;
+    } catch (err) {
+      console.error(`the ${event.kind} reduced renderer failed too`, err);
+      return false;
+    }
   }
 
   async function play(): Promise<void> {
@@ -68,11 +97,8 @@ export function createConductor(opts: ConductorOptions): Conductor {
       if (renderer && latest) {
         const reduced = reducedQuery.matches || queue.length >= BACKLOG;
         const ctx: EffectContext = { scene: opts.scene, strip: opts.strip, audio: opts.audio, reduced, wait, state: latest, me };
-        try {
-          await capped((reduced ? renderer.reduced : renderer.full)(ctx, event));
-        } catch (err) {
-          console.error(`the ${event.kind} renderer failed`, err);
-        }
+        // Nothing showed it (both variants threw), so nothing writes it down (rule 11; review R5).
+        if (!(await show(renderer, ctx, event))) continue;
       } else if (!renderer) {
         // Nothing showed it, so nothing writes it down (rule 11; review F1).
         console.error(`no renderer for "${event.kind}": rule 11 says this event shouldn't have shipped`);

@@ -129,6 +129,41 @@ describe("phase two's gate", () => {
     expect(order(), "no preview from the server: no ghost").toEqual(["me", "al", "orrery", "bo"]);
   });
 
+  it("R5 (rule 11): a renderer that throws hands over to its reduced variant; nothing shown, nothing written", async () => {
+    const { createConductor } = (await import(resolve("src/client/battle/conductor.ts"))) as {
+      createConductor: (o: unknown) => { receive(m: unknown): void };
+    };
+    const written: string[] = [];
+    const played: string[] = [];
+    const noop = () => {};
+    const quiet = new Proxy({}, { get: () => noop });
+    const conductor = createConductor({
+      scene: quiet,
+      strip: quiet,
+      audio: { play: noop },
+      log: { append: (l: { text: string }) => written.push(l.text), history: noop },
+      registry: {
+        // full fails, reduced shows it
+        jab: { full: () => { throw new Error("planted"); }, reduced: () => void played.push("jab reduced") },
+        // both fail: nothing shows it
+        cleave: { full: () => { throw new Error("planted"); }, reduced: () => { throw new Error("planted too"); } },
+      },
+      onState: noop,
+    });
+    const errors = console.error;
+    console.error = () => {};
+    try {
+      const st = (log: { seq: number; text: string }[]) => ({ battleId: "b", version: 1, status: "fighting", queue: [], fallen: [], cards: [], log: log.map((l) => ({ ...l, tick: 1, kind: "action", actorId: "me" })) });
+      conductor.receive({ type: "state", battle: st([]), events: [] });
+      conductor.receive({ type: "state", battle: st([{ seq: 1, text: "Jab line." }, { seq: 2, text: "Cleave line." }]), events: [{ kind: "jab", seq: 1, actorId: "me" }, { kind: "cleave", seq: 2, actorId: "me" }] });
+      await new Promise((r) => setTimeout(r, 50));
+    } finally {
+      console.error = errors;
+    }
+    expect(played, "the full variant threw: the reduced one showed it").toEqual(["jab reduced"]);
+    expect(written, "shown, so written; the event nothing showed is never written down").toEqual(["Jab line."]);
+  });
+
   it("P3: a person back from their Echo has a strip flag of their own, not Restore's", async () => {
     const { RENDERERS } = (await import(resolve("src/client/battle/registry.ts"))) as {
       RENDERERS: Record<string, { reduced: (ctx: unknown, e: unknown) => Promise<void> | void }>;
