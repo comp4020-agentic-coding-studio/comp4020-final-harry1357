@@ -160,7 +160,8 @@ export interface Token {
 export interface ActionPreview {
   /** The counter the actor would reset to. */
   counter: number;
-  /** The slot in the queue, 0 first, the actor would land in with everyone else where they are. */
+  /** The slot in the queue, 0 first, the actor would land in: the action played
+   *  on a copy, so anyone it moves (a Quicken's ally) is where it leaves them. */
   slot: number;
   /** It would refund a rank (rule 14), aimed at its default target. */
   resonance: boolean;

@@ -59,9 +59,13 @@ export function createConductor(opts: ConductorOptions): Conductor {
 
   function capped(work: Promise<void> | void): Promise<void> {
     const running = Promise.resolve(work);
-    // A failure after the cap has nobody waiting on it: said, not left unhandled.
-    running.catch((err: unknown) => console.error("a renderer failed after its cap", err));
-    return Promise.race([running, new Promise<void>((resolve) => setTimeout(resolve, CAP_MS))]);
+    let late = false;
+    // A failure after the cap has nobody waiting on it: said, not left unhandled. One before the cap is
+    // show()'s to say, once.
+    running.catch((err: unknown) => {
+      if (late) console.error("a renderer failed after its cap", err);
+    });
+    return Promise.race([running, new Promise<void>((resolve) => setTimeout(() => ((late = true), resolve()), CAP_MS))]);
   }
 
   /**

@@ -536,7 +536,7 @@ export function mountCommandWindow(root: HTMLElement, opts: CommandOptions): Com
     opts.onChoose(action, targetId);
   }
 
-  /** An option whose target the player steps through: allies, or the strip's cards. Not a Reaction (one card), not a server's pick. */
+  /** An option whose target the player steps through: allies, the fallen (Restore), or the strip's cards. Not a Reaction (one card). */
   function choosable(i: number): boolean {
     const info = infos[i];
     return !info.reaction && (info.target === "ally" || info.target === "card");
