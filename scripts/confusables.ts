@@ -5,15 +5,16 @@
 //   curl -o /tmp/tr39/confusables.txt https://www.unicode.org/Public/security/latest/confusables.txt
 //   node scripts/confusables.ts /tmp/tr39/confusables.txt
 //
-// The cut keeps every entry the full table uses while computing a key (skeleton,
-// lowercase, skeleton) made only of characters in the kept names' keys, and the
+// The cut keeps every entry the full table uses while computing either key
+// (skeleton-lowercase-skeleton, lowercase-skeleton) made only of characters in
+// the kept names' keys, and the
 // entry of any character that itself appears in them, and the entry of any
 // character whose absence would make it look like part of one. Then it proves,
 // over every character in the full table, that the cut table gives the same answer to "could this be part
 // of a kept name?" and the same key when it could. A cut that changed a match
 // fails here, not in play.
 import { readFileSync, writeFileSync } from "node:fs";
-import { keptKey } from "../src/server/confusables.ts";
+import { keptKeys } from "../src/server/confusables.ts";
 
 const KEPT = ["Warden Echo", "Mender Echo", "Striker Echo", "Breaker Echo", "Chronist Echo"];
 const source = process.argv[2];
@@ -31,7 +32,9 @@ for (const line of text.split("\n")) {
   if ([...from].length === 1) full.set(from, to);
 }
 
-const keys = KEPT.map((n) => keptKey(n.normalize("NFKC"), full));
+// Both keys of a name (src/server/confusables.ts), as separate functions so each is cut and proven.
+const KEYS = [(t: string, m: ReadonlyMap<string, string>) => keptKeys(t, m)[0], (t: string, m: ReadonlyMap<string, string>) => keptKeys(t, m)[1]];
+const keys = KEPT.flatMap((n) => keptKeys(n.normalize("NFKC"), full));
 const inKeys = new Set(keys.flatMap((k) => [...k]));
 const only = (s: string): boolean => [...s].every((c) => inKeys.has(c));
 
@@ -49,10 +52,10 @@ const tracing = new Proxy(full, {
     return typeof v === "function" ? v.bind(target) : v;
   },
 });
-for (const name of KEPT) keptKey(name.normalize("NFKC"), tracing);
+for (const name of KEPT) keptKeys(name.normalize("NFKC"), tracing);
 for (const from of full.keys()) {
   if (inKeys.has(from)) cut.set(from, full.get(from) as string);
-  if (only(keptKey(from, full))) keptKey(from, tracing);
+  for (const key of KEYS) if (only(key(from, full))) key(from, tracing);
 }
 // And the entry of any character whose absence would make it look like part of a kept name when it
 // isn't: one left as itself can lowercase into a character the cut does map (U+118A8 lowercases to a
@@ -61,23 +64,29 @@ for (let grew = true; grew; ) {
   grew = false;
   for (const from of full.keys()) {
     if (cut.has(from)) continue;
-    const kept = keptKey(from, cut);
-    if (only(kept) && kept !== keptKey(from, full)) {
-      keptKey(from, tracing);
-      cut.set(from, full.get(from) as string);
-      grew = true;
+    for (const key of KEYS) {
+      const kept = key(from, cut);
+      if (only(kept) && kept !== key(from, full)) {
+        key(from, tracing);
+        cut.set(from, full.get(from) as string);
+        grew = true;
+      }
     }
   }
 }
 
 // The proof: for every character the full table knows, the cut table agrees.
-for (const from of full.keys()) {
-  const whole = keptKey(from, full);
-  const kept = keptKey(from, cut);
-  if (only(whole) !== only(kept)) throw new Error(`the cut changes whether U+${from.codePointAt(0)?.toString(16)} can be part of a kept name`);
-  if (only(whole) && whole !== kept) throw new Error(`the cut changes U+${from.codePointAt(0)?.toString(16)}'s key: ${whole} vs ${kept}`);
+for (const key of KEYS) {
+  for (const from of full.keys()) {
+    const whole = key(from, full);
+    const kept = key(from, cut);
+    if (only(whole) !== only(kept)) throw new Error(`the cut changes whether U+${from.codePointAt(0)?.toString(16)} can be part of a kept name`);
+    if (only(whole) && whole !== kept) throw new Error(`the cut changes U+${from.codePointAt(0)?.toString(16)}'s key: ${whole} vs ${kept}`);
+  }
 }
-for (const [i, name] of KEPT.entries()) if (keptKey(name, cut) !== keys[i]) throw new Error(`the cut changes ${name}'s own key`);
+for (const name of KEPT) {
+  if (JSON.stringify(keptKeys(name, cut)) !== JSON.stringify(keptKeys(name, full))) throw new Error(`the cut changes ${name}'s own keys`);
+}
 
 const hex = (s: string): string => [...s].map((c) => `\\u{${(c.codePointAt(0) as number).toString(16)}}`).join("");
 const rows = [...cut].sort(([a], [b]) => (a.codePointAt(0) as number) - (b.codePointAt(0) as number)).map(([f, t]) => `  ["${hex(f)}", "${hex(t)}"],`);
