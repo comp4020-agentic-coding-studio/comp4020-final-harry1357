@@ -311,6 +311,25 @@ describe("phase two's gate", () => {
     expect(drawn?.textContent, "and says what it is in words when nothing got through").toBe("WARD");
   });
 
+  it("Q4: an Echo's line is marked in the log window, a person's isn't, whatever the names", async () => {
+    // The owner's ruling on phase two's gate, Q4: a person named like an Echo
+    // must not write lines like an Echo's. The line says who wrote it (echo),
+    // and the window draws an Echo's line with the Echo tag, in words.
+    const { createLog } = (await import(resolve("src/client/battle/log.ts"))) as {
+      createLog: (list: HTMLElement) => { append(entry: unknown, fight?: string): void };
+    };
+    const list = document.createElement("ol");
+    document.body.append(list);
+    const log = createLog(list);
+    log.append({ seq: 1, tick: 1, kind: "action", actorId: "e1", text: "Warden Echo braces.", echo: true }, "b");
+    log.append({ seq: 2, tick: 1, kind: "action", actorId: "p1", text: "The Echo of Ada braces.", echo: false }, "b");
+    const [byEcho, byPerson] = [...list.querySelectorAll<HTMLElement>("li")];
+    expect(byEcho.dataset.echo, "the Echo's line says what wrote it").toBe("true");
+    expect(byEcho.querySelector(".log-echo")?.textContent, "with the Echo tag, in words").toBe("Echo");
+    expect(byPerson.dataset.echo, "the person's line says so too").toBe("false");
+    expect(byPerson.querySelector(".log-echo"), "and carries no Echo tag, whatever the name").toBeNull();
+  });
+
   it("P3: a person back from their Echo has a strip flag of their own, not Restore's", async () => {
     const { RENDERERS } = (await import(resolve("src/client/battle/registry.ts"))) as {
       RENDERERS: Record<string, { reduced: (ctx: unknown, e: unknown) => Promise<void> | void }>;
