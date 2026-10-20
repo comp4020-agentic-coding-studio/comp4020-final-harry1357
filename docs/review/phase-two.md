@@ -1423,3 +1423,11 @@ not re-reviewed in this phase:
 - The whole-name NFKC form in `rules.ts:242` is now mostly redundant.
 - Earlier passes' lists, above: M3's 3 s window, M5's `main.ts` wiring, M6's
   tied countdowns, R6's glyph shape, Q4's real page, and M7's Echo tag value.
+
+**After the gate closed,** on a fresh image at `0b14ad2` (only this doc has
+changed since):
+- The roster against the image gives the same result as on `:8090`: 239
+  green, 1 red (R7).
+- `check:keyboard`, `check:viewports` and `check:tags` all pass.
+- The propagation probe shows another browser a strike in a median of 6.6 ms,
+  worst 8.8 ms (n=6).
