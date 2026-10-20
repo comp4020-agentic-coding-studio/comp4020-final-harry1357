@@ -1361,3 +1361,65 @@ found a subtler case than the last, and D2's fix is a design choice.
   carries `echo`, true or false. So no look-alike can take an Echo's seat or
   write an Echo's line. **Any further look-alike found later is a risk by this
   ruling, not a finding.**
+
+## Confirm pass on D1, and the gate closes
+
+The reviewer, on a fresh context, reading the D1 fix alone
+(`git diff a0167b0...233726a`). Its result, summarised. Its report is in the
+session; these are its verdicts, unaltered.
+
+- **Run:** `APP_URL=http://localhost:8090 pnpm check`. tsc and stylelint
+  passed. vitest ran 32 files and 240 tests: 239 passed, 1 failed
+  (`spec/owner.test.ts:19`, R7, carried red). The extra test is D1's.
+- **(1) D1: the fix does what the ruling says.**
+  - `charOptions` gives each character four settled forms (as given,
+    lowercased, as NFKC, as NFKC lowercased), and `sameKept` lets each
+    character choose among them. The new forms only add to the old two, so
+    nothing refused before is allowed now, and the F1 and C1 tests stay green.
+  - The five D1 names are refused, and the spec went in red, one commit ahead
+    of its fix.
+  - Ordinary names are still allowed: the spec's list, and the last pass's
+    names traced by hand.
+  - The generator's four `KEYS` are `charOptions`' four forms, in the same
+    order, and the cut, the fixed point and the proof loop over all four. The
+    byte-identical table is the author's claim; the reviewer couldn't run the
+    generator.
+- **(2) Violations: none found.** It checked: the spec ahead of its fix; no
+  spec weakened; both commits name D1; CLAUDE.md and the owner's files
+  untouched; the generated table not hand-edited; erasable TypeScript with
+  `.ts` imports; rule 4's 409; rule 25; no new event kind, mechanic or asset;
+  and ADR-007 untouched.
+- **Process note:** the reviewer ran `git log`, `ls` and `grep` beyond its
+  allowed commands, read-only.
+
+**The gate is closed under the stopping rule.** Every finding is fixed,
+carried red, closed by ruling, or recorded as history, and this last review
+found no rule or ADR violation. Phase one-b's R7 (the README) stays carried
+red. It is the owner's, to be inserted before the merge, which the gate still
+holds until it's green.
+
+### For the next phase
+
+The residuals in the strength of tests and the words, from the last reviews,
+not re-reviewed in this phase:
+
+- Stale comments from the D1 fix:
+  - `src/server/confusables.ts:66-67` says "one of the two keys";
+  - `scripts/confusables.ts:8-9` and `:35` describe two keys where `KEYS`
+    has four.
+- The D1 test asserts the 409, not the "is kept for" message, so another 409
+  would pass it. And D1 is held by a list of five, not a sweep.
+- No ordinary name in "leaves names alone" has a compatibility character
+  ("Ⓦardens Echo" is a candidate) or contains a whole kept name with more
+  added ("Ida Mender Echo", "Striker Echo II").
+- Nothing on the roster runs the generator's proof or compares the cut table
+  with TR39, and the C1 sweep's count is held by `toBeGreaterThan(500)` where
+  9441 is knowable.
+- The proof iterates TR39's own sources only; characters outside the table
+  reach it through their NFKC or lowercase forms, which the script doesn't
+  say.
+- `charOptions` never takes lowercase-then-NFKC: a risk under the ruling, with
+  no case found.
+- The whole-name NFKC form in `rules.ts:242` is now mostly redundant.
+- Earlier passes' lists, above: M3's 3 s window, M5's `main.ts` wiring, M6's
+  tied countdowns, R6's glyph shape, Q4's real page, and M7's Echo tag value.
