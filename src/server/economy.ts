@@ -163,25 +163,28 @@ export function checkReaction(b: Battle, actor: Fighter, action: ActionId, cardI
   if (refused) return refused;
   // Live only against the card the server names (rule 2; the token's reactionCard): the soonest it answers.
   if (reactionCardOf(b, actor) !== card.id) {
-    return { status: 409, error: `${ACTIONS[action].label} answers the card the server names, the soonest it can; this one lands later.` };
+    return { status: 409, error: `${ACTIONS[action].label} answers the card the server names, the first it can that lands; this one lands later.` };
   }
   return null;
 }
 
 /**
- * The card this fighter's Reaction may answer now: the soonest card it would
- * answer, first on the strip on a tie (rule 2, "the card the server names").
+ * The card this fighter's Reaction may answer now: the card it would answer
+ * that lands first, a frozen card a turn later than its countdown (it skips a
+ * turn: orrery.ts; re-review N16), first on the strip on a tie (rule 2, "the
+ * card the server names").
  * Null when it has no Reaction, has spent it, or nothing it answers is up.
  * The token's reactionCard, and the one card checkReaction takes.
  */
 export function reactionCardOf(b: Battle, f: Fighter): string | null {
   if (f.kind !== "character" || !f.reactionReady || b.status !== "fighting") return null;
   const reactions = ROLES[f.role as RoleId].actions.filter((a) => ACTIONS[a].reaction);
-  let best: { id: string; countdown: number } | null = null;
+  let best: { id: string; lands: number } | null = null;
   for (const action of reactions) {
     for (const card of b.cards) {
       if (answers(b, f, action, card) !== null) continue;
-      if (!best || card.countdown < best.countdown) best = { id: card.id, countdown: card.countdown };
+      const lands = card.countdown + (card.frozen ? 1 : 0);
+      if (!best || lands < best.lands) best = { id: card.id, lands };
     }
   }
   return best?.id ?? null;

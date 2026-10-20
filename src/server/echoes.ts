@@ -92,9 +92,7 @@ export function onTurn(state: BattleState, echoId: string): Move {
 export function offTurn(state: BattleState, echoId: string): Move | null {
   const me = state.queue.find((t) => t.id === echoId);
   if (!me || me.role !== "warden" || !me.reactionReady) return null;
-  const blow = soonest(
-    state.cards,
-    (c) => single(c) && c.countdown === 0 && c.targetId !== me.id && party(state).some((t) => t.id === c.targetId),
-  );
-  return blow ? go("intercept", blow.id) : null;
+  // The card the server names (its reactionCard), and only once it lands on the Orrery's next turn.
+  const blow = state.cards.find((c) => c.id === me.reactionCard);
+  return blow && single(blow) && blow.countdown === 0 && !blow.frozen ? go("intercept", blow.id) : null;
 }
