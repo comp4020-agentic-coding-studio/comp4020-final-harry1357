@@ -265,6 +265,10 @@ describe("every full renderer draws its event's declared state too (N8)", () => 
       expect(reduced, `${outcome}: the same banner in both variants`).toBe(full);
     }
     expect(new Set(Object.values(banner).map(([full]) => full)).size, "three endings, three banners").toBe(3);
+    // And each says its own (the third review's M8: the won and lost lines swapped passed "three distinct").
+    expect(banner.won[0], "a win is drawn as a victory").toMatch(/victory/i);
+    expect(banner.lost[0], "a loss as a defeat").toMatch(/defeat/i);
+    expect(banner.abandoned[0], "an abandoned fight as neither").not.toMatch(/victory|defeat/i);
   });
 });
 
