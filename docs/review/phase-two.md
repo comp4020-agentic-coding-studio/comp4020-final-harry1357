@@ -1099,3 +1099,142 @@ run against the same fault and passed it: that was the weakness.
 **Roster after the fix round:** 236 green, 1 red (R7) on `:8090` at
 `a03e417`. Typecheck and lint are clean. `check:keyboard`, `check:viewports`
 and `check:tags` all pass.
+
+## Final pass
+
+The reviewer, on a fresh context, under the owner's narrowed brief: does every
+row that was open now have an outcome the gate allows, and did the last round
+(`git diff a5b503f...HEAD`, HEAD `8db03f5`) break any rule or ADR? Kept as
+given.
+
+**Summary.** All 13 rows that were open after the third review have an outcome the gate allows. The round introduced one rule violation (F1): a person can now sit down as "STRIKER ECHO" or "CHRONIST ECHO", and so keep that role's Echo out (rule 25). I can't approve; what follows is what I found.
+
+### What was read and run
+
+**Read:**
+- `.claude/agents/reviewer.md` and CLAUDE.md, in full.
+- `docs/review/phase-two.md`, all 1102 lines.
+- ADR-001, ADR-006 and ADR-007, in full. ADR-002 to ADR-005 were not re-read: nothing in this round touches what they govern.
+- The whole of `git diff a5b503f...HEAD` except the drizzle snapshot JSON and the middle of the generated confusables table. That covers CLAUDE.md, the server and shared changes, the client changes, `scripts/confusables.ts`, the migration and journal, and every spec change.
+- For context:
+  - `rules.ts`: 225–300, 575–604, 836–849
+  - `db.ts` and `confusables.ts`: in full
+  - `conductor.ts`: 1–110
+  - `log.css`: in full
+  - `fx.ts`: 90–114
+  - `gate-two-page.test.ts`: 140–234
+  - `gate-two.test.ts`: 283–332
+  - `echoes.test.ts`: 470–481
+  - the window and plate-tag rules in `base.css` and `scene.css`
+
+**Ran:**
+- `git diff --stat` for the whole range, per-file diffs, and `git diff --stat <c>^ <c>` for all 18 commits. Their line counts add up to the whole diff, give or take one line changed twice.
+- Ancestry checks with three-dot diffs. The order is:
+  a5b503f → c0532a4 → 58e5cda → ad1206e → fe25832 → c0258be → 34214b5 → 519545d → 4c3b0b4 → f53af78 → db869dd → 94cecef → c28aba8 → 46cead2 → 03660c2 → 5ab983b → 5da29eb → a03e417 → 8db03f5 (HEAD).
+- **The roster, once:** `APP_URL=http://localhost:8090 pnpm check`.
+  - `tsc` passed and stylelint passed.
+  - vitest ran 32 files and 237 tests: **236 passed, 1 failed.** The failure is `spec/owner.test.ts:19`, R7 (README.md still says "there's one fight").
+  - The command exited 1. This matches the doc's "236 green, 1 red".
+
+**Deviations from the brief:**
+- My commands began with `cd`, and some piped `git diff` through `grep`, `head`, `wc` or `tr`, or used shell loops. All of them were read-only.
+- This session has no Grep or Glob tool, so I searched with `git diff -G` against the empty tree. No file was written.
+
+**Could not verify:**
+- The "red with X" mutation claims.
+- That each intermediate commit was green apart from its targets.
+- The generator's proof (`scripts/confusables.ts`), which isn't a command I'm allowed to run.
+
+### (1) Outcomes
+
+Every row in the table "Every row that was open, and its outcome" has an outcome the gate allows.
+
+- **R6, the shield cyan:** fixed, by ruling 1. **Allowed.**
+  - `fe25832` is spec-only and red first: the shield ink must equal `--card`, plus the glyph test at `gate-two.test.ts:284`. It comes immediately before `c0258be`.
+  - `c0258be` sets `--tone-shield: var(--card)` (`scene.css`) and records the ruling at CLAUDE.md:143-145.
+  - `--role-breaker` is a mix of two tokens and is used only as a pip fill.
+  - `docs/design/overhaul.md` still says "cyan = shield". The ruling records it as superseded; the file wasn't edited.
+- **Phase one-b R7, the README:** carried red. **Allowed.** It is still red in my run (`owner.test.ts:19`). The gate still keeps it from merging until it's green, and the doc says so.
+- **Q3, Q8, Q10:** closed by ruling 3. **Allowed.** The rule is at CLAUDE.md:407-410 (`58e5cda`). Their rows keep their reasons (phase-two.md:585, :590, :592).
+- **Q4:** fixed, by ruling 3. **Allowed,** and the cited commits do what the row says:
+  - `519545d` is spec-only and red first, ahead of both fixes.
+  - `4c3b0b4` puts `echo` on the wire (`protocol.ts:236-240`), sets it in `say()` from the actor's seat (`rules.ts:842-844`), stores it via migration 0001 and `schema.ts`, writes it in the turn's transaction (`db.ts:124-127`), and adds the window's Echo tag (`log.ts:28-35`).
+  - `f53af78` compares the kept names by confusable skeleton (`rules.ts:240`, `:276`).
+  - **But `f53af78` introduces F1.**
+- **N2, N3, M1:** recorded as history, by ruling 4. **Allowed.** The rule is at CLAUDE.md:404-406 (`58e5cda`).
+- **R5's cap:** closed by ruling 5. **Allowed.**
+  - The exception is in rule 11's text at CLAUDE.md:290-293. Its commit, `c0532a4`, changes CLAUDE.md only.
+  - M2 is fixed in `34214b5`: `conductor.ts:4-8` and `:73-79` now match.
+- **M10:** closed by ruling 6. **Allowed.** CLAUDE.md:415-421 (`58e5cda`).
+- **M3:** fixed, `db869dd`. **Holds:** after a 3 s wait, the sockets must be exactly `["/ws?room=QZXWV"]` (`gate-two-page.test.ts:146-151`).
+- **M4:** fixed, `94cecef`. **Holds:** the stub's 409 must have been served and the refusal announced (`:227-229`).
+- **M5:** fixed, `c28aba8` (spec) then `46cead2`. **Holds:** the new module `prompts.ts`, used at `main.ts:37` and `:201`, is held on the Alignment and frozen boards (`bastion.test.ts:134-157`).
+- **M6:** fixed, `03660c2`. **Holds** (`echoes.test.ts:209-233`).
+- **M7:** fixed, `5ab983b`. **Holds:** each token's own value is checked as a valid colour, the window ground is read off `.log-window.window`, the Echo plate tag is measured on `--ink`, and the probe waits for the stylesheet.
+- **M8:** fixed, `5da29eb`. **Holds:** victory, defeat, and neither (`effects.test.ts:268-271`).
+- **M9:** fixed, `a03e417`. **Holds:** phase-two.md:564, :567 and :583 now cite their spec commits.
+
+**Anything else still listed as open:** earlier parts of the doc still list some of these as open:
+- phase-two.md:558 (R6, "Open, the owner's");
+- :586 (Q4, "No change");
+- :835;
+- :837-844;
+- :997-1014.
+
+They are historical, and each is resolved in the final table (:1086-1097). Nothing is left without an outcome. Unlike the corrected-in-place convention at :806-808, rows 558 and 586 weren't annotated. That is a doc point, not a rule.
+
+### (2) Rule or ADR violations in this round
+
+**F1. Rule 25, with rule 4's comparison.** Introduced by `f53af78`.
+
+The words broken:
+- Rule 25: "Its name ("Warden Echo") is kept for it: no person sits down under it" (CLAUDE.md:379-380), and "Someone seated in the room seats it on purpose: one per role" (CLAUDE.md:374-375).
+- Rule 4: "Names are compared trimmed and case-insensitively" (CLAUDE.md:237-238).
+
+What the code does:
+- `src/server/rules.ts:276` now checks the kept names only by `keptNameKey` (`:240`).
+- That calls `keptKey` at `src/server/confusables.ts:21-22`: skeleton, then lowercase, then skeleton again.
+- TR39 maps a capital `I` to `l` (`src/server/confusables-data.ts:11`, `["\u{49}", "\u{6c}"]`), and nothing maps `i` or `l`. So the capital I becomes an l before the lowercase step can fold it:
+  - keptKey("STRIKERECHO") = "strlkerecho", but keptKey("StrikerEcho") = "strikerecho".
+  - keptKey("CHRONISTECHO") = "chronlstecho", but keptKey("ChronistEcho") = "chronistecho".
+- So "STRIKER ECHO", "CHRONIST ECHO", or either one with any capital I, is no longer refused. Before this commit, `nameKey` refused them.
+- The comment at `confusables.ts:6-7` claims the opposite. The Greek Ι (U+0399) and Cyrillic І (U+0406) also map to `l`, so they get through the same way.
+
+The consequence is breaker Q6 coming back for two roles:
+- Once such a person is seated, `checkSeatEcho` compares names by `nameKey` (`rules.ts:590-592`). It then refuses that role's Echo with 409 "Someone at this table already goes by …".
+- A name is for life (rule 24), so this happens at every table that person sits at.
+
+Nothing in the roster catches it:
+- `spec/echoes.test.ts:479` uses " mender ECHO ", and "Mender" has no i.
+- Every case in `spec/echo-lines.test.ts` is mixed case.
+
+I judged this by reading the code and the table. I couldn't run it.
+
+**What I checked and found nothing broken:**
+- **Never-do rule text in its own commit:** the only rule text changed is rule 11's, in `c0532a4`, which touches CLAUDE.md only. That complies with the new line at CLAUDE.md:422. `58e5cda` and `ad1206e` change "How to work in here" only. `c0258be` changes the design block only.
+- **Spec changes:** every spec change sits in a spec-only commit, and no fix commit touches a spec.
+- **Red commits:** `fe25832`, `519545d` and `c28aba8` are targets.
+  - `519545d`'s confusable cases went in two commits ahead of `f53af78`, with `4c3b0b4` in between.
+  - That is within the exception's operative words (CLAUDE.md:416-418), so I didn't count it.
+- **Rules 5, 6 and 7:** `echo` is written in the turn's own transaction, the restart line carries `echo: false` (`db.ts:86`), and the migration goes through the drizzle folder.
+- **Rule 8, ADR-006 §The Echo and ADR-007 §Decision ("logged as the Echo's"):** the flag follows the seat, and it flips before both the takeover line and the return line (`economy.ts`).
+- **Rule 11:** no new event kind, and the conductor's behaviour is unchanged.
+- **Rule 12:** it covers `src/assets/` only, and `confusables-data.ts` is in `src/server/`. Its header names its source and Unicode's terms.
+- **Design gate:**
+  - no new hex;
+  - `--role-breaker` is a mix of two tokens and isn't used for text;
+  - the log's Echo tag is brass-lit on the `.window` ground, the same pair the contrast test measures for the room code;
+  - radius is at most 2px inside `#battle`, and stylelint is green.
+  - "That block is its own commit" (CLAUDE.md:42) governs the block's first landing, not `c0258be`'s amendment.
+- **Server TypeScript:** the new server files use erasable syntax only, and their relative imports carry `.ts`.
+
+### For the next phase
+
+These are tests a wrong implementation could still pass. They are not findings.
+
+- `spec/contrast.test.ts`, M7: the Echo plate tag is held to 4.5:1 but not to brass-lit's own value. A tag rule that broke and inherited `--card` would pass.
+- `spec/gate-two-page.test.ts:146-151`, M3: a fallback socket opened more than 3 s after the 4404 still passes.
+- `spec/echoes.test.ts:209-233`, M6: both cards are at countdown 0, so a policy that takes the later of two tied cards also passes.
+- `spec/bastion.test.ts:134-157`, M5: nothing holds that `main.ts:201` uses the module's `prompts()`. A `main.ts` that built the note itself would pass.
+- `spec/gate-two.test.ts:310`, R6: it checks only that a `.fx-number-glyph` span is there. The shape comes from CSS on the same span Resonance uses, so a shield drawn as the star passes.
+- `spec/gate-two.test.ts:314-331`, Q4: the test hands `log.append` its own entries. A real page that dropped the server's `echo` on the way to the window would pass.
