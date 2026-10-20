@@ -188,47 +188,81 @@ describe(`--${QUIET} on its grounds`, () => {
 // the long way round the hue wheel). So headless Chrome resolves each where it
 // is used, paints it on a canvas and reads the pixel back as sRGB, and the
 // WCAG arithmetic is done on that. Text, 4.5:1: the shield and Resonance
-// numbers on the field, and brass-lit on a window (the room code, an Echo tag).
+// numbers on the field, and the room code on a window.
+// The re-review's N6: a bare probe inherits --card when a token is undefined,
+// so a missing token passed. Each ink is now read off the real element (an
+// .fx-number of that tone in the scene, the seat list's .seats-code), each
+// token must be defined where it's read, and the room code is measured on the
+// window's lighter end (its 14% brass), not flat --ink.
 describe("phase two's mixed inks, resolved by Chrome", () => {
   let seen: Record<string, string> = {};
+  let defined: Record<string, boolean> = {};
 
   beforeAll(async () => {
     const { launchChrome } = await import("./browser.ts");
     const chrome = await launchChrome();
     try {
       const tab = await chrome.open(`${baseUrl}/`);
-      await tab.until(`!!document.querySelector("#battle .scene")`, "the battle screen", 15_000);
-      seen = await tab.evaluate<Record<string, string>>(`(() => {
+      await tab.until(`!!document.querySelector("#battle .scene") && !!document.querySelector("#battle [data-seats]")`, "the battle screen", 15_000);
+      const got = await tab.evaluate<{ seen: Record<string, string>; defined: Record<string, boolean> }>(`(() => {
         const scene = document.querySelector("#battle .scene");
-        const probe = document.createElement("span");
-        scene.append(probe);
+        const seats = document.querySelector("#battle [data-seats]");
         const canvas = document.createElement("canvas");
         canvas.width = canvas.height = 1;
         const g = canvas.getContext("2d", { willReadFrequently: true });
-        const out = {};
-        for (const name of ["tone-shield", "tone-gold", "brass-lit", "void", "ink"]) {
-          probe.style.color = "var(--" + name + ")";
+        const hex = (css) => {
           g.clearRect(0, 0, 1, 1);
-          g.fillStyle = getComputedStyle(probe).color;
+          g.fillStyle = css;
           g.fillRect(0, 0, 1, 1);
           const [r, gr, b] = g.getImageData(0, 0, 1, 1).data;
-          out[name] = "#" + [r, gr, b].map((n) => n.toString(16).padStart(2, "0")).join("");
-        }
-        probe.remove();
-        return out;
+          return "#" + [r, gr, b].map((n) => n.toString(16).padStart(2, "0")).join("");
+        };
+        const el = (parent, tag, cls, data) => {
+          const node = document.createElement(tag);
+          node.className = cls;
+          Object.assign(node.dataset, data || {});
+          node.textContent = "12";
+          parent.append(node);
+          return node;
+        };
+        const shield = el(scene, "span", "fx-number", { tone: "shield" });
+        const gold = el(scene, "span", "fx-number", { tone: "resonance" });
+        const code = el(seats, "span", "seats-code");
+        const ground = el(scene, "span", "");
+        const colour = (node) => hex(getComputedStyle(node).color);
+        const of = (value) => { ground.style.color = value; return hex(getComputedStyle(ground).color); };
+        const seen = {
+          shield: colour(shield),
+          gold: colour(gold),
+          code: colour(code),
+          void: of("var(--void)"),
+          ink: of("var(--ink)"),
+          window: of("color-mix(in srgb, var(--ink) 86%, var(--brass))"),
+        };
+        const at = (node, name) => getComputedStyle(node).getPropertyValue(name).trim() !== "";
+        const defined = { "tone-shield": at(shield, "--tone-shield"), "tone-gold": at(gold, "--tone-gold"), "brass-lit": at(code, "--brass-lit") };
+        for (const n of [shield, gold, code, ground]) n.remove();
+        return { seen, defined };
       })()`);
+      seen = got.seen;
+      defined = got.defined;
     } finally {
       await chrome.close();
     }
   }, 30_000);
 
+  it("finds each token defined where its ink is read", () => {
+    expect(defined, "an undefined token inherits --card, which would pass").toEqual({ "tone-shield": true, "tone-gold": true, "brass-lit": true });
+  });
+
   it.each([
-    ["tone-shield", "void", "a blow a Ward or Bastion took, on the field"],
-    ["tone-gold", "void", "a Resonance's number, on the field"],
-    ["brass-lit", "ink", "the room code and an Echo's tag, on a window"],
-  ])("carries --%s on --%s at 4.5:1 (%s)", (fg, bg) => {
-    expect(seen[fg], `Chrome resolved --${fg}`).toMatch(/^#[0-9a-f]{6}$/);
+    ["shield", "void", "a blow a Ward or Bastion took: a shield number on the field"],
+    ["gold", "void", "a Resonance's number on the field"],
+    ["code", "window", "the room code on the seat list, on the window's lighter end"],
+    ["code", "ink", "the room code on the window's darker end"],
+  ])("carries the %s ink on %s at 4.5:1 (%s)", (fg, bg) => {
+    expect(seen[fg], `Chrome resolved the ${fg} ink`).toMatch(/^#[0-9a-f]{6}$/);
     const r = contrast(seen[fg], seen[bg]);
-    expect(r, `--${fg} (${seen[fg]}) on --${bg} (${seen[bg]}) is ${r.toFixed(2)}:1`).toBeGreaterThanOrEqual(4.5);
+    expect(r, `${fg} (${seen[fg]}) on ${bg} (${seen[bg]}) is ${r.toFixed(2)}:1`).toBeGreaterThanOrEqual(4.5);
   });
 });
