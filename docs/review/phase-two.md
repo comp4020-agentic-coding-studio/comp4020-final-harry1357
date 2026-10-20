@@ -1015,3 +1015,87 @@ round of fixes, which would need its own review.
 
 **Roster at `02129bc`:** 219 green, 1 red (R7), confirmed by the third review's
 own run. Typecheck and lint are clean.
+
+## The owner's rulings, and the last fix round
+
+The owner ruled on what was open after the third review, then asked for one
+bounded fix round, after which the gate closes. Each ruling that changes a rule
+is in CLAUDE.md as the owner's.
+
+### The rulings
+
+1. **R6, the shield cyan: no seventh colour.** The design gate stands.
+   Shields are drawn in the card token with the shield glyph, and the reduced
+   check holds the glyph. The brief's "cyan" was the owner's and is withdrawn.
+   Done: `fe25832` (spec, red: the shield number was `#00a6ae`), `c0258be`
+   ("Design: shields are a shape, not a seventh colour"). CLAUDE.md's palette
+   says so. The Breaker's role colour, which borrowed the cyan, is an
+   ember-and-brass mix, and its pips keep their own shape.
+   `docs/design/overhaul.md`'s "cyan = shield" is superseded by this ruling.
+2. **R7, the README:** the owner's. It will be written after the lobby pass,
+   so it describes the room as it will be, and inserted before the merge. It
+   stays red until then.
+3. **A breaker's questionable is a finding only if it names a rule or an ADR
+   broken in letter or intent; otherwise it is recorded as a risk and closed**
+   (CLAUDE.md's gate, `58e5cda`). **Q3, Q8 and Q10 are closed as recorded.**
+   **Q4 is a finding, on intent:** the app tells people apart by name, and the
+   log speaks in names, so a person named like an Echo must not write lines
+   like an Echo's. Done, red first (`519545d`):
+   - every log line carries `echo`, true or false, on the wire, in the
+     database (migration 0001) and in the log window's Echo tag (`4c3b0b4`);
+   - the five kept Echo names are compared by Unicode TR39's confusable
+     skeleton, that fixed set only (`f53af78`). The table is TR39 18.0.0, cut by
+     `scripts/confusables.ts` to the 922 of 6712 entries that bear on the five
+     names, with a proof over the whole table that the cut changes no match.
+4. **N2, N3 and M1: a finding about the commit history is closed by being
+   recorded,** because the record is the evidence, and rewriting pushed history
+   would destroy it. That is now a third outcome in CLAUDE.md's gate, alongside
+   a new line in "How to work in here": a change to a never-do rule's text goes
+   in its own commit (`58e5cda`). Closed.
+5. **R5's cap: a deliberate exception, written into rule 11 by name.** A
+   renderer that runs past the cap is logged at the cap, so one stalled
+   renderer can't hold the table; the state itself is drawn from each message
+   on arrival (`c0532a4`, in its own commit). M2's comments now match
+   (`34214b5`). Closed.
+6. **M10: committing a known bug's failing test one commit ahead of its fix
+   is the intended practice,** not an exception. CLAUDE.md's red-commit
+   exception says so (`58e5cda`). Closed.
+
+The gate's stopping rule is in CLAUDE.md (`ad1206e`, "Harness: a gate
+ends"). A gate closes when every finding is fixed, carried red, closed by
+ruling, or recorded as history, and the last review finds no rule or ADR
+violation. Residuals that review finds in the strength of tests go to the next
+phase's list.
+
+### The fix round
+
+Each fix is in its own commit naming the finding, and each was mutation-checked
+by breaking the code on purpose. For each strengthened test, the old test was
+run against the same fault and passed it: that was the weakness.
+
+| Finding | What was done | Where |
+| --- | --- | --- |
+| M3: the door test passes a fallback to another room | Fixed: the sockets must be exactly the named room's, judged 3 s after the refusal. Red first: the old test passed a fallback to RAID. | `db869dd` |
+| M4: the off-turn refusal test passes if the Reaction is never sent | Fixed: the 409 must have been served and the refusal said. Red first: the old test passed a window that never sends a Reaction. | `94cecef` |
+| M5: `prompts()` in main.ts, out of every test's reach | Fixed: its own module, `src/client/command/prompts.ts`, held on the Alignment and frozen boards. Red first (no module); red again with the prompt choosing the card itself. | `c28aba8` (spec), `46cead2` |
+| M6: the Echo Warden's off-turn test has one card | Fixed: a frozen blow first, and the Echo must Intercept the one landing. Red first: the old test passed the old countdown policy. | `03660c2` |
+| M7: invalid token, formula ground, Echo tag missing | Fixed: each ink is its own token's value and a valid colour; the window ground is read off a real window; the Echo plate tag is back. The probe now waits for the stylesheet. Red first, three ways, each passed by the old test: an invalid `--tone-gold`, the window's lighter end all brass (1.59:1), the Echo tag darkened (2.59:1). | `5ab983b` |
+| M8: the end banners swapped pass | Fixed: a win says victory, a loss defeat, and an abandoned fight neither. Red first: the old test passed the swap. | `5da29eb` |
+| M9: corrected rows missing their spec commits | Fixed. | `a03e417` |
+
+### Every row that was open, and its outcome
+
+| Row | Outcome the gate allows |
+| --- | --- |
+| R6, the shield cyan | Fixed, by ruling 1 |
+| Phase one-b R7, the README | Carried red (the owner's; inserted before the merge) |
+| Q3, Q8, Q10 | Closed by ruling 3, as recorded risks |
+| Q4 | Fixed, by ruling 3 |
+| N2, N3, M1 | Recorded as history, closed by ruling 4 |
+| R5's cap | Closed by ruling 5 (rule 11's named exception); M2 fixed |
+| M10 | Closed by ruling 6 |
+| M2 to M9 | Fixed |
+
+**Roster after the fix round:** 236 green, 1 red (R7) on `:8090` at
+`a03e417`. Typecheck and lint are clean. `check:keyboard`, `check:viewports`
+and `check:tags` all pass.
