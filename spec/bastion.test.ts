@@ -103,6 +103,34 @@ describe("the Warden's Bastion prompt", () => {
     expect(none.root.querySelector("[data-bastion]"), "no card named: none marked").toBeNull();
   });
 
+  it("the Warden's prompt says the blow the server names comes first, not one the client picks (N7)", async () => {
+    // Phase two's re-review, N7: every fixture named the card the old client
+    // logic would also pick, so a prompt working out "which blow comes first"
+    // itself passed. Here the server names cards that logic gets wrong.
+    const { bastionFor } = (await import(resolve("src/client/strip/cards.ts"))) as {
+      bastionFor: (s: unknown, mine: unknown) => { card: { id: string }; first: { id: string } | null } | null;
+    };
+    const wren = token("wren", "warden");
+    const align = [
+      { id: "align", intent: "alignment", targetId: "party", amount: null, countdown: 0, frozen: false },
+      { id: "rev", intent: "revolution", targetId: "party", amount: 12, countdown: 1, frozen: false },
+      { id: "peri", intent: "perihelion", targetId: "party", amount: 48, countdown: 4, frozen: false },
+    ];
+    // An Alignment is aimed at everyone and spends no Bastion: the server names the Revolution behind it.
+    expect(bastionFor(state({ phase: 3, cards: align, bastionCard: "rev" }), wren)?.first?.id, "the Revolution the server names, not the Alignment").toBe("rev");
+    const s = await strip();
+    s.strip.render(state({ phase: 3, cards: align, bastionCard: "rev" }), "wren");
+    const said = card(s.root, "peri")?.querySelector(".visually-hidden")?.textContent ?? "";
+    expect(said, "the Perihelion's words name the Revolution coming first").toMatch(/Revolution/);
+    expect(said, "not the Alignment").not.toMatch(/Alignment before it/);
+    // A frozen Revolution waits a cycle: the server names the Perihelion itself, so nothing comes first.
+    const frozen = [
+      { id: "rev", intent: "revolution", targetId: "party", amount: 8, countdown: 0, frozen: true },
+      { id: "peri", intent: "perihelion", targetId: "party", amount: 32, countdown: 0, frozen: false },
+    ];
+    expect(bastionFor(state({ cards: frozen, bastionCard: "peri" }), wren)?.first ?? null, "the server says the Perihelion is met first: nothing before it").toBeNull();
+  });
+
   it("the Bastion command carries the prompt in its note, on the turn and off it; a refusal takes its place", async () => {
     const { mountCommandWindow } = (await import(resolve("src/client/command/window.ts"))) as {
       mountCommandWindow: (
