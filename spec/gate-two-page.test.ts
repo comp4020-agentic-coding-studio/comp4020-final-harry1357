@@ -176,3 +176,44 @@ it("Q2 and Q1: a room closing under the end panel keeps the ending it shows, and
     await own.kill();
   }
 }, 120_000);
+
+it("N11 (rule 2): a refused Reaction off-turn lights nothing of the turn", async () => {
+  // Phase two's re-review, N11: R1's test refused only an on-turn action, where
+  // it's your turn either way, so a window re-enabled unconditionally on any
+  // refusal passed, and would light the turn's actions off-turn. Here the
+  // server names a card (the socket tampered, as for U2), the Reaction is sent
+  // off-turn, and the POST is answered 409.
+  const tab = await page(`${SOCKET_TAMPER}
+  (() => {
+    const real = window.fetch.bind(window);
+    window.__refuseNext = false;
+    window.fetch = (input, init) => {
+      const url = typeof input === "string" ? input : input.url;
+      if (window.__refuseNext && /\\/actions$/.test(url)) {
+        window.__refuseNext = false;
+        return Promise.resolve(new Response(JSON.stringify({ error: "Refused, for the test." }), { status: 409, headers: { "content-type": "application/json" } }));
+      }
+      return real(input, init);
+    };
+  })();`);
+  await sit(tab, "create", "warden", "Refused Off Turn");
+  await tab.until(`!!document.querySelector('[data-add-echo="mender"]:not([disabled])')`, "the Echo button", 10_000);
+  await tab.evaluate(`document.querySelector('[data-add-echo="mender"]').click()`);
+  await tab.evaluate(`window.__react = "first"`);
+  const mine = `(() => { const me = document.body.dataset.me; const up = document.querySelector('[data-rail] [data-token-id][data-active="true"]'); return !!up && up.dataset.tokenId === me; })()`;
+  await tab.until(`!!document.querySelector('button[data-action="intercept"]:not([disabled])') && ${LIVE} === 0 && !${mine}`, "the Reaction live off-turn", 30_000);
+  // Watched, not sampled: a state each tick darkens the window again, so a lit moment is caught as it happens.
+  const lit = await tab.evaluate<number>(`(async () => {
+    let lit = 0;
+    const menu = document.querySelector("[data-command]");
+    const watch = new MutationObserver(() => { if (!${mine} && ${LIVE} > 0) lit++; });
+    watch.observe(menu, { subtree: true, attributes: true, attributeFilter: ["disabled"] });
+    window.__refuseNext = true;
+    document.querySelector('button[data-action="intercept"]').click();
+    document.querySelector("[data-confirm]").click();
+    await new Promise((r) => setTimeout(r, 300));
+    watch.disconnect();
+    return lit;
+  })()`);
+  expect(lit, "off-turn, a refused Reaction never lights the turn's actions").toBe(0);
+}, 60_000);
