@@ -98,7 +98,8 @@ describe("open findings carried into phase two", () => {
     const face = card?.querySelector('[aria-hidden="true"]')?.textContent ?? "";
     expect(face, "the card's face names its target").toContain("You");
     expect(face, "and counts down").toMatch(/In\s*1/);
-    expect(card?.querySelector("svg"), "with its intent's icon").not.toBeNull();
+    // Its own intent's icon (re-review N9: any svg passed, and every card carries the aim and frost icons).
+    expect(card?.querySelector(".strip-bc-art .strip-intent-eclipse"), "with its intent's icon").not.toBeNull();
   });
 
   it("F6 (rules 8, 11): a timeout shows the server's Brace, and a drifting portrait is drawn dim", async () => {
