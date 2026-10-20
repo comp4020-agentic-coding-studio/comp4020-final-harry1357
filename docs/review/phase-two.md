@@ -1297,3 +1297,49 @@ Nothing else was found broken by these three commits. The reviewer checked: the 
 
 **Roster after C1:** 238 green, 1 red (R7) on `:8090` at `dc8b3df`. Typecheck
 and lint are clean.
+
+## Confirm pass on C1
+
+The reviewer, on a fresh context, reading C1's fix only (`git diff
+e1049d0...HEAD`, HEAD `a0167b0`). Its findings, kept as given, with "what was
+read and run" shortened to its result:
+
+**What was run.** `APP_URL=http://localhost:8090 pnpm check`: tsc and stylelint passed, and vitest ran 32 files and 239 tests, 238 passed, 1 failed (`spec/owner.test.ts:19`, R7, carried red). The commit order is e1049d0 → 927453e (spec only) → dc8b3df (code only) → a0167b0 (doc only). The reviewer's own names were traced by hand, not executed.
+
+**(1) C1.** C1 as reported is fixed. The sweep is green, and "STRIKER ECH0", "CHRONIST ECH0", "StrIker Ech0", "STRIKER ⴹCHO", "ՏTRIKER ECHO" and "Warden Eϲho" are all refused. Ordinary names are still allowed: "Ida Mender Echo", "Striker Echo II", "Strike Echo", "Echo Striker", "Strlker Echo", "Warden-Echo", "Ménder Echo", "Kristen Echo". But "any case, any mix", which the fix commit's subject and `confusables.ts:27` both claim, is not reached: D1 and D2 below.
+
+A boundary for the owner, not a finding: some characters look like a capital I, and TR39 maps them to l, as it maps I itself: ǀ U+01C0, Ӏ U+04C0, ꓲ U+A4F2, and `|`. "STRǀKER ECHO" is seated. Refusing it would also refuse "STRlKER ECHO", and so, through case, "Strlker Echo", which the last pass listed as an ordinary name.
+
+**(2) Violations.** Introduced by these commits: none found. Two are present at HEAD, inside the code these commits rewrote and inside C1's own claim. Both stand on C1's footing: a breach in intent, not in letter.
+
+**D1. A look-alike that has to be read as typed, beside a character only NFKC folds, sits down** (rules 25 and 4; ruling 3's Q4 mechanism).
+- Example: "STR𝐈KER EϹHO" is seated. 𝐈 is U+1D408, a bold capital I; Ϲ is U+03F9, a capital lunate sigma. Each half is refused on its own.
+- Other cases: "Str𝐈ker Eϲho", "Ⓦarden Eϲho", "Warden Eϲhᵒ" and "ſtriker eϲho". All five kept names are reachable through the c of "Echo".
+- Why: `rules.ts:242-243` chooses as-typed or NFKC for the whole name, and the per-character choice is only between as given and lowercased. ϲ and Ϲ are the only rows NFKC spoils, so the hole is exactly a lunate sigma for a c, plus any fold elsewhere in the name that only NFKC makes. Before these commits the lunate sigma was spoilt for every name; `dc8b3df` narrows the hole but doesn't close it.
+
+**D2. A capital look-alike is refused, but the same name in lower case (rule 4) sits down.**
+- Example: "StriКer Echo" (Cyrillic К → K) is refused; "Striкer Echo" (small к → ĸ) is seated. Both have the `nameKey` "striкerecho", so rule 4 calls them one name.
+- Other pairs: "Вreaker Echo" / "вreaker echo"; "WARDEN ECНO" / "warden ecнo"; "STᎡIKER ECHO" / "stꭱiker echo"; and the doc's own "ՏTRIKER ECHO", whose lower case "տtriker echo" is seated.
+- Why: a character's options are its settled form as given and lowercased, never its capital. TR39 maps many small letters to small capitals (ĸ, ʙ, ʜ, ʀ), not to the Latin letter.
+- The trade-off for the owner: some lowercase twins read as the kept name (к, в, н, ꭱ are small-capital shapes), and some don't (տ, η → n̩, ν → v). Closing D2 by rule-4 class would refuse those too. TR39's own case-insensitive procedure doesn't settle it either: it would let Q4's own "Mender Εcho" through. Present since `f53af78`.
+
+Severity, for both: `checkSeatEcho` compares by `nameKey`, so the Echo is still seated (Q6 doesn't return), and log lines carry `echo: false`. Whether each is a violation or a recorded risk is the owner's call.
+
+Nothing else was found broken. The reviewer checked: spec ahead of its fix; no spec line removed; all three commits name C1; CLAUDE.md and the owner's files untouched; the table and generator unchanged; erasable TypeScript with `.ts` imports; no new event kind or mechanic; the join doors still reach `checkJoin`; and the doc's roster claim.
+
+**For the next phase** (the reviewer's):
+- `spec/echo-lines.test.ts:144-147`: the sweep sets one look-alike at a time, only as written, and only from the table. It can't see two substitutions needing different forms (D1), a look-alike's own lower case (D2), or a fold only NFKC makes (𝐈, Ⓦ, ᵒ, ſ).
+- `spec/echo-lines.test.ts:155`: `toBeGreaterThan(500)` where the count is knowable (9441).
+- Carried: no name containing a whole kept name with more added in the "leaves names alone" list; nothing on the roster runs the generator's proof.
+- `scripts/confusables.ts:8-10` and `:35` still describe the keys as "skeleton-lowercase-skeleton, lowercase-skeleton"; they have settled since `dc8b3df`. The doc's "the table is unchanged" was not verified by the reviewer. (It was by the author: the generator was rerun after `dc8b3df`'s change, and its output compared byte for byte with the committed table.)
+
+### Where the gate stands
+
+Under the stopping rule the gate doesn't close: the last review found D1 and
+D2. Both are breaches of rule 25 in intent. Each has an owner's question in it
+(D2's trade-off especially), and the reviewer leaves to the owner whether each
+is a violation or a recorded risk. They are open, awaiting the owner's ruling,
+with the ǀ boundary. Not fixed in this pass, because each confirm pass has
+found a subtler case than the last, and D2's fix is a design choice.
+
+**Roster:** 238 green, 1 red (R7) at `a0167b0`.

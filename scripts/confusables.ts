@@ -6,8 +6,8 @@
 //   node scripts/confusables.ts /tmp/tr39/confusables.txt
 //
 // The cut keeps every entry the full table uses while computing either key
-// (skeleton-lowercase-skeleton, lowercase-skeleton) made only of characters in
-// the kept names' keys, and the
+// (src/server/confusables.ts: the name as given, and lowercased, each settled)
+// made only of characters in the kept names' keys, and the
 // entry of any character that itself appears in them, and the entry of any
 // character whose absence would make it look like part of one. Then it proves,
 // over every character in the full table, that the cut table gives the same answer to "could this be part
@@ -32,7 +32,8 @@ for (const line of text.split("\n")) {
   if ([...from].length === 1) full.set(from, to);
 }
 
-// Both keys of a name (src/server/confusables.ts), as separate functions so each is cut and proven.
+// Both keys of a name (src/server/confusables.ts), as separate functions so each is proven; tracing
+// either records both keys' lookups (keptKeys computes them together), so the cut is a little larger.
 const KEYS = [(t: string, m: ReadonlyMap<string, string>) => keptKeys(t, m)[0], (t: string, m: ReadonlyMap<string, string>) => keptKeys(t, m)[1]];
 const keys = KEPT.flatMap((n) => keptKeys(n.normalize("NFKC"), full));
 const inKeys = new Set(keys.flatMap((k) => [...k]));
