@@ -555,7 +555,7 @@ which fault. Every fix's test was red before its fix.
 | R3: a refused founder mints a room | Fixed: the seat is checked against an empty, unsaved fight before a room is minted. The test reads the database after two refusals. | `9969551` |
 | R4: ADR-007 has no amendment for a newcomer founding a room | Fixed: ADR-007's status records it. | `3698f29` |
 | R5: a renderer that throws still has its line written | Fixed: a full variant that throws hands over to the reduced one; an event nothing shows is never written down. A renderer still running at the cap has its line written then, as before. *Corrected after the re-review:* that isn't "shown": a renderer that stalls before drawing anything is logged at the cap too. The cap is a bound, kept so one stalled renderer can't hold the table. The state itself (strip, portraits, bars) is drawn from each message on arrival, before any renderer runs. | `996e181` |
-| R6: a seventh colour by intent; a literal `#000`; stale comments | **Fixed in part:** the Echo mask uses a token, and the two comments are right (`7277b45`). **Open, the owner's:** the shield cyan. The brief asks for cyan shields; the design gate allows six tokens and no seventh colour. Mixed from tokens, it passes the gate's letter, not its intent. | `7277b45` |
+| R6: a seventh colour by intent; a literal `#000`; stale comments | **Fixed in part:** the Echo mask uses a token, and the two comments are right (`7277b45`). **Open, the owner's:** the shield cyan. The brief asks for cyan shields; the design gate allows six tokens and no seventh colour. Mixed from tokens, it passes the gate's letter, not its intent. **Resolved by the owner's ruling 1** (see "The owner's rulings, and the last fix round"): no seventh colour; shields are the shield glyph in `--card`. Fixed in `fe25832` (spec), `c0258be`. | `7277b45` |
 | U1: the ghost from the preview, untested on the client | Fixed: a preview whose slot disagrees with the counters puts the ghost at the server's slot. Green on arrival; red with the ghost placed by counter. | `eca9c70` |
 | U2: nothing held that the page hands the window `reactionCard` | Fixed: in Chrome, the page's socket names a raid-wide card no Intercept could answer, and the Reaction is offered at exactly that card, then goes dark. Green on arrival; red with `main.ts` picking the card itself. | `6f93174` |
 | U3: phase two's mixed inks have no contrast pair | Fixed: Chrome resolves the shield and Resonance inks and brass-lit, and each is held to 4.5:1. Green on arrival; red with the cyan darkened (1.30:1). **Overstated, corrected after the re-review:** It passed on an undefined token (a bare probe inherits `--card`), read no real element, and measured brass-lit on flat `--ink` (N6). Each ink is read off its real element now, each token must be defined, and the room code is measured on the window's lighter end. | `9314ef7`, `fbb79a0` |
@@ -583,7 +583,7 @@ which fault. Every fix's test was red before its fix.
 | Q1: the last fight's end line is on screen for no frame | Fixed: the conductor keeps the last fight's lines, and the next fight's follow them. Held in Chrome with Q2. **Overstated, corrected after the re-review:** The next fight's lines did not follow: the log refused any line number it had seen, and every fight numbers from 1, so they were dropped (N1, high). The log keys a line by fight and number now. | `3f047c8`, `8f69985`, `0aec62d` (spec), `df55282` |
 | Q2: the end panel is retitled for a fight nobody played | Fixed: the panel keeps the played fight's outcome, ignores the empty next fight's closing, and on 4410 links to the front door. | `8f69985` |
 | Q3: a reload drops the end panel | **No change.** A reload is a new page, and it opens the room as the room now is: its next fight. The result is kept in the person's record (`/api/me`: turns, wins and the battle's status). Showing the room's previous fight after a reload would need the room to describe it, a protocol addition beyond this gate. | — |
-| Q4: homoglyph names (a Cyrillic і, "Wаrden Echo") | **No change.** Rule 4's letter holds: trim, case, NFKC and invisible characters are all folded. Confusable skeletons (Unicode TR39) are a larger change than this gate. An Echo is never told apart by its name: the state's `echo` flag draws its marks (the ECHO tag, the grey sprite, the dashed plate), so a person named like an Echo is still drawn as a person. | — |
+| Q4: homoglyph names (a Cyrillic і, "Wаrden Echo") | **No change.** Rule 4's letter holds: trim, case, NFKC and invisible characters are all folded. Confusable skeletons (Unicode TR39) are a larger change than this gate. An Echo is never told apart by its name: the state's `echo` flag draws its marks (the ECHO tag, the grey sprite, the dashed plate), so a person named like an Echo is still drawn as a person. **Resolved by the owner's ruling 3:** a finding on intent, fixed. Log lines carry `echo`, and the kept names are compared by TR39 skeleton: `519545d` (spec), `4c3b0b4`, `f53af78`, and F1's fix, `309bfa8` (spec), `a897814`. | — |
 | Q5: the action route confirms a private fight exists (403 vs 404) | Fixed: to anyone not seated in it, the same 404 as an unknown id. The two-rooms test expects it. | `a03a38a`, `a05d4e9` |
 | Q6: a refused founder still mints a room | Fixed with R3. | `9969551` |
 | Q7: the page trims padded codes the server refuses | Fixed: nothing is trimmed. The form refuses a padded code inline, and the address goes to the server. **Overstated, corrected after the re-review:** Only `door()` was tested; a form that trimmed again passed (N13). The form is held now. | `52e2e22`, `1a84d31` |
@@ -1238,3 +1238,25 @@ These are tests a wrong implementation could still pass. They are not findings.
 - `spec/bastion.test.ts:134-157`, M5: nothing holds that `main.ts:201` uses the module's `prompts()`. A `main.ts` that built the note itself would pass.
 - `spec/gate-two.test.ts:310`, R6: it checks only that a `.fx-number-glyph` span is there. The shape comes from CSS on the same span Resonance uses, so a shield drawn as the star passes.
 - `spec/gate-two.test.ts:314-331`, Q4: the test hands `log.append` its own entries. A real page that dropped the server's `echo` on the way to the window would pass.
+
+### What was done about the final pass
+
+| Finding | What was done | Where |
+| --- | --- | --- |
+| F1: "STRIKER ECHO" and "CHRONIST ECHO" sit down as people again (rule 25, with rule 4's comparison) | Fixed: a name has two keys, and is a kept name if either matches. Skeleton-lowercase-skeleton catches capital look-alikes; TR39's case-insensitive lowercase-skeleton catches every case of a kept name. The generator cuts and proves both keys (958 of 6712 prototypes). Red first: every kept name in its own, upper, lower and padded upper case, plus a capital Greek Ι and a Cyrillic І; six were seated. | `309bfa8` (spec), `a897814` |
+| The doc point: the R6 and Q4 rows weren't annotated | Fixed: each says how it was resolved and where. | this commit |
+
+### For the next phase
+
+The final pass's residuals in the strength of tests, listed here under the
+stopping rule and not re-reviewed in this phase:
+
+- `spec/contrast.test.ts` (M7): the Echo plate tag is held to 4.5:1, but not to brass-lit's own value.
+- `spec/gate-two-page.test.ts` (M3): a fallback socket opened more than 3 s after the 4404 still passes.
+- `spec/echoes.test.ts` (M6): both cards are at countdown 0, so a policy taking the later of two tied cards passes.
+- `spec/bastion.test.ts` (M5): nothing holds that `main.ts` uses the module's `prompts()`.
+- `spec/gate-two.test.ts` (R6): only the glyph span's presence is checked; a shield drawn as the star passes.
+- `spec/gate-two.test.ts` (Q4): the test hands `log.append` its own entries; a page dropping the server's `echo` on the way passes.
+
+**Roster after F1:** 237 green, 1 red (R7) on `:8090` at `a897814`. Typecheck
+and lint are clean.
