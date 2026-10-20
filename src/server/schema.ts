@@ -62,6 +62,8 @@ export const battleLog = sqliteTable(
     /** A character id, "orrery", or null for the table itself. Not a foreign key. */
     actorId: text("actor_id"),
     text: text("text").notNull(),
+    /** An Echo wrote it (Q4): the line is told apart by what wrote it, not by the name in it. */
+    echo: integer("echo", { mode: "boolean" }).notNull().default(false),
     createdAt: integer("created_at").notNull(),
   },
   (t) => [primaryKey({ columns: [t.battleId, t.seq] })],

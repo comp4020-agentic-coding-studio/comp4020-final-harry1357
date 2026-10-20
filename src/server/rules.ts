@@ -833,7 +833,10 @@ function end(b: Battle, fx: Effects, outcome: BattleStatus, now: number): void {
 
 /** One log line, and the event it narrates: the screen shows the event, the log reads the line. */
 function say(b: Battle, fx: Effects, kind: LogEntry["kind"], actorId: string | null, text: string, event: Raised): void {
-  const entry: LogEntry = { seq: b.nextSeq++, tick: b.tick, kind, actorId, text };
+  // Whether an Echo said it (Q4): its actor an Echo seat now. A person's line is never an Echo's, whatever its name.
+  const actor = actorId === null ? undefined : (b.standing.find((f) => f.id === actorId) ?? b.fallen.find((f) => f.id === actorId));
+  const echo = actor !== undefined && actor.kind === "character" && actor.echo;
+  const entry: LogEntry = { seq: b.nextSeq++, tick: b.tick, kind, actorId, text, echo };
   b.log.push(entry);
   if (b.log.length > LOG_TAIL) b.log.splice(0, b.log.length - LOG_TAIL);
   fx.log.push(entry);

@@ -53,6 +53,7 @@ export function openStore(path: string, migrationsFolder: string) {
     kind: battleLog.kind,
     actorId: battleLog.actorId,
     text: battleLog.text,
+    echo: battleLog.echo,
   };
 
   return {
@@ -82,6 +83,7 @@ export function openStore(path: string, migrationsFolder: string) {
               kind: "system",
               actorId: null,
               text: RESTART_LINE,
+              echo: false,
               createdAt: now,
             })
             .run();

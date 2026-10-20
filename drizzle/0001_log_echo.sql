@@ -1,0 +1,1 @@
+ALTER TABLE `battle_log` ADD `echo` integer DEFAULT false NOT NULL;

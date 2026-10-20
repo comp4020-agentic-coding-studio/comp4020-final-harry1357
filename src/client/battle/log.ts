@@ -25,6 +25,14 @@ export function createLog(list: HTMLElement): LogWindow {
     li.dataset.seq = String(entry.seq);
     li.dataset.fight = fight;
     li.dataset.kind = entry.kind;
+    // What wrote it, not the name in it (Q4): an Echo's line carries the Echo tag, in words; a person's never does.
+    li.dataset.echo = String(entry.echo === true);
+    if (entry.echo === true) {
+      const tag = document.createElement("span");
+      tag.className = "log-echo";
+      tag.textContent = "Echo";
+      li.append(tag);
+    }
     const text = document.createElement("span");
     text.className = "log-text";
     text.textContent = entry.text;

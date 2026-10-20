@@ -233,6 +233,10 @@ export interface LogEntry {
   kind: "join" | "action" | "boss" | "timeout" | "down" | "leave" | "end" | "system";
   actorId: string | null;
   text: string;
+  /** Whether an Echo wrote it: the line's actor was an Echo seat when it was said. The
+   *  log speaks in names, so a line is told apart by what wrote it, not by the name in
+   *  it (the owner's ruling on phase two's gate, Q4). */
+  echo: boolean;
 }
 
 export interface BattleState {

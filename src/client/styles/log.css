@@ -24,3 +24,18 @@
 #battle .log-line[data-kind="down"] {
   color: var(--ember);
 }
+
+/* An Echo's line (Q4): a tag before it, in words, so a line is told apart by
+   what wrote it, not by a name that can look like an Echo's. */
+#battle .log-echo {
+  display: inline-block;
+  margin-right: 0.4em;
+  padding-inline: 0.3em;
+  font-family: var(--font-display);
+  font-size: 0.55em;
+  vertical-align: 0.15em;
+  text-transform: uppercase;
+  color: var(--brass-lit);
+  border: 1px dashed var(--brass-lit);
+  border-radius: 2px;
+}
