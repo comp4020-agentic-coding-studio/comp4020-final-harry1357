@@ -1343,3 +1343,21 @@ with the ǀ boundary. Not fixed in this pass, because each confirm pass has
 found a subtler case than the last, and D2's fix is a design choice.
 
 **Roster:** 238 green, 1 red (R7) at `a0167b0`.
+
+## The owner's rulings on D1, D2 and the ǀ boundary
+
+- **D1: fix, red first.** Each character may also choose its NFKC form. Done:
+  `fe21eea` (spec, red: the reviewer's five names all seated), `233726a`.
+  Each character now has four settled forms to choose from (as given,
+  lowercased, as NFKC, and as NFKC lowercased). The generator proves all four
+  over the whole TR39 table, and the cut table is byte-identical.
+- **D2 and the ǀ boundary: recorded as risks, and closed.**
+  - D2 because TR39 doesn't treat к as k: closing it would refuse lowercase
+    twins that don't look like the kept name.
+  - ǀ (and Ӏ, ꓲ, `|`) because TR39 maps them to l, as it maps a capital I:
+    refusing them would refuse ordinary names under rule 4 ("Strlker Echo").
+- **The kept-name check is a courtesy, not a security boundary.** Echo seating
+  checks names the old way (`checkSeatEcho`, by `nameKey`), and every log line
+  carries `echo`, true or false. So no look-alike can take an Echo's seat or
+  write an Echo's line. **Any further look-alike found later is a risk by this
+  ruling, not a finding.**
