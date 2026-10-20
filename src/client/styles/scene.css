@@ -12,9 +12,10 @@
      palette tokens (CLAUDE.md: never a seventh hex) and each paired with a
      glyph or prefix, so colour is never the only signal. Harm is ember on a
      person and card-white on the Orrery; a heal is card with a + and a brass
-     outline; shield cyan is the ember-to-brass mix taken the long way round
-     the hue wheel (in oklch, rgb(0 166 174) in Chrome); resonance is gold. */
-  --tone-shield: color-mix(in oklch longer hue, var(--ember) 38%, var(--brass));
+     outline; a shield is a shape, its glyph drawn in the card token, not a
+     seventh colour (the owner's ruling on phase two's gate, R6); resonance is
+     gold. */
+  --tone-shield: var(--card);
   --tone-gold: color-mix(in srgb, var(--brass) 62%, var(--card));
 
   /* Who set an Exposed stack: each role's colour, always with its own shape
@@ -22,7 +23,7 @@
   --role-warden: var(--brass);
   --role-mender: var(--card);
   --role-striker: var(--ember);
-  --role-breaker: var(--tone-shield);
+  --role-breaker: color-mix(in srgb, var(--ember) 50%, var(--brass));
   --role-chronist: var(--card-quiet);
 
   overflow: hidden;

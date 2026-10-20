@@ -26,7 +26,8 @@ export type Anim = "idle" | "attack" | "hurt" | "down" | "guard" | "cast" | "spe
 /**
  * A number by a target. "harm": damage (red on a player, card-white on the
  * Orrery: the scene knows which); "heal": card with a + and a brass outline
- * (CLAUDE.md: healing is --card, not a seventh colour); "shield": cyan, a
+ * (CLAUDE.md: healing is --card, not a seventh colour); "shield": the shield
+ * glyph in --card, a shape and not a colour (the owner's ruling, R6), a
  * blow a Ward or Bastion took; "resonance": gold, a refunded rank. The scene
  * sizes it by the share of the target's max HP. Never colour alone: each tone
  * has its own glyph or prefix.

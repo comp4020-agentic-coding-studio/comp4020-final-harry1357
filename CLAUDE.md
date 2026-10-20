@@ -140,7 +140,9 @@ never a seventh hex.
 
 `--ember` is brighter than the rail's ember because its grounds are now dark:
 it clears 4.5:1 on both `--ink` and `--void`. Healing is `--card` with a `+`
-and a brass outline, not a seventh colour. `spec/contrast.test.ts` holds the
+and a brass outline, not a seventh colour. A shield (a blow a Ward or Bastion
+took) is a shape, the shield glyph drawn in `--card`, not a seventh colour
+either (the owner's ruling on phase two's gate, R6). `spec/contrast.test.ts` holds the
 pairs, and `spec/design.test.ts` holds this table to the served CSS.
 
 **Type**, loaded from Google Fonts with real fallbacks, and used **only inside
