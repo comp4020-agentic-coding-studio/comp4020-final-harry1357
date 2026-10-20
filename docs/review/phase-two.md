@@ -550,25 +550,25 @@ which fault. Every fix's test was red before its fix.
 
 | Finding | What was done | Where |
 | --- | --- | --- |
-| R1: a refused command keeps the turn dark until the timeout | Fixed: on a refusal the window goes back to the server's last word, which still says it's your turn. Held in Chrome with the page's action POST answered 409. | `518c631` |
-| R2: the client decides which card a Bastion meets | Fixed: the state carries `bastionCard`, the first Revolution or Perihelion to resolve (an Alignment spends none; a frozen card waits a cycle). The strip's mark and the Warden's prompt read it. | `c36ebca` (spec), `e343a7c` |
+| R1: a refused command keeps the turn dark until the timeout | Fixed: on a refusal the window goes back to the server's last word, which still says it's your turn. Held in Chrome with the page's action POST answered 409. **Overstated, corrected after the re-review:** The test refused only an on-turn action, where it is your turn either way, so a window re-enabled unconditionally on any refusal passed (N11). Held now for a refused Reaction off-turn too. | `518c631`, `27006e0` |
+| R2: the client decides which card a Bastion meets | Fixed: the state carries `bastionCard`, the first Revolution or Perihelion to resolve (an Alignment spends none; a frozen card waits a cycle). The strip's mark and the Warden's prompt read it. **Overstated, corrected after the re-review:** The Warden's prompt half was untested: every fixture named the card the old client logic also picks (N7). Held now on boards where the two disagree. | `c36ebca` (spec), `e343a7c`, `73e1b19` |
 | R3: a refused founder mints a room | Fixed: the seat is checked against an empty, unsaved fight before a room is minted. The test reads the database after two refusals. | `9969551` |
 | R4: ADR-007 has no amendment for a newcomer founding a room | Fixed: ADR-007's status records it. | `3698f29` |
-| R5: a renderer that throws still has its line written | Fixed: a full variant that throws hands over to the reduced one; an event nothing shows is never written down. A renderer still running at the cap counts as shown, as before. | `996e181` |
+| R5: a renderer that throws still has its line written | Fixed: a full variant that throws hands over to the reduced one; an event nothing shows is never written down. A renderer still running at the cap has its line written then, as before. *Corrected after the re-review:* that isn't "shown": a renderer that stalls before drawing anything is logged at the cap too. The cap is a bound, kept so one stalled renderer can't hold the table. The state itself (strip, portraits, bars) is drawn from each message on arrival, before any renderer runs. | `996e181` |
 | R6: a seventh colour by intent; a literal `#000`; stale comments | **Fixed in part:** the Echo mask uses a token, and the two comments are right (`7277b45`). **Open, the owner's:** the shield cyan. The brief asks for cyan shields; the design gate allows six tokens and no seventh colour. Mixed from tokens, it passes the gate's letter, not its intent. | `7277b45` |
 | U1: the ghost from the preview, untested on the client | Fixed: a preview whose slot disagrees with the counters puts the ghost at the server's slot. Green on arrival; red with the ghost placed by counter. | `eca9c70` |
 | U2: nothing held that the page hands the window `reactionCard` | Fixed: in Chrome, the page's socket names a raid-wide card no Intercept could answer, and the Reaction is offered at exactly that card, then goes dark. Green on arrival; red with `main.ts` picking the card itself. | `6f93174` |
-| U3: phase two's mixed inks have no contrast pair | Fixed: Chrome resolves the shield and Resonance inks and brass-lit, and each is held to 4.5:1. Green on arrival; red with the cyan darkened (1.30:1). | `9314ef7` |
-| T1: expected states self-declared; event fields wildcards; full variants never run | Fixed: the spec pins its own expected calls by each event's fields, for both variants and every branch: Alignment, Chain, Retrograde, Echo on and off, the end banner, and every target of a raid-wide blow. Green on arrival; red on four planted faults. | `251e88c` |
+| U3: phase two's mixed inks have no contrast pair | Fixed: Chrome resolves the shield and Resonance inks and brass-lit, and each is held to 4.5:1. Green on arrival; red with the cyan darkened (1.30:1). **Overstated, corrected after the re-review:** It passed on an undefined token (a bare probe inherits `--card`), read no real element, and measured brass-lit on flat `--ink` (N6). Each ink is read off its real element now, each token must be defined, and the room code is measured on the window's lighter end. | `9314ef7`, `fbb79a0` |
+| T1: expected states self-declared; event fields wildcards; full variants never run | Fixed: the spec pins its own expected calls by each event's fields, for both variants and every branch: Alignment, Chain, Retrograde, Echo on and off, the end banner, and every target of a raid-wide blow. Green on arrival; red on four planted faults. **Overstated, corrected after the re-review:** The end pin took any banner, and the other 37 kinds were held only in their reduced variant (N8). Every full renderer is held to its declared state now, and each ending has its own banner. | `251e88c`, `5be53e6` |
 | T2: the Bastion spec pins the client's choice | Fixed with R2: the client marks only the card the server names, and the server half checks the name against the card whose resolution actually spends the Bastion. | `c36ebca` |
-| T3: the preview spec checks three Striker actions; Haste's preview is wrong | Fixed: every turn action of all five roles is checked against where it leaves the actor. Red on a Chronist's Haste (12 shown, 6 left). The preview now plays the action on a copy, at the target the server would take. The soonest of two Reaction cards is named. | `a98dfca` (spec), `10e9145` |
+| T3: the preview spec checks three Striker actions; Haste's preview is wrong | Fixed: every turn action of all five roles is checked against where it leaves the actor. Red on a Chronist's Haste (12 shown, 6 left). The preview now plays the action on a copy, at the target the server would take. The soonest of two Reaction cards is named. **Overstated, corrected after the re-review:** Previews marked refused were skipped (N15), and "the soonest of two" was by raw countdown, not the turn a card lands (N16). Both are held now, and the Reaction's card counts a frozen card's lost turn. | `a98dfca` (spec), `10e9145`, `82938ff`, `ba8ed7c` |
 | T4: the server's half of shown-before-logged unbounded | Fixed: a browserless test holds the broadcast to one tick after the POST. The Chrome test stays relative, by the owner's instruction. Red against a server holding broadcasts 800 ms. | `ced56ad` |
 | T5: a spent card checked in the reduced variant only | Fixed: both variants of Eclipse and Lunge, with a projectile or hurt frame counted as a landing. Red with the full strike's spent branch removed. | `dacf8df` |
-| T6: the window offers Anchor's raid-wide card and Quicken's self first | Fixed: each preview names the target the server would take, and the window starts its aim there. | `516fbb4` (spec), `9ad15a5` |
-| T7: R9's boot check is a regex on an import line | Fixed: in Chrome, the default door answers a code the client couldn't know, and the page opens that room and never a battle of its own. Red with a client that hard-codes "RAID". | `b324b37` |
+| T6: the window offers Anchor's raid-wide card and Quicken's self first | Fixed: each preview names the target the server would take, and the window starts its aim there. **Overstated, corrected after the re-review:** The aim started at the server's target, but the field and strip were still told the list's first (N4). They're told the aimed target now. | `516fbb4` (spec), `9ad15a5`, `a843016` |
+| T7: R9's boot check is a regex on an import line | Fixed: in Chrome, the default door answers a code the client couldn't know, and the page opens that room and never a battle of its own. Red with a client that hard-codes "RAID". **Overstated, corrected after the re-review:** The page was read at its first socket, so a client falling back to a battle of its own after the 4404 passed (N14). The test waits past the refusal now. | `b324b37`, `1dcf81c` |
 | T8: "makes no room" never checked | Fixed with R3. | `9969551` |
-| T9: the shim tests check nothing once the shim is gone | Fixed: every role's sheet is its own file and pixels, and every kind's renderers are its own. Red with Haste given Mend's renderer, and the Chronist the Warden's sheet. | `6323e71` |
-| T10: F2's test reads attributes, not the card's face | Fixed: the face's target name, countdown and icon. Red with the name left off. | `06f77e1` |
+| T9: the shim tests check nothing once the shim is gone | Fixed: every role's sheet is its own file and pixels, and every kind's renderers are its own. Red with Haste given Mend's renderer, and the Chronist the Warden's sheet. **Overstated, corrected after the re-review:** Function identity only: a wrapper calling another kind's renderer passed (N10). Jab and Haste, the shim's two, are held to their roles' own animations now. Comparing whole call traces can't tell borrowing from the blows' shared vocabulary. | `6323e71`, `c5f67d6` |
+| T10: F2's test reads attributes, not the card's face | Fixed: the face's target name, countdown and icon. Red with the name left off. **Overstated, corrected after the re-review:** The icon check found any svg, and every card carries two (N9). It looks for the intent's own icon now. | `06f77e1`, `86ac891` |
 | T11: check:tags skips by size, not by the screen-reader clip | Fixed: keyed on the clip; a new fixture (a visible name squeezed to 1px) is red on the old skip. | `adf9199` |
 | Note: `spec/phase-two.test.ts`'s header says "red on purpose" | Fixed. | `05a40e7` |
 | Could not check: rule 12's order, and the shown spec change in its own commit | Checked here:<br>• CREDITS.md's Chronist rows and the art landed in one commit (`934e09e`), so history can't show the rows first. `spec/assets.test.ts` holds that every file has its row.<br>• The shown spec's "jab" acceptance was changed inside `b5c62e4`, a client commit, not in a commit of its own as CLAUDE.md asks. Recorded here; the pushed history isn't rewritten. Its other changes (`02c630c`, `7fbf5e8`, `ced56ad`) each stand alone. | — |
@@ -579,26 +579,26 @@ which fault. Every fix's test was red before its fix.
 | --- | --- | --- |
 | B1: the server takes a Reaction at a card it didn't name | Fixed: `reactionCardOf` names the card, the token reads it, and `checkReaction` refuses any other with a 409. The rule-18 test clears the strip first. | `e12ae83` |
 | B2: Unicode look-alike codes become real room codes in the page | Fixed: the door and the code field fold ASCII case only, as the server does. | `ddcde3a` |
-| B3: a private room's finished fight is served by id once it leaves memory | Fixed: the table remembers which open private room each dropped fight is behind. `DROP_AFTER_MS` overrides the ten minutes, and CLAUDE.md lists it. | `ace0022` |
-| Q1: the last fight's end line is on screen for no frame | Fixed: the conductor keeps the last fight's lines, and the next fight's follow them. Held in Chrome with Q2. | `3f047c8`, `8f69985` |
+| B3: a private room's finished fight is served by id once it leaves memory | Fixed: the table remembers which open private room each dropped fight is behind. `DROP_AFTER_MS` overrides the ten minutes, and CLAUDE.md lists it. **Overstated, corrected after the re-review:** The test couldn't tell a fight dropped from memory from one never dropped, and didn't probe its socket (N5). It probes the socket and sees the fight read from the database once the room closes. | `ace0022`, `0e75533` |
+| Q1: the last fight's end line is on screen for no frame | Fixed: the conductor keeps the last fight's lines, and the next fight's follow them. Held in Chrome with Q2. **Overstated, corrected after the re-review:** The next fight's lines did not follow: the log refused any line number it had seen, and every fight numbers from 1, so they were dropped (N1, high). The log keys a line by fight and number now. | `3f047c8`, `8f69985`, `df55282` |
 | Q2: the end panel is retitled for a fight nobody played | Fixed: the panel keeps the played fight's outcome, ignores the empty next fight's closing, and on 4410 links to the front door. | `8f69985` |
 | Q3: a reload drops the end panel | **No change.** A reload is a new page, and it opens the room as the room now is: its next fight. The result is kept in the person's record (`/api/me`: turns, wins and the battle's status). Showing the room's previous fight after a reload would need the room to describe it, a protocol addition beyond this gate. | — |
 | Q4: homoglyph names (a Cyrillic і, "Wаrden Echo") | **No change.** Rule 4's letter holds: trim, case, NFKC and invisible characters are all folded. Confusable skeletons (Unicode TR39) are a larger change than this gate. An Echo is never told apart by its name: the state's `echo` flag draws its marks (the ECHO tag, the grey sprite, the dashed plate), so a person named like an Echo is still drawn as a person. | — |
 | Q5: the action route confirms a private fight exists (403 vs 404) | Fixed: to anyone not seated in it, the same 404 as an unknown id. The two-rooms test expects it. | `a03a38a`, `a05d4e9` |
 | Q6: a refused founder still mints a room | Fixed with R3. | `9969551` |
-| Q7: the page trims padded codes the server refuses | Fixed: nothing is trimmed. The form refuses a padded code inline, and the address goes to the server. | `52e2e22` |
+| Q7: the page trims padded codes the server refuses | Fixed: nothing is trimmed. The form refuses a padded code inline, and the address goes to the server. **Overstated, corrected after the re-review:** Only `door()` was tested; a form that trimmed again passed (N13). The form is held now. | `52e2e22`, `1a84d31` |
 | Q8: a blank name field when `/api/me` fails | **No change.** The client can't show a name it couldn't fetch. The server holds rule 24, and its 409 names the name the person sat down as. | — |
 | Q9: re-joining as another role where you're seated is silently ignored | Fixed: a 409 naming the role you're seated as. | `f5f6cd3` |
 | Q10: a stale Echo button, once | **No change.** Not reproduced in three instrumented reruns; the breaker calls it unconfirmed. | — |
 | H20's note: focus falls to the page body after a refused rename | Fixed: the refusal itself takes focus. | `9e14d5d` |
-| Not attempted: rule 6, 7, 9, 12, 13, 14, `ECHO_POTENCY`, the `enter()` race, rule 16's spender | Not reached from outside:<br>• Rule 6 is held by `spec/restart.test.ts`; rule 12 by `spec/assets.test.ts`; rules 13 and 14 by `spec/queue.test.ts` and `spec/economy.test.ts`; `ECHO_POTENCY` by `spec/echoes.test.ts`.<br>• The `enter()` race and rule 16's spender half are untested from outside. | — |
+| Not attempted: rule 6, 7, 9, 12, 13, 14, `ECHO_POTENCY`, the `enter()` race, rule 16's spender | Not reached from outside:<br>• Rule 6 is held by `spec/restart.test.ts`; rule 12 by `spec/assets.test.ts`; rules 13 and 14 by `spec/economy.test.ts`; `ECHO_POTENCY` by `spec/echoes.test.ts`; rule 16's spender half on the engine, by `spec/economy.test.ts`.<br>• The `enter()` race is untested from outside.<br>*Corrected after the re-review:* this row first named `spec/queue.test.ts` for rules 13 and 14 and called rule 16's spender half untested. | — |
 
 ### The owner's findings from play
 
 | Finding | What was done | Where |
 | --- | --- | --- |
 | P1: after sitting down, focus falls to the page body; the commands are three Tabs away | Fixed: sitting down puts focus in the command window, and your turn's command needs no Tab. Held in Chrome with trusted keys. | `e2e2386` |
-| P2: Restore has no list of the fallen | Fixed: the window steps through the downed allies; with nobody down it aims at nothing and says so. | `60a302c` |
+| P2: Restore has no list of the fallen | Fixed: the window steps through the downed allies; with nobody down it aims at nothing and says so. **Overstated, corrected after the re-review:** The window was handed its own list of the fallen, so main.ts's wiring was untested (N12). Held in Chrome now, from the page's own state. | `60a302c`, `11b70b4` |
 | P3: the Echo-off strip flag reuses "restored" | Fixed: it is "reclaimed"; the word on the portrait stays "Back!". | `972ca70` |
 
 ### Carried from the earlier reviews
@@ -609,7 +609,8 @@ above: F25 by T1, phase one's R1 by T5, F7 by U2 and T6, and phase one-b's R9
 by T7.
 
 **Phase one-b's R7 (the README says nothing of rooms or Echoes) stays open and
-red**: the owner's file. It lands with the merge.
+red**: the owner's file. The branch doesn't merge while it's open, so it has to
+land before the merge, not with it (corrected after the re-review).
 
 **Roster after the fixes:** 209 green, 1 red (R7) on `:8090` at `a05d4e9`.
 Typecheck and lint are clean. `check:keyboard`, `check:viewports` and
@@ -799,3 +800,49 @@ Phase-one-b R7 is still open and red, confirmed in my run (`owner.test.ts:19`). 
 - `shown.test.ts` and both effects tests are green.
 
 I can't approve. This is what I found.
+
+### What was done about the re-review
+
+The 13 overstated rows are corrected in place, in the disposition above: each
+keeps what it first claimed, then says what was actually true and what holds
+it now. A test that went in red ahead of its fix is cited with its spec
+commit. A strengthened test was mutation-checked: the code was broken on
+purpose, and the test went red. From `df55282` on, the whole roster ran before
+every commit that changed behaviour.
+
+| Finding | What was done | Where |
+| --- | --- | --- |
+| N1: the Q1 fix drops the next fight's log lines (high) | Fixed: the log keys a line by fight and number, and the conductor says whose line it is. Two consecutive fights through the real log window, red first (the next fight's two lines missing). | `0aec62d` (spec), `df55282` |
+| N2: three commits made with a known-red test | **Recorded, not rewritten.** `a03a38a` (Q5) broke an existing test, `rooms.test.ts:298`, which went green again only in `a05d4e9`. `f5f6cd3` and `9e14d5d` were committed while it was red. I had run only the specs near each change. From `df55282` on, the whole roster ran before every behaviour commit. | — |
+| N3: spec assertions changed inside fix commits | **Recorded, not rewritten.** `3f047c8` changed an assertion in `ending.test.ts`, and `e12ae83` rewrote the rule-18 test's set-up, each inside its fix, as `b5c62e4` did before. Both changes follow from their fixes and stand. In this pass the spec changes went in their own commits, red first where they were red: N1, N4 and N16. | — |
+| N4: the window lights a different target from the one it aims at | Fixed: the field and strip are told the aimed target. Red first. | `c56a6ee` (spec), `a843016` |
+| N5: the B3 test can't tell dropped from never dropped | Fixed: the dropped fight's socket is refused (4404) while the room is open, and once it closes the fight is read from the database (version 0). Red with `droppedBehind` removed, and with `DROP_AFTER_MS` unread (version 583). | `0e75533` |
+| N6: the U3 test passes on an undefined token | Fixed: each ink is read off its real element, each token must be defined there, and the room code is measured on the window's lighter end. Red with `--tone-shield` undefined, and with brass-lit darkened (2.32:1). | `fbb79a0` |
+| N7: R2's prompt half untested | Fixed: boards where the server and the old client logic disagree (an Alignment ahead of a Revolution, a frozen Revolution). Red with `bastionFor` choosing the card itself. | `73e1b19` |
+| N8: the end pin takes any banner; 37 kinds reduced-only | Fixed: every full renderer is held to its declared state, and each ending has its own banner in both variants. Red with a full Mend that skips its bar, and with the won banner for every ending. The expected states are still the registry's own declaration, by F25's design; T1's pins hold the kinds whose meaning is in a field. | `5be53e6` |
+| N9: T10's icon check can't fail | Fixed: the intent's own icon. Red with it left off. | `86ac891` |
+| N10: T9 compares function identity only | Fixed for the shim's shape: Jab and Haste are held to their roles' own animations, in both variants. Red with Jab wrapping Cleave. Comparing whole call traces was tried: seven pairs of kinds draw alike by design, so it can't separate borrowing from shared vocabulary. | `c5f67d6` |
+| N11: an unconditional re-enable passes R1's test | Fixed: a refused Reaction off-turn is watched, and no turn action may light. Red with the unconditional re-enable. | `27006e0` |
+| N12: P2's wiring untested | Fixed: in Chrome, from the page's own rewritten state: Restore aims at the downed Echo and nobody else. Red with the one who left handed over too. | `11b70b4` |
+| N13: a form that trims again passes Q7 | Fixed: the form given " jkqp3 " sends nothing. Red with `chosenDoor` trimming. | `1a84d31` |
+| N14: a bare-battle fallback passes T7 | Fixed: the test waits past the 4404. Red with a fallback POST to `/api/battles`. | `1dcf81c` |
+| N15: refused previews skipped | Fixed: a previewed refusal must be the server's at every target the window offers. Red with a Jab wrongly refused. | `82938ff` |
+| N16: the Reaction's card ignores a frozen card's lost turn | Fixed: ordered by the turn a card lands. The Echo Warden intercepts the card the server names, once it lands next turn. Red first. | `60dc493` (spec), `ba8ed7c` |
+| N17: stale words | Fixed: rule 11's spec line says what the tests hold; `choosable()` and `ActionPreview.slot` are current; a failure before the cap is logged once. The review rows are corrected above. | `ed1ce6d` |
+| R5's cap, its reason | Corrected in its row: the cap is a bound, not "shown". | — |
+| R6's side note: another literal `#000` in a mask | Fixed: a token; no literal colour is left in `scene.css`. | `557e40b` |
+| U2's note: it tells the two apart only because the card is raid-wide | Fixed: the test asserts the named card is aimed at everyone. | `6ce2be8` |
+| The no-change rows (Q3, Q4, Q8, Q10) | **Open, the owner's.** CLAUDE.md's gate has two outcomes, fixed or carried open, and "left with a reason" isn't one. Whether a breaker's questionable is a finding is the owner's to say. Until then each is listed open with its reason. On Q4 the re-review adds that the reason stands on the letter, not on the log: a person named like an Echo writes log lines like an Echo's. | — |
+
+### Open, and blocking the merge
+
+- **R6, the shield cyan.** The owner's call: the brief asks for cyan shields,
+  and the design gate allows no seventh colour.
+- **Phase one-b's R7, the README.** The owner's file, red in
+  `spec/owner.test.ts`. It has to land before the merge.
+- **Q3, Q4, Q8 and Q10.** Open until the owner says whether a questionable is
+  a finding (above).
+
+**Roster after the re-review's fixes:** 219 green, 1 red (R7) on `:8090` at
+`6ce2be8`. Typecheck and lint are clean. `check:keyboard`, `check:viewports`
+and `check:tags` all pass.
