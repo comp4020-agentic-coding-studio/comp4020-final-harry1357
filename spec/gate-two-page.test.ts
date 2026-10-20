@@ -68,7 +68,7 @@ it("R1: a refused command gives the turn back, as the server still has it", asyn
   await tab.until(`[...document.querySelectorAll("[data-log] li")].some((l) => /Refused Once jabs/.test(l.textContent))`, "the second Jab to land", 10_000);
 }, 60_000);
 
-/** Wrap the page's socket: log every URL, and let `window.__react` rewrite your token's Reaction card in each state. */
+/** Wrap the page's socket: log every URL, let `window.__react` rewrite your token's Reaction card in each state, and `window.__rewrite(state, me)` anything else. */
 const SOCKET_TAMPER = `(() => {
   window.__react = "off";
   window.__sockets = [];
@@ -84,6 +84,10 @@ const SOCKET_TAMPER = `(() => {
           const me = document.body.dataset.me;
           if (m.type === "state" && me && window.__react !== "off") {
             for (const t of m.battle.queue) if (t.id === me) t.reactionCard = window.__react === "first" ? (m.battle.cards[0]?.id ?? null) : null;
+            data = JSON.stringify(m);
+          }
+          if (m.type === "state" && typeof window.__rewrite === "function") {
+            window.__rewrite(m.battle, me);
             data = JSON.stringify(m);
           }
         } catch {}
@@ -216,4 +220,37 @@ it("N11 (rule 2): a refused Reaction off-turn lights nothing of the turn", async
     return lit;
   })()`);
   expect(lit, "off-turn, a refused Reaction never lights the turn's actions").toBe(0);
+}, 60_000);
+
+it("N12 (P2): Restore is offered the downed, as the page's own state has them", async () => {
+  // Phase two's re-review, N12: P2's test handed the window its own list of
+  // the fallen, so a main.ts passing the standing allies, or those who left,
+  // passed. Here the page's states are rewritten: one Echo downed, one gone
+  // (fallen with HP left), and the server's Restore refusal lifted, so what
+  // the window offers is what main.ts hands it.
+  const tab = await page(SOCKET_TAMPER);
+  await sit(tab, "create", "mender", "Brings Back");
+  for (const role of ["warden", "striker"]) {
+    await tab.until(`!!document.querySelector('[data-add-echo="${role}"]:not([disabled])')`, `the ${role} Echo button`, 10_000);
+    await tab.evaluate(`document.querySelector('[data-add-echo="${role}"]').click()`);
+    await tab.until(`!document.querySelector('[data-add-echo="${role}"]')`, `the ${role} Echo seated`, 10_000);
+  }
+  await tab.evaluate(`window.__rewrite = (b, me) => {
+    const take = (role, hp) => {
+      const i = b.queue.findIndex((t) => t.echo && t.role === role);
+      if (i < 0) return;
+      const [t] = b.queue.splice(i, 1);
+      b.fallen.push({ ...t, hp });
+    };
+    take("warden", 0);
+    take("striker", 30);
+    const restore = b.preview && b.preview.actorId === me ? b.preview.actions.restore : null;
+    if (restore) restore.refusal = null;
+  }`);
+  await tab.until(`[...document.querySelectorAll("button[data-action]:not([data-reaction])")].some((b) => !b.disabled) && !document.querySelector('button[data-action="restore"][data-refused]')`, "my turn, Restore open", 30_000);
+  await tab.evaluate(`document.querySelector('button[data-action="restore"]').click()`);
+  const offered = await tab.evaluate<{ name: string; several: boolean }>(`({ name: document.querySelector("[data-aim-name]").textContent, several: !document.querySelector('.command-step[data-step="1"]').hidden })`);
+  expect(offered.name, "Restore aims at the downed Warden Echo").toBe("Warden Echo");
+  expect(offered.several, "and at nobody else: not the one who left, not anyone standing").toBe(false);
+  await tab.evaluate(`document.querySelector("[data-cancel]").click()`);
 }, 60_000);
