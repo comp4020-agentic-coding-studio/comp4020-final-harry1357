@@ -98,6 +98,30 @@ describe("the names kept for the Echoes are compared by confusable skeleton (TR3
     });
   }
 
+  it("still refuses every kept name in any case, as rule 4 compares names (F1)", async () => {
+    // The final pass's F1: the skeleton maps a capital I to l before lowercasing,
+    // so "STRIKER ECHO" and "CHRONIST ECHO" sat down as people (rule 25, with rule
+    // 4's "compared trimmed and case-insensitively"), and so did a capital Greek
+    // Ι or Cyrillic І in them. Every case of every kept name is refused.
+    const { checkJoin } = (await import(resolve("src/server/rules.ts"))) as {
+      checkJoin: (b: unknown, characterId: string | null, name: string) => { status: number; error: string } | "already" | null;
+    };
+    const e = await engine();
+    const b = table(e, ["mender"]);
+    const passed: string[] = [];
+    for (const kept of ["Warden Echo", "Mender Echo", "Striker Echo", "Breaker Echo", "Chronist Echo"]) {
+      for (const name of [kept, kept.toUpperCase(), kept.toLowerCase(), ` ${kept.toUpperCase()} `]) {
+        const r = checkJoin(b, null, name);
+        if (!(r && r !== "already" && r.status === 409)) passed.push(name);
+      }
+    }
+    for (const name of ["STR\u0399KER ECHO", "CHRON\u0406ST ECHO"]) {
+      const r = checkJoin(b, null, name);
+      if (!(r && r !== "already" && r.status === 409)) passed.push(name);
+    }
+    expect(passed, "these sat down as people under a kept Echo name").toEqual([]);
+  });
+
   it("leaves names that only share letters alone", async () => {
     const { checkJoin } = (await import(resolve("src/server/rules.ts"))) as {
       checkJoin: (b: unknown, characterId: string | null, name: string) => unknown;
