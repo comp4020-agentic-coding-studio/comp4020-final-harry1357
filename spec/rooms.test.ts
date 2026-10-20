@@ -531,7 +531,7 @@ describe("rooms expire; logs don't", () => {
     // served by id, log and socket, the room still open. A fast clock, four
     // Echoes and a founder who times out play the fight to its end; the drop
     // is made short so the test needn't wait ten minutes.
-    server = await boot(scratchDatabase(), { TICK_MS: "5", TURN_TIMEOUT_MS: "250", ECHO_BEAT_MS: "100", DROP_AFTER_MS: "300" });
+    server = await boot(scratchDatabase(), { TICK_MS: "5", TURN_TIMEOUT_MS: "250", ECHO_BEAT_MS: "100", DROP_AFTER_MS: "300", ROOM_EMPTY_MS: "4000" });
     const res = await fetch(new URL("/api/rooms", server.base), {
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -550,6 +550,26 @@ describe("rooms expire; logs don't", () => {
     expect((await room(server.base, made.code)).status, "the room is still open").toBe(200);
     expect((await fetch(new URL(`/api/battles/${made.battleId}`, server.base))).status, "its finished fight isn't read by id").toBe(404);
     expect((await fetch(new URL(`/api/battles/${made.battleId}/log`, server.base))).status, "nor its log").toBe(404);
+    // Nor watched (re-review N5): the battle socket by id is refused as a fight that isn't there.
+    const url = new URL(`/ws?battle=${encodeURIComponent(made.battleId)}`, server.base);
+    url.protocol = "ws:";
+    const ws = new WebSocket(url);
+    const states: unknown[] = [];
+    ws.addEventListener("message", (ev) => states.push(ev.data));
+    const closed = await new Promise<number>((resolve) => {
+      ws.addEventListener("close", (ev) => resolve(ev.code), { once: true });
+      setTimeout(() => resolve(-1), 3_000);
+    });
+    expect(states.length, "the socket carries nothing of it").toBe(0);
+    expect(closed, "and closes as a fight that isn't there").toBe(4404);
+    // And it really had left memory (re-review N5: "never dropped" passed all of the above): once the room
+    // closes, the fight is read by id from the database, an archived state (version 0), not the live one.
+    for (const deadline = Date.now() + 15_000; (await room(server.base, made.code)).status !== 404; await sleep(200)) {
+      if (Date.now() > deadline) throw new Error("the empty room never closed");
+    }
+    const after = await fetch(new URL(`/api/battles/${made.battleId}`, server.base));
+    expect(after.status, "the room's gone: its fights are readable by id (rule 26)").toBe(200);
+    expect(((await after.json()) as { version: number }).version, "from the database: it had left memory").toBe(0);
   }, 90_000);
 
   it("a private room's fight answers an action only from someone seated in it (Q5)", async () => {
