@@ -108,6 +108,9 @@ it("U2 (rule 2): the Reaction offered off-turn is at the card the server names, 
   await tab.evaluate(`window.__react = "first"`);
   await tab.until(`!!document.querySelector('button[data-action="intercept"]:not([disabled])') && ${LIVE} === 0`, "the Reaction live off-turn", 30_000);
   const first = await tab.evaluate<string>(`document.querySelector("[data-rail] [data-card-id]").dataset.intent`);
+  // The test tells the server's word from the page's own pick only if the named card is one no Intercept
+  // could answer (the re-review's note on U2): a card aimed at everyone.
+  expect(await tab.evaluate<string>(`document.querySelector("[data-rail] [data-card-id]").dataset.target`), "the card named is aimed at everyone").toBe("party");
   await tab.evaluate(`document.querySelector('button[data-action="intercept"]').click()`);
   const aimed = await tab.evaluate<string>(`document.querySelector("[data-aim-name]").textContent`);
   expect(aimed.toLowerCase(), "Intercept is aimed at the card the server named (the strip's first, a raid-wide card)").toMatch(new RegExp(`^${first}`));
