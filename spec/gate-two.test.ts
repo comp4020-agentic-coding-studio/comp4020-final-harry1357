@@ -281,6 +281,36 @@ describe("phase two's gate", () => {
     expect(form.querySelector(".join-error")?.textContent, "and the refusal is said").toMatch(/name stays/);
   });
 
+  it("R6: a blow a Ward took is drawn as a shield, a shape: its tone in the reduced check, its glyph on the number", async () => {
+    // The owner's ruling on phase two's gate, R6: shields are drawn in the card
+    // token with the shield glyph, not a seventh colour. The reduced renderer
+    // marks a blow a Ward took (it deals 0) with the shield tone, and the number
+    // the scene draws for that tone carries the shield glyph, so the shape, not
+    // a colour, says it.
+    const { RENDERERS } = (await import(resolve("src/client/battle/registry.ts"))) as {
+      RENDERERS: Record<string, { reduced: (ctx: unknown, e: unknown) => Promise<void> | void }>;
+    };
+    const numbers: unknown[][] = [];
+    const quiet = () => Promise.resolve();
+    const scene = new Proxy({}, { get: (_t, k) => (k === "number" ? (...a: unknown[]) => numbers.push(a) : quiet) });
+    const strip = new Proxy({}, { get: () => quiet });
+    const token = (id: string, role: string) => ({ id, kind: "character", name: id, role, hp: 50, maxHp: 100, echo: false, seatedBy: null, counter: 3, warded: false });
+    const state = { queue: [token("wren", "warden"), { ...token("orrery", "orrery"), kind: "boss" }], fallen: [], cards: [], rings: [], phase: 1 };
+    const ctx = { scene, strip, audio: { play() {} }, reduced: true, wait: quiet, state, me: "wren" };
+    await RENDERERS.eclipse.reduced(ctx, { kind: "eclipse", actorId: "orrery", targetId: "wren", amount: 0, seq: 3, cardId: "card-1" });
+    expect(numbers.find((a) => a[0] === "wren")?.[2], "a blow a Ward took is drawn with the shield tone").toBe("shield");
+
+    const { createFx } = (await import(resolve("src/client/scene/fx.ts"))) as {
+      createFx: (layer: HTMLElement) => { number(target: Element | null, id: string, amount: number, tone: string, seq: number | undefined, look: unknown): void };
+    };
+    const layer = document.createElement("div");
+    document.body.append(layer);
+    createFx(layer).number(null, "wren", 0, "shield", 3, { side: "party", share: 0 });
+    const drawn = layer.querySelector<HTMLElement>('.fx-number[data-tone="shield"]');
+    expect(drawn?.querySelector(".fx-number-glyph"), "the shield number carries the shield glyph").not.toBeNull();
+    expect(drawn?.textContent, "and says what it is in words when nothing got through").toBe("WARD");
+  });
+
   it("P3: a person back from their Echo has a strip flag of their own, not Restore's", async () => {
     const { RENDERERS } = (await import(resolve("src/client/battle/registry.ts"))) as {
       RENDERERS: Record<string, { reduced: (ctx: unknown, e: unknown) => Promise<void> | void }>;

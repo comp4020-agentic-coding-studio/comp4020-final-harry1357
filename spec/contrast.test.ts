@@ -232,6 +232,7 @@ describe("phase two's mixed inks, resolved by Chrome", () => {
         const colour = (node) => hex(getComputedStyle(node).color);
         const of = (value) => { ground.style.color = value; return hex(getComputedStyle(ground).color); };
         const seen = {
+          card: of("var(--card)"),
           shield: colour(shield),
           gold: colour(gold),
           code: colour(code),
@@ -240,7 +241,7 @@ describe("phase two's mixed inks, resolved by Chrome", () => {
           window: of("color-mix(in srgb, var(--ink) 86%, var(--brass))"),
         };
         const at = (node, name) => getComputedStyle(node).getPropertyValue(name).trim() !== "";
-        const defined = { "tone-shield": at(shield, "--tone-shield"), "tone-gold": at(gold, "--tone-gold"), "brass-lit": at(code, "--brass-lit") };
+        const defined = { "tone-gold": at(gold, "--tone-gold"), "brass-lit": at(code, "--brass-lit") };
         for (const n of [shield, gold, code, ground]) n.remove();
         return { seen, defined };
       })()`);
@@ -252,7 +253,13 @@ describe("phase two's mixed inks, resolved by Chrome", () => {
   }, 30_000);
 
   it("finds each token defined where its ink is read", () => {
-    expect(defined, "an undefined token inherits --card, which would pass").toEqual({ "tone-shield": true, "tone-gold": true, "brass-lit": true });
+    expect(defined, "an undefined token inherits --card, which would pass").toEqual({ "tone-gold": true, "brass-lit": true });
+  });
+
+  it("draws a shield number in --card, a shape and not a seventh colour (R6)", () => {
+    // The owner's ruling on phase two's gate, R6: no seventh colour. A shield is
+    // drawn in the card token with the shield glyph; the brief's cyan is withdrawn.
+    expect(seen.shield, "the shield number's ink is the card token").toBe(seen.card);
   });
 
   it.each([
