@@ -85,6 +85,27 @@ it("no renderer is a shim borrowing another event's animation", async () => {
     }
   }
   expect(borrowed, "these events are drawn by another event's renderer").toEqual([]);
+
+  // Identity alone passes a wrapper that calls another kind's renderer (re-review N10). The shim borrowed
+  // two animations: Jab played the old Strike's "attack" and Haste the old Hasten. Each now plays its role's
+  // own, held here in both variants, and each animation is on that role's own sheet. (Comparing whole call
+  // traces can't tell borrowing from the blows' shared vocabulary: seven pairs of kinds draw alike by design.)
+  const manifest = JSON.parse(readFileSync("src/assets/sprites.json", "utf8")) as { roles: Record<string, { animations: Record<string, unknown> }> };
+  for (const [kind, role, own] of [["jab", "striker", "jab"], ["haste", "chronist", "cast"]] as const) {
+    expect(manifest.roles[role].animations[own], `the ${role}'s sheet has its own ${own}`).toBeDefined();
+    for (const variant of ["full", "reduced"] as const) {
+      const frames: [unknown, unknown][] = [];
+      const quiet = () => Promise.resolve();
+      const scene = new Proxy({}, { get: (_t, p) => (p === "frame" ? (id: unknown, anim: unknown) => (frames.push([id, anim]), Promise.resolve()) : quiet) });
+      const strip = new Proxy({}, { get: () => quiet });
+      const state = { queue: [{ id: "me", kind: "character", role, hp: 50, maxHp: 90 }, { id: "ally", kind: "character", role: "warden", hp: 50, maxHp: 90 }], fallen: [], cards: [], rings: [], phase: 1 };
+      const ctx = { scene, strip, audio: { play() {} }, reduced: variant === "reduced", wait: quiet, state, me: "me" };
+      await (RENDERERS[kind][variant] as (c: unknown, e: unknown) => unknown)(ctx, { kind, actorId: "me", targetId: "ally", ringId: "outer", amount: 4, seq: 1 });
+      const mine = frames.filter(([id]) => id === "me").map(([, anim]) => anim);
+      expect(mine, `${kind} (${variant}) plays the ${role}'s own ${own}`).toContain(own);
+      expect(mine, `${kind} (${variant}) plays no borrowed attack`).not.toContain("attack");
+    }
+  }
 });
 
 it("every role is told apart from every other by its silhouette at 24 px", () => {
