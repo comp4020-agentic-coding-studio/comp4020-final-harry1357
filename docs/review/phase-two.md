@@ -1286,3 +1286,14 @@ Nothing else was found broken by these three commits. The reviewer checked: the 
 - `spec/echo-lines.test.ts:101-123`: the F1 test's only capital look-alikes (Ι and І) have lowercase forms, so the two-key code passes it and still seats "STRIKER ECH0".
 - `spec/echo-lines.test.ts:125-133`: no name in the list contains a whole kept name with something added ("Ida Mender Echo", "Striker Echo II"), so a comparison refusing any name containing a kept name would pass.
 - Nothing on the roster runs the generator's proof or compares the cut table with TR39, so a hand edit dropping a row the tests don't use would pass.
+
+### What was done about the confirm pass
+
+| Finding | What was done | Where |
+| --- | --- | --- |
+| C1: a kept name's look-alike beside a capital I sits down ("STRIKER ECH0"), rule 25 in intent | Fixed, as a finding under ruling 3 (it names rule 25 broken in intent). The test is a sweep, not a list: every letter of every kept name, every TR39 source whose prototype is that letter, set in as written, with the rest upper case and with the rest lower case. It was red, with 340 of 9441 seated, and found two more holes: NFKC turned a lunate sigma ϲ into ς before the skeleton saw it ("Warden Eϲho", seated even as written); and "ՏTRIKER ECHO" needs the Armenian Տ taken as given and the capital I lowercased, both at once. Now each key settles (skeleton then lowercase, until it stops changing), keys come from the name as typed and as NFKC, and a name is a kept one if some choice per character between its two settled forms spells a kept name's key. None of the 9441 is seated now, and the reviewer's ordinary names are all still allowed. The generator's per-character proof covers both forms, and the table is unchanged. | `927453e` (spec), `dc8b3df` |
+
+**For the next phase** (the confirm pass's residuals): no name in the "leaves names alone" list contains a whole kept name with something added ("Ida Mender Echo", "Striker Echo II"); nothing on the roster runs the generator's proof or compares the cut table with TR39. (Its first residual, the F1 test's look-alikes all having lowercase forms, is covered by the sweep.)
+
+**Roster after C1:** 238 green, 1 red (R7) on `:8090` at `dc8b3df`. Typecheck
+and lint are clean.
