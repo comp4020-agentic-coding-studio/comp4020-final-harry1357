@@ -1260,3 +1260,29 @@ stopping rule and not re-reviewed in this phase:
 
 **Roster after F1:** 237 green, 1 red (R7) on `:8090` at `a897814`. Typecheck
 and lint are clean.
+
+## Confirm pass on F1
+
+Under the stopping rule the gate closes on a review that finds no rule or ADR
+violation, and the final pass found F1. The reviewer, on a fresh context, read
+F1's fix only (`git diff f23ea91...HEAD`, HEAD `b716ca9`). Its findings, kept
+as given (the "what was read and run" section is shortened to its result):
+
+**What was run.** `APP_URL=http://localhost:8090 pnpm check`: tsc and stylelint passed, and vitest ran 32 files and 238 tests, 237 passed, 1 failed (`spec/owner.test.ts:19`, R7, carried red). The commit order is f23ea91 → 309bfa8 (spec only) → a897814 (code only) → b716ca9 (doc only). Not verified: that 309bfa8 was red (by reading the old key, six of its names would have been seated, as the doc says), the generator's proof, and the reviewer's own names, worked by hand.
+
+**(1) F1.** As stated, it is fixed. Every case of each kept name is refused, in general and not just for the test's four casings: for a name equal to a kept one under `nameKey`, key1 is the kept name's own key, and the table's only ASCII entries (`0`→`O`, `I`→`l`, `m`→`rn`) appear in no kept name. Every door reaches the check (`app.ts:90`, `:116`, `:160`). Q4's look-alikes are still refused. The table only gained rows (922 → 958); every added row is the lowercase form of a capital already in it, and none maps into the kept names' letters. No ordinary name is newly refused: the spec's five, and "Kristen Echo", "Strike Echo", "STRIKE ECHO", "Ida Mender", "Echo Warden", "Menders Echo", "Chris Echo", "Brea Kerr" and "Strlker Echo", are all left alone. "Bre Aker Echo" and "Chronis Techo" are refused, which predates this diff: `nameKey` strips every space.
+
+**(2) Violations.**
+
+**C1. F1's mechanism survives for a look-alike written in a case that has a capital I.** Not introduced by these commits: it came in with `f53af78`, and `a897814` doesn't remove it. It is reported because the stopping rule asks whether the last review finds a violation, not only a new one.
+- The words broken: rule 4, "Names are compared trimmed and case-insensitively" (CLAUDE.md:237-238), which F1 applied to the kept-name check; rule 25, "Its name ("Warden Echo") is kept for it: no person sits down under it" (CLAUDE.md:379-380); and ruling 3's Q4 mechanism, "compared by Unicode TR39's confusable skeleton".
+- An example: "Striker Ech0" is refused, but "STRIKER ECH0" is seated (the zero for the o is Q4's own case). Key0 maps `I`→`l` before lowercasing; key1 lowercases first, and `0` has no lowercase, so the skeleton maps it to a capital `O`. Neither key equals "strikerecho".
+- Where else: "CHRONIST ECH0" and "StrIker Ech0", and any caseless look-alike whose prototype is a capital letter (Tifinagh ⴹ, U+2D39 → E) paired with a capital I. Warden, Mender and Breaker have no i, so they're unaffected.
+- Severity: a breach in intent, not in letter. `checkSeatEcho` compares by `nameKey`, so such a person doesn't block the Echo, and breaker Q6's harm doesn't come back. What's left is the look-alike Q4 was ruled against, softened by log lines carrying `echo: false`. Whether it's a violation or a recorded risk is the owner's decision. For the owner, not as a proposal: a key of lowercase, skeleton, lowercase, skeleton would fold it.
+
+Nothing else was found broken by these three commits. The reviewer checked: the spec commit sits directly ahead of its fix; no spec line was removed; both commits name F1; CLAUDE.md, README, PROCESS and reflections are untouched; the generated table is regenerated with its script, and its header count adds up; the server TypeScript is erasable with `.ts` imports; there is no new event kind or mechanic; ADR-007 says nothing about names beyond rule 4; and the doc's claims match.
+
+**For the next phase** (the reviewer's):
+- `spec/echo-lines.test.ts:101-123`: the F1 test's only capital look-alikes (Ι and І) have lowercase forms, so the two-key code passes it and still seats "STRIKER ECH0".
+- `spec/echo-lines.test.ts:125-133`: no name in the list contains a whole kept name with something added ("Ida Mender Echo", "Striker Echo II"), so a comparison refusing any name containing a kept name would pass.
+- Nothing on the roster runs the generator's proof or compares the cut table with TR39, so a hand edit dropping a row the tests don't use would pass.
