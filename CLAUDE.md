@@ -285,7 +285,10 @@ around it.
     log. The log is derivative; an event with no renderer doesn't ship.** Every
     event kind the server can broadcast has a renderer in the client's
     registry, and the client writes an event's log line only once its renderer
-    has shown it. *Spec: `spec/shown.test.ts`. Every broadcast event type has a
+    has shown it. One exception, deliberate (the owner's ruling on phase two's
+    gate, R5): a renderer that runs past the cap is logged at the cap, so one
+    stalled renderer can't hold the table; the state itself is drawn from each
+    message on arrival. *Spec: `spec/shown.test.ts`. Every broadcast event type has a
     renderer; the server broadcasts a strike within one tick of taking it; and
     on B's screen it shows within one tick of arriving, before its log line,
     and within a second of the strike.*
