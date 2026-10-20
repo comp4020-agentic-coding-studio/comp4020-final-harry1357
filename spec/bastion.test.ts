@@ -131,6 +131,31 @@ describe("the Warden's Bastion prompt", () => {
     expect(bastionFor(state({ cards: frozen, bastionCard: "peri" }), wren)?.first ?? null, "the server says the Perihelion is met first: nothing before it").toBeNull();
   });
 
+  it("the Bastion command's words name the blow the server says comes first (M5)", async () => {
+    // Phase two's third review, M5: the command's note was built in main.ts,
+    // which no test could reach, so a prompt naming the first card aimed at
+    // everyone itself passed on exactly the Alignment board N7 added.
+    const { prompts } = (await import(resolve("src/client/command/prompts.ts"))) as {
+      prompts: (s: unknown, token: unknown) => Record<string, string>;
+    };
+    const wren = token("wren", "warden");
+    const align = [
+      { id: "align", intent: "alignment", targetId: "party", amount: null, countdown: 0, frozen: false },
+      { id: "rev", intent: "revolution", targetId: "party", amount: 12, countdown: 1, frozen: false },
+      { id: "peri", intent: "perihelion", targetId: "party", amount: 48, countdown: 4, frozen: false },
+    ];
+    const said = prompts(state({ phase: 3, cards: align, bastionCard: "rev" }), wren).bastion ?? "";
+    expect(said, "the prompt is there").toMatch(/^Perihelion in 4/);
+    expect(said, "naming the Revolution the server says a Bastion would meet first").toMatch(/The Revolution, in 1, would take one/);
+    expect(said, "not the Alignment, which spends none").not.toMatch(/Alignment/);
+    const frozen = [
+      { id: "rev", intent: "revolution", targetId: "party", amount: 8, countdown: 0, frozen: true },
+      { id: "peri", intent: "perihelion", targetId: "party", amount: 32, countdown: 0, frozen: false },
+    ];
+    expect(prompts(state({ cards: frozen, bastionCard: "peri" }), wren).bastion, "nothing before the Perihelion: no blow named first").toBe("Perihelion next: a Bastion blunts it.");
+    expect(prompts(state({ cards: align, bastionCard: "rev" }), token("mae", "mender")).bastion, "nobody but a Warden is asked").toBeUndefined();
+  });
+
   it("the Bastion command carries the prompt in its note, on the turn and off it; a refusal takes its place", async () => {
     const { mountCommandWindow } = (await import(resolve("src/client/command/window.ts"))) as {
       mountCommandWindow: (
