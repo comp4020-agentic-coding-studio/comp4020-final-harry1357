@@ -846,3 +846,172 @@ every commit that changed behaviour.
 **Roster after the re-review's fixes:** 219 green, 1 red (R7) on `:8090` at
 `6ce2be8`. Typecheck and lint are clean. `check:keyboard`, `check:viewports`
 and `check:tags` all pass.
+
+## Third review
+
+The reviewer once more, on a fresh context with no part in building the work
+or in either earlier review, reading only the response to the re-review
+(`git diff f55391a...HEAD`, HEAD `02129bc`). Last time the re-review's own
+fixes went unreviewed, and that is where its overstated rows came from. Kept as
+given.
+
+### What was read and run
+
+**Read in full:** `.claude/agents/reviewer.md`, `.claude/agents/reviewer-bash.sh`, CLAUDE.md, and `docs/review/phase-two.md` (all 849 lines). I also read every file the fixes changed:
+- source: `conductor.ts`, `log.ts`, `command/window.ts`, `styles/scene.css`, `server/echoes.ts`, `server/economy.ts`, `shared/protocol.ts`
+- specs: `bastion`, `contrast`, `effects`, `ending`, `gate-two-page`, `gate-two`, `phase-two` (the changed hunk), `preview`, `rooms` (lines 480–645), `sprites`
+
+**Read for context:** `client/main.ts`, `strip/cards.ts`, `effects/party.ts`, `effects/feel.ts`, `battle/registry.ts`, `server/view.ts`, `server/table.ts`, `server/rooms.ts`, `orrery.ts` (lines 1–560), `roles.ts` (lines 540–711), `echoes.test.ts` (lines 1–319), `shown.test.ts`, `spec/engine.ts`, `seats.css`, `base.css`, and the head of `strip.ts`.
+
+**Ran (all read-only):**
+- `git diff --stat f55391a...HEAD`: 19 files. Then `git diff f55391a...HEAD` for `src`, `CLAUDE.md` and every spec.
+- `git diff --stat <c>^ <c>` for all 21 commits cited after `f55391a`. Their line counts add up exactly to the whole diff.
+  - Every spec change in this pass sits in a spec-only commit.
+  - The fix commits touch no spec: `df55282`, `a843016`, `ba8ed7c`, `ed1ce6d`, `557e40b`.
+- Order checks, using `git diff --stat f55391a <c>` and ancestry diffs:
+  - The chain runs `0aec62d` → `df55282` → `c56a6ee` → `a843016` → `60dc493` → `ba8ed7c` → … → `82938ff`.
+  - Each red-first spec commit is immediately followed by its fix.
+- `APP_URL=http://localhost:8090 npx vitest run`: 31 files, **219 passed, 1 failed**. The failure is `spec/owner.test.ts:19`, R7: README.md's "there's one fight". This matches the doc's "219 green, 1 red".
+- `APP_URL=http://localhost:8090 pnpm check`: `tsc --noEmit` passed and stylelint passed. vitest gave the same 219/1, so the command exited 1.
+
+**Deviations:**
+- My first command began `cd <repo> &&`.
+- `npx vitest` isn't on the hook's allowlist (`pnpm vitest` is), but the brief allows it.
+- This session has no Grep or Glob tool, so I listed files with `git diff` against the empty tree `4b825dc642cb6eb9a060e54bf8d69288fbee4904`. The harness spilled one large diff (strip.ts) to its own tool-results file. I wrote no file.
+
+**Not run:** `check:tags`, `check:keyboard`, `check:viewports` and `probe` (outside my allowed commands).
+
+**Can't verify:**
+- "From df55282 on, the whole roster ran before every behaviour commit."
+- Each "Red with X" mutation claim. I judged those by reading.
+
+### (A) The response, re-checked
+
+#### The 13 rows marked "Overstated, corrected after the re-review"
+
+| Row | Verdict |
+|---|---|
+| R1 | **Holds.** With the unconditional re-enable, `gate-two-page.test.ts:213-225` lights a turn action off-turn and goes red. Residual: M4. |
+| R2 | **Holds** against N7's named fault. A `bastionFor` that picks the card itself fails `bastion.test.ts:120,131`, and the strip's words are checked at `:123-125`. Residual: M5. |
+| U3 | **Holds.** An undefined token fails `contrast.test.ts:254-256`. The code is measured on the window's lighter end, using the same formula as `base.css`. Residual: M7. |
+| T1 | **Holds.** The full renderers are held to their declared states (`effects.test.ts:236-250`). A won banner shown for every ending fails `:267`. Residual: M8. |
+| T3 | **Holds.** Refused previews are now checked (`preview.test.ts:89-97`). For card actions, Restore and Anchor, checking at no target is equivalent to checking every target, because the server's default target is "the soonest card it accepts" (`roles.ts:643`, `:689-692`). The frozen-card naming is held at `preview.test.ts:181-197`. Residual: M9 (a citation). |
+| T6 | **Holds** (`window.ts:601`; `gate-two.test.ts:60-83`). Residual: M9. |
+| T7 | **Holds** for its named fault, a fallback POST to `/api/battles`. Residual: M3. |
+| T9 | **Holds.** Jab wrapping Cleave fails `sprites.test.ts:105-106`. The sprite check alone can't tell Haste from a Mend wrapper, because both play "cast". The effects pin on `scene.haste` (`feel.ts:77`) is what catches that. |
+| T10 | **Holds** (`phase-two.test.ts:102`). |
+| B3 | **Holds.** Room expiry doesn't purge memory (`table.ts:82-100`), so with `DROP_AFTER_MS` unread the read at `rooms.test.ts:572` returns a live version, not 0. With `droppedBehind` removed, `:551` fails. |
+| Q1 | **Holds** (`log.ts:20,47`; `ending.test.ts:104-151`). The test would fail on the old seq-only key. |
+| Q7 | **Holds** (`gate-two.test.ts:234-253`). |
+| P2 | **Holds** (`gate-two-page.test.ts:228-259`). Standing allies, the one who left, or every fallen ally each fail it. |
+
+**Count: 13 hold, 0 overstated, 0 unfixed.** Five of them leave a residual wrong implementation, listed in (B).
+
+#### "What was done about the re-review" (21 rows)
+
+| Row | Verdict |
+|---|---|
+| N1 | **Holds.** Red first (`0aec62d` comes before `df55282`). |
+| N2 | **Recorded, not fixed.** See below. |
+| N3 | **Recorded, not fixed.** "Spec changes went in their own commits" is true for every file in `spec/`, but see M1. |
+| N4 | **Holds.** Red first (`c56a6ee` comes before `a843016`). Under the old code `lit` was "rev". |
+| N5 | **Holds** (see B3). |
+| N6 | **Holds.** Residual: M7. |
+| N7 | **Holds.** Residual: M5. |
+| N8 | **Holds.** Residual: M8. |
+| N9 | **Holds.** |
+| N10 | **Holds.** |
+| N11 | **Holds.** Residual: M4. |
+| N12 | **Holds.** |
+| N13 | **Holds.** |
+| N14 | **Holds.** Residual: M3. |
+| N15 | **Holds.** |
+| N16 | **Holds** for the server: red first (`60dc493` comes before `ba8ed7c`), and `lands = countdown + frozen` matches `takeTurn` (`orrery.ts:208-219`). The Echo half is true in code (`echoes.ts:96-97`) but untested: M6. |
+| N17 | **Holds.** Rule 11's new words match `shown.test.ts:68`, `:231`, `:233` and `:235`. The `choosable()` and `ActionPreview.slot` comments are now accurate, and a failure before the cap is logged once (`conductor.ts:62-68`). But see M1 and M2. |
+| R5's cap | **The correction is true.** What it describes is a standing exception to rule 11's letter: "writes an event's log line only once its renderer has shown it". It is neither fixed nor listed open. See below and M2. |
+| R6's side note | **Holds.** `scene.css` has no literal colour left; the only `rgb(...)` is in the comment at `:16`. |
+| U2's note | **Holds** (`gate-two-page.test.ts:113`). |
+| Q3, Q4, Q8, Q10 listed open | **The reason stands.** CLAUDE.md:391-401 allows only fixed or open. Listing them open until the owner rules is the correct holding position. |
+
+**Count:** 17 fixed rows, all hold (0 overstated, 0 unfixed). 2 rows recorded rather than fixed (N2, N3). 1 correction that leaves an exception unlisted (R5's cap). 1 row listed open.
+
+#### Recorded rows, and those listed open, against CLAUDE.md
+
+- **N2 and N3:** The reason (not rewriting pushed history) stands on the merits: nothing but a rewrite could fix them. Against the gate's letter it doesn't. The response itself argues that "left with a reason isn't one of" the gate's outcomes, and on that ground lists Q3, Q4, Q8 and Q10 open. N2 and N3 are neither fixed nor listed open. Either they go on the open list as the owner's, or the owner rules that history findings are closed by being recorded. As it stands the treatment is inconsistent.
+- **R5's cap:** The reason ("a bound, so one stalled renderer can't hold the table") is a design trade against rule 11's letter. CLAUDE.md:207-208 says: "If a change needs one of these broken, stop and say so." The row does say so, but it isn't listed open for the owner the way R6 is.
+- **R6, the cyan:** The reason stands. It is the owner's design call (CLAUDE.md:129-130), and it blocks the merge.
+- **Phase one-b R7, the README:** The reason stands. The README is the owner's file (CLAUDE.md:408-409). It is red in my run.
+- **Q3, Q4, Q8, Q10:** Stand as above.
+
+### (B) New findings in these fixes
+
+**M1. Kind 1. `CLAUDE.md:288-291`, commit `ed1ce6d`: a never-do rule's Spec clause changed inside a commit that also changes code.**
+- `ed1ce6d` rewrote rule 11's *Spec:* clause from "on B's screen the strike shows within one tick" (end to end) to "within one tick of arriving … and within a second of the strike".
+- The same commit changes `conductor.ts` (logging), `window.ts` and `protocol.ts`.
+- The new words are accurate and follow the owner's T4 instruction. But changing what a rule says the roster holds is the rule-side counterpart of CLAUDE.md:404-407 ("change it deliberately, in its own commit"). It is the pattern N3 recorded, and the response says that pattern ended in this pass.
+
+**M2. Stale comment against the corrected R5 row: `src/client/battle/conductor.ts:73-74`, also `:4-5`.**
+- `show()`'s doc still says "A renderer still running at the cap has been on screen that long, and counts".
+- The header still says an event's line "is written only after its renderer has shown it".
+- The R5 row (phase-two.md:557) now says the opposite: a renderer that stalls before drawing anything is logged at the cap. `ed1ce6d` edited `capped()` immediately above this comment and left it.
+
+**M3. Kind 3. `spec/gate-two-page.test.ts:145-151` (T7/N14) passes a page that falls back to another room after the 4404.**
+- `:149` checks only that *some* socket went to QZXWV, and `:150-151` exclude only `?battle=` sockets and POSTs to `/api/battles`.
+- A page that, once refused, opens `/ws?room=RAID` (hard-coded) passes. That is rule 22's "never … redirected to another room" and R9's hard-coded-RAID fault.
+- A fallback delayed past the 1.5 s wait at `:146` also passes.
+- A fix: assert the sockets are exactly `[…QZXWV]`.
+
+**M4. Kind 3. `spec/gate-two-page.test.ts:213-225` (R1/N11) passes if the Reaction is never sent.**
+- Nothing checks that the stubbed 409 was served (`window.__refuseNext` back to false) or that the refusal was announced.
+- If Confirm posts nothing off-turn (a broken Reaction path), `lit` stays 0 and the test is green.
+
+**M5. Kind 3. `spec/bastion.test.ts:106-132` (R2/N7) never runs `main.ts`'s `prompts()` (`src/client/main.ts:131-138`).**
+- The Bastion command's note is built there. A `prompts()` that ignored `asked.first` and picked the first raid-wide card itself would pass every test, on exactly the Alignment board N7 added.
+- Only `bastionFor` and the strip's Perihelion words are held.
+
+**M6. Kind 3. `spec/echoes.test.ts:198-206` doesn't discriminate `ba8ed7c`'s new Echo Warden policy (`src/server/echoes.ts:92-98`).**
+- It has one card on the strip, so the pre-fix policy passes it too.
+- With a frozen single-target card at countdown 0 ahead of an unfrozen one, the old policy would propose the frozen card. The server now refuses that card, so the Echo never intercepts.
+- `preview.test.ts:181-197` has no Echo case.
+
+**M7. Kind 3. `spec/contrast.test.ts:240-243,258-263` (U3/N6), three residuals:**
+- `defined` checks only that the custom property is non-empty. A token present but invalid as a colour leaves `color` at the inherited `--card` (16:1), so it passes. Example: `--tone-shield: color-mix(in oklch longest hue, …)`. The test never compares the probe's colour with the token's own value.
+- The window ground at `:240` is the test's own formula, not read from the served CSS. If `base.css:113`'s gradient changes, this pair goes stale.
+- The Echo plate tag (`scene.css:350-351`, brass-lit on `--ink`) was dropped from the pairs U3 named. It is now held only while `.seats-code` happens to use the same token.
+
+**M8. Kind 3. `spec/effects.test.ts:252-268` (T1/N8) passes with the ending banners swapped.**
+- It checks three distinct strings, the same in both variants. It never checks that `won` gets the winning line, so `lost` and `won` exchanged still pass.
+
+**M9. Inaccurate doc. `docs/review/phase-two.md:564` (T3), `:567` (T6), `:583` (Q1):** each corrected row cites a red-first fix (`ba8ed7c`, `a843016`, `df55282`) but not its spec commit (`60dc493`, `c56a6ee`, `0aec62d`). That goes against the doc's own convention at `:808-809`. The N-rows do cite them.
+
+**M10. Kind 1, low, a reading question. Commits `0aec62d`, `c56a6ee` and `60dc493` each committed a red spec, one commit ahead of its fix.**
+- CLAUDE.md:401-404's exception is a test "red because the feature isn't built yet".
+- A known bug's test committed red is the reading the gate has used throughout ("red first"). Whether that is within the exception is the owner's call.
+
+**Kind 4, events with no renderer: none found.**
+- `EVENT_KINDS` is unchanged (`protocol.ts:307-356`), and the fixes raise no new `kind:` in `src/server`. The only server changes are in `economy.ts` and `echoes.ts`, and neither emits an event.
+- `shown.test.ts` and both effects tests are green.
+
+I can't approve. This is what I found.
+
+### Open after the third review
+
+Recorded as found, with none of them fixed in this pass: the owner's
+instruction was to run this review, record it and push. Fixing them is a new
+round of fixes, which would need its own review.
+
+- **M1 to M10**, new in the response to the re-review. Open and undispositioned.
+  M1 and M10 are process questions. M9 is the doc's own citations. M2 is a
+  stale comment. M3 to M8 are tests that a named wrong implementation would
+  still pass.
+- **N2, N3 and R5's cap move to open, the owner's.** The third review's point
+  is a fair one. N2 and N3 are history findings, closed only by a rewrite or
+  by the owner ruling that being recorded closes them. R5's cap is a standing
+  exception to rule 11's letter. Treating these differently from Q3, Q4, Q8
+  and Q10 was inconsistent.
+- Still open from before: **R6** (the shield cyan, the owner's), **phase one-b
+  R7** (the README, the owner's), and **Q3, Q4, Q8 and Q10** (the owner's to
+  say whether a questionable is a finding).
+
+**Roster at `02129bc`:** 219 green, 1 red (R7), confirmed by the third review's
+own run. Typecheck and lint are clean.
