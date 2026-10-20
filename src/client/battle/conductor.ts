@@ -2,8 +2,10 @@
 // where CLAUDE.md rule 11 is kept. The turn strip is drawn at once, on every
 // message, because it is the legibility claim and must never lag. The events
 // that came with the message play in order, each through its renderer, and an
-// event's log line is written only after its renderer has shown it. The log is
-// derivative. While nothing is playing, the field is reconciled to the latest
+// event's log line is written only after its renderer has shown it, with the
+// one exception rule 11 names: a renderer that runs past the cap is logged at
+// the cap, so one stalled renderer can't hold the table (the state itself is
+// drawn from each message on arrival). The log is derivative. While nothing is playing, the field is reconciled to the latest
 // state, so whatever an effect left behind ends up exactly where the server
 // says.
 import type { BattleEvent, BattleState, LogEntry, ServerMessage } from "../../shared/protocol.ts";
@@ -70,8 +72,10 @@ export function createConductor(opts: ConductorOptions): Conductor {
 
   /**
    * Show one event: its variant, and if the full one throws, the reduced one,
-   * which shows the same state change. True once something showed it. A
-   * renderer still running at the cap has been on screen that long, and counts.
+   * which shows the same state change. True once something showed it, or
+   * once the cap passes with the renderer still running: rule 11's named
+   * exception, so a stalled renderer can't hold the table. That isn't "shown";
+   * it may have drawn nothing yet. The state was drawn on arrival.
    */
   async function show(
     renderer: { full: (ctx: EffectContext, e: BattleEvent) => Promise<void> | void; reduced: (ctx: EffectContext, e: BattleEvent) => Promise<void> | void },
