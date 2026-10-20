@@ -34,7 +34,15 @@ for (const line of text.split("\n")) {
 
 // Both keys of a name (src/server/confusables.ts), as separate functions so each is proven; tracing
 // either records both keys' lookups (keptKeys computes them together), so the cut is a little larger.
-const KEYS = [(t: string, m: ReadonlyMap<string, string>) => keptKeys(t, m)[0], (t: string, m: ReadonlyMap<string, string>) => keptKeys(t, m)[1]];
+// For one character, a key per choice it has, as src/server/confusables.ts's charOptions makes them: as given,
+// lowercased, as NFKC, as NFKC lowercased, each settled.
+const settled = (x: string, m: ReadonlyMap<string, string>): string => keptKeys(x, m)[0];
+const KEYS = [
+  (t: string, m: ReadonlyMap<string, string>) => settled(t, m),
+  (t: string, m: ReadonlyMap<string, string>) => settled(t.toLowerCase(), m),
+  (t: string, m: ReadonlyMap<string, string>) => settled(t.normalize("NFKC"), m),
+  (t: string, m: ReadonlyMap<string, string>) => settled(t.normalize("NFKC").toLowerCase(), m),
+];
 const keys = KEPT.flatMap((n) => keptKeys(n.normalize("NFKC"), full));
 const inKeys = new Set(keys.flatMap((k) => [...k]));
 const only = (s: string): boolean => [...s].every((c) => inKeys.has(c));

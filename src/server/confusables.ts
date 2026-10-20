@@ -3,12 +3,12 @@
 // apart by name, so "Wаrden Echo" with a Cyrillic а is "Warden Echo". Unicode
 // TR39's skeleton, for that fixed set only: NFD, each character replaced by its
 // prototype, NFD again (https://www.unicode.org/reports/tr39/#Confusable_Detection).
-// Keys from the name as typed and from its NFKC form (NFKC turns some
-// look-alikes into letters with no Latin prototype: a lunate sigma ϲ becomes ς,
-// the confirm pass's sweep), each taken two ways, from the name as given and
-// lowercased first, and each settled: skeleton then lowercase, repeated until it
-// stops changing. A name is a kept one if, character by character, one of
-// each character's two settled forms spells a kept name's key, so a capital
+// Each character has four settled forms (settled: skeleton then lowercase,
+// repeated until it stops changing): as given, lowercased, as NFKC, and as NFKC
+// lowercased. NFKC is chosen per character (it spoils a lunate sigma ϲ into ς
+// but folds a bold 𝐈 or a long ſ: the owner's ruling on D1). A name is a kept
+// one if, character by character, one of each character's settled forms spells
+// a kept name's key, so a capital
 // look-alike (a Greek Ε), every case of a kept name (a capital I's prototype is
 // l: the final pass's F1), and both at once ("STRIKER ECH0", "ՏTRIKER ECHO": the
 // confirm pass's C1 and its sweep) land on the kept name. Other names are
@@ -47,16 +47,27 @@ export function keptKeys(s: string, prototypes: ReadonlyMap<string, string> = KE
 }
 
 /**
+ * A character's choices: its settled form as given, lowercased, as NFKC, and as
+ * NFKC lowercased. NFKC is a choice per character, not for the whole name: a
+ * lunate sigma must be read as typed (NFKC spoils it into ς) while a bold 𝐈 or
+ * a long ſ beside it folds only under NFKC (the owner's ruling on D1).
+ */
+export function charOptions(c: string, prototypes: ReadonlyMap<string, string> = KEPT_NAME_PROTOTYPES): string[] {
+  const folded = c.normalize("NFKC");
+  return [...new Set([c, c.toLowerCase(), folded, folded.toLowerCase()].map((x) => settle(x, prototypes)))];
+}
+
+/**
  * Whether `name` is the kept name `kept` or a look-alike of it in any case: some
- * choice, character by character, between each character's settled form as
- * given and lowercased spells one of the kept name's keys. A whole-name order
+ * choice, character by character, among each character's settled forms (as
+ * given, lowercased, and their NFKC forms) spells one of the kept name's keys. A whole-name order
  * can't do it: "ՏTRIKER ECHO" needs the Armenian Տ taken as given (its prototype
  * is S) and the capital I lowercased (its prototype is l), both at once (the
  * confirm pass's sweep). Per character, each choice is one of the two keys the
  * generator cuts and proves.
  */
 export function sameKept(name: string, kept: string, prototypes: ReadonlyMap<string, string> = KEPT_NAME_PROTOTYPES): boolean {
-  const options = [...name].map((c) => [...new Set([settle(c, prototypes), settle(c.toLowerCase(), prototypes)])]);
+  const options = [...name].map((c) => charOptions(c, prototypes));
   for (const target of new Set(keptKeys(kept, prototypes))) {
     let at = new Set([0]);
     for (const choices of options) {
