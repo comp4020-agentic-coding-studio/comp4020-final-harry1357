@@ -169,6 +169,24 @@ describe("the server names the card a Reaction answers", () => {
     expect("status" in (e.checkAction(b, "warden-1", "intercept", named) as object), "at the card it named, taken").toBe(false);
   });
 
+  it("names the blow that lands first, counting a frozen card's lost turn (N16)", async () => {
+    // Phase two's re-review, N16: the named card was the lowest countdown, but
+    // a frozen card skips a turn (orrery.ts), so a frozen blow at 0 lands after
+    // an unfrozen one at 0, and B1 made the name binding: the Intercept at the
+    // blow landing first was refused.
+    const e = await engine();
+    let b = table(e, ["warden", "mender", "striker"]);
+    const clean = structuredClone(b);
+    clean.cards = [];
+    b = e.announce(clean, { intent: "eclipse", targetId: "mender-2", amount: 20, countdown: 0 });
+    b = e.announce(b, { intent: "lunge", targetId: "striker-3", amount: 16, countdown: 0 });
+    b = structuredClone(b);
+    const [held, lands] = b.cards;
+    held.frozen = true;
+    expect(reactionCard(e, b, "warden-1"), "the unfrozen blow lands first, so it's the one named").toBe(lands.id);
+    expect("status" in (e.checkAction(b, "warden-1", "intercept", lands.id) as object), "and an Intercept at it is taken").toBe(false);
+  });
+
   it("names no card the Reaction couldn't answer", async () => {
     const e = await engine();
     let b = table(e, ["warden", "mender"]);
