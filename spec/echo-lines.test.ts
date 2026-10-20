@@ -122,6 +122,40 @@ describe("the names kept for the Echoes are compared by confusable skeleton (TR3
     expect(passed, "these sat down as people under a kept Echo name").toEqual([]);
   });
 
+  it("refuses every look-alike of every letter of every kept name, in any case of the rest (C1)", async () => {
+    // The confirm pass's C1: a look-alike paired with a capital I ("STRIKER
+    // ECH0") still sat down, the two keys each missing it. A sweep, not a list:
+    // for every letter of every kept name, every TR39 source whose prototype is
+    // that letter (either case), set into the name as written, with the rest in
+    // upper case, and with the rest in lower case. (The sources are the cut
+    // table's rows, which are TR39's own.)
+    const { checkJoin } = (await import(resolve("src/server/rules.ts"))) as {
+      checkJoin: (b: unknown, characterId: string | null, name: string) => { status: number; error: string } | "already" | null;
+    };
+    const { KEPT_NAME_PROTOTYPES } = (await import(resolve("src/server/confusables-data.ts"))) as { KEPT_NAME_PROTOTYPES: ReadonlyMap<string, string> };
+    const e = await engine();
+    const b = table(e, ["mender"]);
+    const seated: string[] = [];
+    let tried = 0;
+    for (const kept of ["Warden Echo", "Mender Echo", "Striker Echo", "Breaker Echo", "Chronist Echo"]) {
+      const letters = [...kept];
+      letters.forEach((letter, i) => {
+        if (letter === " ") return;
+        const alike = [...KEPT_NAME_PROTOTYPES].filter(([from, to]) => [...to].length === 1 && to.toLowerCase() === letter.toLowerCase() && from !== letter).map(([from]) => from);
+        for (const from of alike) {
+          for (const rest of [(c: string) => c, (c: string) => c.toUpperCase(), (c: string) => c.toLowerCase()]) {
+            const name = letters.map((c, j) => (j === i ? from : rest(c))).join("");
+            tried++;
+            const r = checkJoin(b, null, name);
+            if (!(r && r !== "already" && r.status === 409)) seated.push(name);
+          }
+        }
+      });
+    }
+    expect(tried, "the sweep tried look-alikes").toBeGreaterThan(500);
+    expect(seated.slice(0, 12), `${seated.length} of ${tried} look-alikes sat down as people`).toEqual([]);
+  });
+
   it("leaves names that only share letters alone", async () => {
     const { checkJoin } = (await import(resolve("src/server/rules.ts"))) as {
       checkJoin: (b: unknown, characterId: string | null, name: string) => unknown;
