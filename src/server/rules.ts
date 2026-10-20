@@ -236,9 +236,12 @@ const INVISIBLE = /[\p{Default_Ignorable_Code_Point}\u034f\ufe00-\ufe0f\u3164\uf
 /** Whether two names are the same name: compatibility-folded, case-folded, with nothing invisible. */
 export const nameKey = (name: string): string => name.normalize("NFKC").toLowerCase().replace(INVISIBLE, "");
 
-/** Whether a name is a kept Echo name's look-alike or any case of it: TR39's confusable skeleton, that set only (Q4, F1; ./confusables.ts). */
-const isKeptName = (name: string, kept: string): boolean =>
-  sameKept(name.normalize("NFKC").replace(INVISIBLE, ""), kept.normalize("NFKC").replace(INVISIBLE, ""));
+/** Whether a name is a kept Echo name's look-alike or any case of it: TR39's confusable skeleton, that set only (Q4, F1, C1; ./confusables.ts). */
+const isKeptName = (name: string, kept: string): boolean => {
+  // As typed (NFC, as stored) and as NFKC: NFKC can turn a look-alike into a letter with no prototype.
+  const forms = [name.normalize("NFC"), name.normalize("NFKC")].map((f) => f.replace(INVISIBLE, ""));
+  return forms.some((f) => sameKept(f, kept.normalize("NFKC").replace(INVISIBLE, "")));
+};
 
 /**
  * A name of 1–NAME_MAX characters, stored and shown as typed (composed, NFC),
