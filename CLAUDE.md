@@ -405,7 +405,11 @@ the rules.
   recorded, because the record is the evidence and rewriting pushed history
   would destroy it. A breaker's "questionable" is a finding only if it names a
   rule or an ADR broken in letter or intent; otherwise it is recorded as a risk
-  and closed. (The owner's rulings on phase two's gate.)
+  and closed. (The owner's rulings on phase two's gate.) **A gate closes when
+  every finding is fixed, carried red, closed by ruling, or recorded as history,
+  and the last review finds no rule or ADR violation.** Residuals that review
+  finds in the strength of tests are listed for the next phase, not re-reviewed
+  in this one.
 - Commit when the checks pass. Never commit a red state, **with one
   exception**: a `spec/` test that is red because the feature isn't built yet,
   or because a known bug isn't fixed yet, is a *target*, not a regression.
