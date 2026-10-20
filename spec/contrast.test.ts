@@ -197,6 +197,7 @@ describe(`--${QUIET} on its grounds`, () => {
 describe("phase two's mixed inks, resolved by Chrome", () => {
   let seen: Record<string, string> = {};
   let defined: Record<string, boolean> = {};
+  let own: Record<string, { valid: boolean; hex: string }> = {};
 
   beforeAll(async () => {
     const { launchChrome } = await import("./browser.ts");
@@ -204,7 +205,9 @@ describe("phase two's mixed inks, resolved by Chrome", () => {
     try {
       const tab = await chrome.open(`${baseUrl}/`);
       await tab.until(`!!document.querySelector("#battle .scene") && !!document.querySelector("#battle [data-seats]")`, "the battle screen", 15_000);
-      const got = await tab.evaluate<{ seen: Record<string, string>; defined: Record<string, boolean> }>(`(() => {
+      // The stylesheet applied (the scene painted on --void), or every ink reads as the browser's default.
+      await tab.until(`document.readyState === "complete" && getComputedStyle(document.querySelector("#battle .scene")).backgroundColor !== "rgba(0, 0, 0, 0)"`, "the stylesheet applied", 15_000);
+      const got = await tab.evaluate<{ seen: Record<string, string>; defined: Record<string, boolean>; own: Record<string, { valid: boolean; hex: string }> }>(`(() => {
         const scene = document.querySelector("#battle .scene");
         const seats = document.querySelector("#battle [data-seats]");
         const canvas = document.createElement("canvas");
@@ -228,25 +231,42 @@ describe("phase two's mixed inks, resolved by Chrome", () => {
         const shield = el(scene, "span", "fx-number", { tone: "shield" });
         const gold = el(scene, "span", "fx-number", { tone: "resonance" });
         const code = el(seats, "span", "seats-code");
+        // An Echo's plate tag, on a real Echo actor's plate (the third review's M7: it had dropped out of the pairs).
+        const actor = document.createElement("div");
+        actor.className = "actor";
+        actor.dataset.echo = "";
+        scene.append(actor);
+        const tag = el(actor, "span", "plate-tag");
         const ground = el(scene, "span", "");
         const colour = (node) => hex(getComputedStyle(node).color);
         const of = (value) => { ground.style.color = value; return hex(getComputedStyle(ground).color); };
+        // The window's lighter end, read off a real window's served background (M7: it was the test's own formula).
+        const win = document.querySelector("#battle .log-window.window");
+        const stop = /(rgba?\([^)]*\)|color\([^)]*\)|#[0-9a-f]{3,8})/i.exec(getComputedStyle(win).backgroundImage);
         const seen = {
           card: of("var(--card)"),
           shield: colour(shield),
           gold: colour(gold),
           code: colour(code),
+          tag: colour(tag),
           void: of("var(--void)"),
           ink: of("var(--ink)"),
-          window: of("color-mix(in srgb, var(--ink) 86%, var(--brass))"),
+          window: stop ? hex(stop[1]) : "none",
         };
         const at = (node, name) => getComputedStyle(node).getPropertyValue(name).trim() !== "";
         const defined = { "tone-gold": at(gold, "--tone-gold"), "brass-lit": at(code, "--brass-lit") };
-        for (const n of [shield, gold, code, ground]) n.remove();
-        return { seen, defined };
+        // Each token's own value, as a colour (M7: a token present but invalid left the ink inheriting --card).
+        const value = (node, name) => {
+          const raw = getComputedStyle(node).getPropertyValue(name).trim();
+          return { valid: CSS.supports("color", raw), hex: CSS.supports("color", raw) ? hex(raw) : "invalid" };
+        };
+        const own = { "tone-gold": value(gold, "--tone-gold"), "brass-lit": value(code, "--brass-lit") };
+        for (const n of [shield, gold, code, actor, ground]) n.remove();
+        return { seen, defined, own };
       })()`);
       seen = got.seen;
       defined = got.defined;
+      own = got.own;
     } finally {
       await chrome.close();
     }
@@ -254,6 +274,12 @@ describe("phase two's mixed inks, resolved by Chrome", () => {
 
   it("finds each token defined where its ink is read", () => {
     expect(defined, "an undefined token inherits --card, which would pass").toEqual({ "tone-gold": true, "brass-lit": true });
+  });
+
+  it("finds each ink is its own token's value, a valid colour (M7)", () => {
+    expect(own["tone-gold"].valid && own["brass-lit"].valid, "each token's value is a colour").toBe(true);
+    expect(seen.gold, "the Resonance number is drawn in --tone-gold itself").toBe(own["tone-gold"].hex);
+    expect(seen.code, "the room code in --brass-lit itself").toBe(own["brass-lit"].hex);
   });
 
   it("draws a shield number in --card, a shape and not a seventh colour (R6)", () => {
@@ -267,6 +293,7 @@ describe("phase two's mixed inks, resolved by Chrome", () => {
     ["gold", "void", "a Resonance's number on the field"],
     ["code", "window", "the room code on the seat list, on the window's lighter end"],
     ["code", "ink", "the room code on the window's darker end"],
+    ["tag", "ink", "an Echo's plate tag, on its plate"],
   ])("carries the %s ink on %s at 4.5:1 (%s)", (fg, bg) => {
     expect(seen[fg], `Chrome resolved the ${fg} ink`).toMatch(/^#[0-9a-f]{6}$/);
     const r = contrast(seen[fg], seen[bg]);
