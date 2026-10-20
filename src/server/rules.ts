@@ -42,6 +42,7 @@ import * as economy from "./economy.ts";
 import * as orrery from "./orrery.ts";
 import * as roles from "./roles.ts";
 import { view } from "./view.ts";
+import { keptKey } from "./confusables.ts";
 
 /** How many log lines the live state carries; the full log is in SQLite. */
 const LOG_TAIL = 50;
@@ -235,6 +236,9 @@ const INVISIBLE = /[\p{Default_Ignorable_Code_Point}\u034f\ufe00-\ufe0f\u3164\uf
 /** Whether two names are the same name: compatibility-folded, case-folded, with nothing invisible. */
 export const nameKey = (name: string): string => name.normalize("NFKC").toLowerCase().replace(INVISIBLE, "");
 
+/** A name's key against the five kept Echo names: TR39's confusable skeleton, for that set only (Q4; ./confusables.ts). */
+const keptNameKey = (name: string): string => keptKey(name.normalize("NFKC").replace(INVISIBLE, ""));
+
 /**
  * A name of 1–NAME_MAX characters, stored and shown as typed (composed, NFC),
  * with control characters refused and only the deceiving invisibles removed;
@@ -267,8 +271,9 @@ export function checkJoin(b: Battle, characterId: string | null, name: string): 
   }
   const key = nameKey(name);
   // An Echo's name is kept for the Echo, or a person under it could keep that
-  // role's Echo from ever being seated at the table (rule 25; breaker Q6).
-  const kept = ROLE_IDS.find((role) => nameKey(echoName(role)) === key);
+  // role's Echo from ever being seated at the table (rule 25; breaker Q6), and
+  // compared by confusable skeleton, so a look-alike can't pass for one (Q4).
+  const kept = ROLE_IDS.find((role) => keptNameKey(echoName(role)) === keptNameKey(name));
   if (kept) return { status: 409, error: `"${echoName(kept)}" is kept for the ${ROLES[kept].label}'s Echo; choose another name.` };
   for (const [id, taken] of Object.entries(b.joined)) {
     if (id !== characterId && nameKey(taken) === key) {
