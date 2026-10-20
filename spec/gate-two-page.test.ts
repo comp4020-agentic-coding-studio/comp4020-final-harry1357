@@ -133,6 +133,10 @@ it("T7 (rule 23): with no code, the page opens the room the server's default doo
   // There's no such room, so the join form may never show; the page is judged by what it asked for.
   await t.send("Page.navigate", { url: `${server.base}/` });
   await t.until(`(window.__sockets || []).length > 0`, "a socket opened", 15_000);
+  // And after the server refuses that room (4404), nothing else either (re-review N14: a client trying the
+  // room, then falling back to a battle of its own, passed when read at its first socket).
+  await t.until(`document.querySelector("#battle").dataset.closed === "missing"`, "the page saying there's no such room", 15_000);
+  await t.evaluate(`new Promise((r) => setTimeout(r, 1500))`);
   const sockets = await t.evaluate<string[]>(`window.__sockets`);
   const fetches = await t.evaluate<string[]>(`window.__fetches`);
   expect(sockets.some((u) => /\/ws\?room=QZXWV$/.test(u)), `the room the default door named (sockets: ${sockets.join(", ")})`).toBe(true);
