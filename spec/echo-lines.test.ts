@@ -156,6 +156,25 @@ describe("the names kept for the Echoes are compared by confusable skeleton (TR3
     expect(seated.slice(0, 12), `${seated.length} of ${tried} look-alikes sat down as people`).toEqual([]);
   });
 
+  it("refuses a look-alike read as typed beside a character only NFKC folds (D1)", async () => {
+    // The confirm pass on C1 found D1 (rule 25 in intent): the name was taken
+    // whole as typed or whole as NFKC, so a lunate sigma (which NFKC spoils into
+    // ς) beside a character only NFKC folds (a bold 𝐈, a circled Ⓦ, a modifier ᵒ,
+    // a long ſ) sat down. The owner's ruling: each character may also choose its
+    // NFKC form.
+    const { checkJoin } = (await import(resolve("src/server/rules.ts"))) as {
+      checkJoin: (b: unknown, characterId: string | null, name: string) => { status: number; error: string } | "already" | null;
+    };
+    const e = await engine();
+    const b = table(e, ["mender"]);
+    const seated: string[] = [];
+    for (const name of ["STR\u{1D408}KER E\u03F9HO", "Str\u{1D408}ker E\u03F2ho", "\u24CCarden E\u03F2ho", "Warden E\u03F2h\u1D52", "\u017Ftriker e\u03F2ho"]) {
+      const r = checkJoin(b, null, name);
+      if (!(r && r !== "already" && r.status === 409)) seated.push(name);
+    }
+    expect(seated, "these sat down as people under a kept Echo name").toEqual([]);
+  });
+
   it("leaves names that only share letters alone", async () => {
     const { checkJoin } = (await import(resolve("src/server/rules.ts"))) as {
       checkJoin: (b: unknown, characterId: string | null, name: string) => unknown;
