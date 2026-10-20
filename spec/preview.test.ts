@@ -86,7 +86,16 @@ describe("the ghost is the server's", () => {
       const shown = Object.entries(preview?.actions ?? {});
       expect(shown.length, `a ${role} on the plate is previewed every turn action`).toBe(turnActions[role]);
       for (const [action, p] of shown) {
-        if (p.refusal !== null) continue;
+        if (p.refusal !== null) {
+          // A refusal previewed is a refusal the server gives (re-review N15: refused previews went unchecked):
+          // at no target, and, for an ally action, at every ally standing.
+          const allies = b.standing.filter((f) => f.kind === "character" && f.id !== id).map((f) => f.id);
+          const targets = [null, ...(action === "restore" ? [] : ["mend", "ward", "quicken", "haste"].includes(action) ? allies : [])];
+          for (const t of targets) {
+            expect("status" in (e.checkAction(b, id, action, t) as object), `${role} ${action}: previewed refused, and refused at ${t ?? "no target"}`).toBe(true);
+          }
+          continue;
+        }
         const refusedBare = "status" in (e.checkAction(b, id, action, null) as object);
         const target = refusedBare
           ? (b.standing.find((f) => f.kind === "character" && f.id !== id && !("status" in (e.checkAction(b, id, action, f.id) as object)))?.id ?? null)
