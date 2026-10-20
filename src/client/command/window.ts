@@ -597,7 +597,8 @@ export function mountCommandWindow(root: HTMLElement, opts: CommandOptions): Com
     const named = enabled ? (seat.preview?.[info.id]?.target ?? null) : null;
     aim = { option: i, targets, at: Math.max(0, targets.findIndex((t) => t.id === named)) };
     showAim(true);
-    opts.onTarget(targets[0].id);
+    // What's lit on the field or strip is what the window is aimed at (re-review N4).
+    opts.onTarget(targets[aim.at].id);
   }
 
   function confirm(): void {
