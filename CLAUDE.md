@@ -401,13 +401,20 @@ the rules.
   API, the WebSocket and Chrome; never the live deploy). Neither can approve.
   **Findings outside the phase's surface are carried as red tests and listed
   open in the review; the branch does not merge to main while any review
-  finding is open.**
+  finding is open.** A finding about the commit history is closed by being
+  recorded, because the record is the evidence and rewriting pushed history
+  would destroy it. A breaker's "questionable" is a finding only if it names a
+  rule or an ADR broken in letter or intent; otherwise it is recorded as a risk
+  and closed. (The owner's rulings on phase two's gate.)
 - Commit when the checks pass. Never commit a red state, **with one
-  exception**: a `spec/` test that is red because the feature isn't built yet
-  is a *target*, not a regression. Those are committed red on purpose, and the
-  red-to-green commits are the record of the work. Never weaken one to get a
-  green roster. If a spec test is wrong, say why and change it deliberately, in
-  its own commit.
+  exception**: a `spec/` test that is red because the feature isn't built yet,
+  or because a known bug isn't fixed yet, is a *target*, not a regression.
+  Those are committed red on purpose, and the red-to-green commits are the
+  record of the work: a known bug's failing test goes in one commit ahead of
+  its fix, which is the intended practice, not a stretch of this exception (the
+  owner's ruling, phase two's M10). Never weaken one to get a green roster. If a
+  spec test is wrong, say why and change it deliberately, in its own commit.
+- A change to a never-do rule's text goes in its own commit.
 - `README.md`, `PROCESS.md` and `reflections/` are mine. Don't write them,
   draft them or "tidy" them.
 - **Run it:** `pnpm build && DATABASE_PATH=.data/raid.db pnpm start`, which
