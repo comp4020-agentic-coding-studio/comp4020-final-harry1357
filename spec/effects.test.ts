@@ -229,6 +229,45 @@ const pinned = (call: [string, ...unknown[]], want: Pin, e: Record<string, unkno
 const expand = (want: Pin, e: Record<string, unknown>): Pin[] =>
   want.includes("hit") ? ((e.hits as { targetId: string }[]) ?? []).map((h) => want.map((a) => (a === "hit" ? h.targetId : a)) as Pin) : [want];
 
+describe("every full renderer draws its event's declared state too (N8)", () => {
+  // Phase two's re-review, N8: the 37 kinds without a pin were held only in
+  // their reduced variant. The full variant moves, but it lands on the same
+  // state, so it is held to the same declaration.
+  it("every kind's full renderer makes every call its expected state declares", async () => {
+    const mod = (await import(resolve("src/client/battle/registry.ts"))) as {
+      RENDERERS: Record<string, { full: Effect }>;
+      EXPECTED_STATE: Record<string, [string, ...unknown[]][]>;
+    };
+    const { EVENT_KINDS } = (await import(resolve("src/shared/protocol.ts"))) as { EVENT_KINDS: readonly string[] };
+    const missed: string[] = [];
+    for (const kind of EVENT_KINDS) {
+      const { made, ctx } = recordingContext(false);
+      const e = sample(kind);
+      await mod.RENDERERS[kind].full(ctx, e);
+      for (const want of mod.EXPECTED_STATE[kind] ?? []) if (!made.some((call) => matches(call, want, e))) missed.push(`${kind}: ${JSON.stringify(want)}`);
+    }
+    expect(missed, "full renderers that never make their declared state").toEqual([]);
+  });
+
+  it("the end's banner says which ending, the same in both variants", async () => {
+    // N8 too: the end pin took any banner, so the won line shown for every outcome passed.
+    const mod = (await import(resolve("src/client/battle/registry.ts"))) as { RENDERERS: Record<string, { full: Effect; reduced: Effect }> };
+    const banner: Record<string, unknown[]> = {};
+    for (const outcome of ["won", "lost", "abandoned"]) {
+      for (const variant of ["full", "reduced"] as const) {
+        const { made, ctx } = recordingContext(variant === "reduced");
+        await mod.RENDERERS.end[variant](ctx, { ...sample("end"), outcome });
+        (banner[outcome] ??= []).push(made.find((c) => c[0] === "scene.banner")?.[1]);
+      }
+    }
+    for (const [outcome, [full, reduced]] of Object.entries(banner)) {
+      expect(typeof full, `${outcome}: a banner, in words`).toBe("string");
+      expect(reduced, `${outcome}: the same banner in both variants`).toBe(full);
+    }
+    expect(new Set(Object.values(banner).map(([full]) => full)).size, "three endings, three banners").toBe(3);
+  });
+});
+
 describe("what each event means, drawn in both variants (T1)", () => {
   for (const [kind, { branches, want }] of Object.entries(PINNED)) {
     it(`"${kind}" draws what its fields say, full and reduced, on every branch`, async () => {
