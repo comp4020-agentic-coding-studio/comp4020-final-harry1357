@@ -230,6 +230,27 @@ describe("phase two's gate", () => {
     expect(await door("?room=jkqp3%20", ask), "the padded code as given (ASCII case folded): the server refuses it").toBe("JKQP3 ");
     expect(await door("?room=%20%20", ask), "an address with no code in it: the default door").toBe("QZ7MK");
     expect(asked, "asked only for the empty one").toEqual(["/api/raid"]);
+
+    // The form too (re-review N13): a padded code is refused there, inline, and never sent trimmed.
+    const { mountJoin } = (await import(resolve("src/client/join/join.ts"))) as {
+      mountJoin: (root: HTMLElement, o: unknown) => { show(me: unknown, here?: unknown): void };
+    };
+    const root = document.createElement("section");
+    document.body.append(root);
+    const sent: unknown[] = [];
+    const join = mountJoin(root, { manifest: { facing: "left", required: [], roles: {} }, onJoin: async (d: unknown) => (sent.push(d), { ok: true }) });
+    join.show(null, { code: "RAID", isPublic: true });
+    const form = root.querySelector<HTMLFormElement>("form[data-join]")!;
+    form.querySelector<HTMLInputElement>('input[name="door"][value="code"]')!.click();
+    const field = form.querySelector<HTMLInputElement>('input[name="code"]')!;
+    field.value = " jkqp3 ";
+    field.dispatchEvent(new Event("input", { bubbles: true }));
+    form.querySelector<HTMLInputElement>('input[name="name"]')!.value = "Padded";
+    form.querySelector<HTMLInputElement>('input[name="role"][value="mender"]')!.click();
+    form.requestSubmit();
+    await new Promise((r) => setTimeout(r, 0));
+    expect(sent, "the padded code isn't sent, trimmed or otherwise").toEqual([]);
+    expect(field.getAttribute("aria-invalid"), "the field is marked, and says why").toBe("true");
   });
 
   it("H20's note: a refusal for a returning session keeps focus on something it can see", async () => {
