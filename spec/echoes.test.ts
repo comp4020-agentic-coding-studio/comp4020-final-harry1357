@@ -206,6 +206,32 @@ describe("each role's policy, branch by branch", () => {
     expect(step!.battle.activeId, "and the Mender's turn is still the Mender's").toBe("mender-1");
   });
 
+  it("Warden, off its turn: with a frozen blow first, Intercepts the one the server names (M6)", async () => {
+    // Phase two's third review, M6: the off-turn test above has one card, so
+    // an Echo choosing by countdown passed it too. A frozen blow at 0 lands a
+    // turn late; the one landing now is the card the server names, and the
+    // only one it takes a Reaction at (B1, N16).
+    const e = await echoEngine();
+    const { b, echoId } = withEcho(e, "warden", ["mender", "striker"]);
+    const board = edit(
+      withCards(e, b, [
+        { intent: "eclipse", targetId: "mender-1", countdown: 0 },
+        { intent: "lunge", targetId: "striker-2", countdown: 0 },
+      ]),
+      (x) => {
+        x.cards[0].frozen = true;
+      },
+    );
+    const lands = board.cards[1].id;
+    const step = e.advance(e.plate(board, "mender-1", clock(T0)), clock(T0 + 10));
+    expect(step, "the clock gives the Warden Echo its Reaction").not.toBeNull();
+    expect(step!.effects.events.find((ev) => ev.kind === "intercept"), "at the blow landing now, not the frozen one ahead of it").toMatchObject({
+      actorId: echoId,
+      cardId: lands,
+      protectedId: "striker-2",
+    });
+  });
+
   it("Mender: Wards the one a blow is aimed at, else Mends the lowest, else Quickens the next player", async () => {
     const e = await echoEngine();
     const { b, echoId } = withEcho(e, "mender", ["warden", "striker"]);
