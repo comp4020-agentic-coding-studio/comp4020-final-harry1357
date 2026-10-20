@@ -224,6 +224,9 @@ it("N11 (rule 2): a refused Reaction off-turn lights nothing of the turn", async
     watch.disconnect();
     return lit;
   })()`);
+  // The refusal must really have happened (the third review's M4: a Reaction never sent lit nothing either).
+  expect(await tab.evaluate<boolean>(`window.__refuseNext`), "the Reaction was sent, and the 409 served").toBe(false);
+  expect(await tab.evaluate<string>(`document.querySelector("[data-announce]").textContent`), "and the refusal said").toContain("Refused, for the test.");
   expect(lit, "off-turn, a refused Reaction never lights the turn's actions").toBe(0);
 }, 60_000);
 
