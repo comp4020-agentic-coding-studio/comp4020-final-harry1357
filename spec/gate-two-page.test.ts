@@ -143,10 +143,12 @@ it("T7 (rule 23): with no code, the page opens the room the server's default doo
   // And after the server refuses that room (4404), nothing else either (re-review N14: a client trying the
   // room, then falling back to a battle of its own, passed when read at its first socket).
   await t.until(`document.querySelector("#battle").dataset.closed === "missing"`, "the page saying there's no such room", 15_000);
-  await t.evaluate(`new Promise((r) => setTimeout(r, 1500))`);
+  await t.evaluate(`new Promise((r) => setTimeout(r, 3000))`);
   const sockets = await t.evaluate<string[]>(`window.__sockets`);
   const fetches = await t.evaluate<string[]>(`window.__fetches`);
-  expect(sockets.some((u) => /\/ws\?room=QZXWV$/.test(u)), `the room the default door named (sockets: ${sockets.join(", ")})`).toBe(true);
+  // Exactly the room the default door named, and no other (the third review's M3: a page falling back to
+  // another room after the 4404, the public raid's hard-coded "RAID" say, passed "some socket went there").
+  expect(sockets.map((u) => u.replace(/^.*\/ws/, "/ws")), "the room the default door named, and no other").toEqual(["/ws?room=QZXWV"]);
   expect(sockets.filter((u) => /[?&]battle=/.test(u)), "no battle socket of its own").toEqual([]);
   expect(fetches.filter((f) => /^POST .*\/api\/battles$/.test(f)), "and no bare battle made").toEqual([]);
 }, 60_000);
