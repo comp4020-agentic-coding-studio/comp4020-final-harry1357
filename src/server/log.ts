@@ -124,8 +124,18 @@ const scalar = (v: unknown): v is string | number | boolean =>
 
 function event(b: Battle, e: BattleEvent, by: string | null, bossTurn: boolean): void {
   const subject = "actorId" in e ? e.actorId : null;
+  // An Echo seated on purpose is its seater's act (rule 25): the line is the seater's, by their session.
+  const seater = e.kind === "seat" && e.seatedBy === by ? by : null;
   const actor =
-    subject === null ? "server" : subject === BOSS_ID ? "orrery" : subject === by ? null : bossTurn ? "orrery" : "clock";
+    subject === null
+      ? "server"
+      : subject === BOSS_ID
+        ? "orrery"
+        : subject === by || seater !== null
+          ? null
+          : bossTurn
+            ? "orrery"
+            : "clock";
   const extra: Field[] = e.seq === undefined ? [] : [["seq", e.seq]];
   // Whatever else the event carries is written as it is, one level deep, so
   // an event added to protocol.ts is logged before this file knows its name.
@@ -145,7 +155,8 @@ function event(b: Battle, e: BattleEvent, by: string | null, bossTurn: boolean):
     room: b.id,
     code: b.room,
     tick: e.tick,
-    who: who(b, subject),
+    // The seater's session on their Echo's seat line; the subject's otherwise.
+    who: seater !== null ? who(b, subject, seats.get(seater)?.sid ?? null) : who(b, subject),
     action: e.kind,
     target: "hits" in e ? [["target", "party"]] : aimed(b, "targetId" in e ? e.targetId : null, "target", "target_name"),
     actor,
