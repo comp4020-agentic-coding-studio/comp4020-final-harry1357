@@ -309,7 +309,10 @@ the rules.
 
 13. **Ranks run 1–5, and wait = tickSpeed × rank × haste.** 1 Quick, 2 Light,
     3 Standard, 4 Heavy, 5 Ultimate. Haste halves the reset, never the rate
-    (A1's model, `src/server/ctb.ts`). *Spec: `spec/economy.test.ts`.*
+    (A1's model, `src/server/ctb.ts`). The Orrery's tick speed is the room's
+    pace, not a band of its own (ADR-010: `orreryReset`, at Standard rank,
+    never below `TEMPO_MIN`), and its counter still drops by exactly 1 a
+    tick. *Spec: `spec/economy.test.ts`.*
 14. **A weakness hit refunds one rank (Resonance), and the portrait visibly
     jumps.** Hitting a ring weakness, or a Broken ring, resets the actor's
     counter as if the action were one rank lower (never below 1), and the
