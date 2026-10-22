@@ -75,7 +75,7 @@ describe("the party's sprites", () => {
         expect(res.headers.get("content-type"), `/assets/${file}`).toMatch(/^image\/png/);
       }
     }
-  });
+  }, 30_000); // decodes every sheet: 2.7 s alone, past the 5 s default under a parallel roster
 
   it("tells every sprite the app draws apart in silhouette at 24px", () => {
     // Each idle pose, trimmed, scaled to 24px tall by box-averaging its alpha,

@@ -249,20 +249,27 @@ describe("the public raid", () => {
 
 describe("nothing crosses between rooms", () => {
   it("an action in room A changes nothing in room B's queue", async () => {
+    // Room A is alice's own: asking with a name and a role seats her in it as its host (rule 27). Room B is
+    // another player's, made with no body, which seats them in it as its host (the lobby gate's B4).
     const host = await seatedPlayer(base);
-    const a = await madeRoom(base, host.cookie);
-    const b = await madeRoom(base, host.cookie);
     const s = suffix();
-    const alice = await joinRoom(base, a.code, `alice-${s}`, "striker");
-    expect(alice.status, "alice sits in room A").toBe(200);
+    const madeA = await fetch(new URL("/api/rooms", base), {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ name: `alice-${s}`, role: "striker" }),
+    });
+    expect(madeA.status, "alice makes room A and sits down in it").toBe(201);
+    const aBody = (await madeA.json()) as { code: string; battleId: string; characterId: string };
+    const a = { code: aBody.code, battleId: aBody.battleId };
+    const alice = { characterId: aBody.characterId, cookie: madeA.headers.getSetCookie().map((c) => c.split(";")[0]).join("; ") };
+    const b = await madeRoom(base, host.cookie);
 
     // Two clients, one in each room, both probed.
     const wa = watching(base, a.code);
     const wb = watching(base, b.code);
     await Promise.all([wa.opened, wb.opened]);
 
-    // Room A starts on its host's Start (rule 27): alice is its first person
-    // seated, so she is its host. Then it's Alice's turn.
+    // Room A starts on its host's Start (rule 27): alice's. Then it's Alice's turn.
     expect((await startRoom(base, a.code, alice.cookie)).status, "alice, room A's host, starts its fight").toBe(200);
     await wa.waitFor((st) => st.activeId === alice.characterId, "alice's turn in room A", 25_000);
 

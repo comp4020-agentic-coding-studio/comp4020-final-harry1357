@@ -92,7 +92,27 @@ describe("a phase change is a moment", () => {
     const crossed = step.effects.events.find((ev) => ev.kind === "phase");
     expect(crossed, "a blow past 70% crosses into phase II").toBeDefined();
     expect(crossed, "and names it").toMatchObject({ phase: 2, name: "Conjunction" });
-  });
+    // And phase III its own name (the lobby gate's reviewer: one name for both passed).
+    let c = structuredClone(step.battle);
+    const boss3 = c.standing.find((f) => f.id === "orrery")!;
+    boss3.hp = Math.ceil(boss3.maxHp * 0.36);
+    c = e.plate(c, "striker-1", { now: 1_000_000, turnMs: 12_000 });
+    const third = e.act(c, "striker-1", "cleave", "outer", { now: 1_000_000, turnMs: 12_000 }).effects.events.find((ev) => ev.kind === "phase");
+    expect(third, "past 35%, phase III, named").toMatchObject({ phase: 3, name: "the Grand Alignment" });
+
+    // The strip draws its phase card from state.phase, by names of its own: they are the server's.
+    const { createStrip } = (await import(resolve("src/client/strip/strip.ts"))) as {
+      createStrip: (root: HTMLElement, o: unknown) => { render(s: unknown, me: string | null): void };
+    };
+    const root = document.createElement("aside");
+    const strip = createStrip(root, { manifest: { facing: "left", required: [], roles: {} }, orrerySvg: "<svg></svg>" });
+    for (const ev of [crossed, third] as unknown as { phase: number; name: string }[]) {
+      strip.render({ ...recording(true).ctx.state, phase: ev.phase }, null);
+      const card = root.querySelector<HTMLElement>("[data-phase-card]");
+      expect(card?.hidden, `the phase card is up in phase ${ev.phase}`).toBe(false);
+      expect(card?.querySelector(".strip-phase-name")?.textContent, `and names phase ${ev.phase} as the server does`).toBe(ev.name);
+    }
+  }, 30_000); // builds and pulls a fight on the engine: slow under a parallel roster
 });
 
 describe("the lobby's events are drawn", () => {
@@ -246,5 +266,37 @@ describe("the table's panel draws what only the host may do for the host only (R
     expect(root.querySelectorAll("[data-add-echo]").length, "a guest is offered no Echo").toBe(0);
     seats.render(st, "host", "QZ7MK");
     expect(root.querySelectorAll("[data-add-echo]").length, "the host is offered each open role").toBe(2);
+  });
+});
+
+describe("the lobby draws who is host, and never decides it (rule 27)", () => {
+  it("Start is the host's, as the server names them; everyone else waits for that host by name", async () => {
+    const { createLobby } = (await import(resolve("src/client/lobby/lobby.ts"))) as {
+      createLobby: (root: HTMLElement, o: unknown) => { show(st: unknown, me: string | null, code: string | null): void };
+    };
+    const root = document.createElement("section");
+    document.body.append(root);
+    const lobby = createLobby(root, { onStart: async () => null, onLeave: async () => null, onEcho: async () => null, lastOutcome: () => null });
+    // The host is the SECOND seat here, so a lobby that lit Start for the first seat, or for everyone, fails.
+    const st = {
+      ...state("A", "waiting"),
+      hostId: "second",
+      echoRoles: ["mender"],
+      queue: [
+        { id: "first", kind: "character", name: "Fen", role: "striker", seatedBy: null, echo: false },
+        { id: "second", kind: "character", name: "Sol", role: "warden", seatedBy: null, echo: false },
+        { id: "orrery", kind: "boss", name: "The Orrery", role: "orrery" },
+      ],
+    };
+    const startShown = () => !(root.querySelector("[data-start]") as HTMLButtonElement).hidden;
+    lobby.show(st, "first", "QZ7MK");
+    expect(startShown(), "the first seat, not host: no Start").toBe(false);
+    expect(root.querySelector("[data-lobby-waiting]")?.textContent, "and it waits for the host the server names").toContain("Sol");
+    expect(root.querySelectorAll("[data-add-echo]").length, "and is offered no Echo").toBe(0);
+    lobby.show(st, "second", "QZ7MK");
+    expect(startShown(), "the host: Start").toBe(true);
+    expect(root.querySelectorAll("[data-add-echo]").length, "and the open Echoes").toBe(1);
+    lobby.show({ ...st, hostId: "first" }, "second", "QZ7MK");
+    expect(startShown(), "the server moved the host: Start goes with it").toBe(false);
   });
 });

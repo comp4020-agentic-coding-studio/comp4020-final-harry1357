@@ -120,12 +120,43 @@ describe("a private room waits for its host", () => {
 });
 
 describe("Echoes are seated only in a private lobby", () => {
-  it("an Echo can't be seated in the public raid, in its lobby or its fight", async () => {
+  it("an Echo can't be seated in the public raid, waiting or running", async () => {
     const e = await lobbyEngine();
     let b = e.createBattle("public", true, T0);
     (b as Battle & { room: string | null }).room = "RAID";
     b = e.join(b, { id: "mender-1", name: "mender 1", role: "mender" }, clock(T0)).battle;
-    expect(e.checkSeatEcho(b, "mender-1", "warden"), "no Echo in the public raid").toMatchObject({ status: 403 });
+    expect(e.checkSeatEcho(b, "mender-1", "warden"), "none while it waits for its pull").toMatchObject({ status: 403 });
+    for (let now = T0; now <= T0 + 30_000 && b.status !== "fighting"; now += 150) b = e.advance(b, clock(now))?.battle ?? b;
+    expect(b.status, "the public raid's fight runs").toBe("fighting");
+    expect(e.checkSeatEcho(b, "mender-1", "warden"), "and none while it runs").toMatchObject({ status: 403 });
+  });
+
+  it("the public raid has no host and no lobby, and a Start there is refused (rule 27)", async () => {
+    const e = await lobbyEngine();
+    let b = e.createBattle("public", true, T0);
+    (b as Battle & { room: string | null }).room = "RAID";
+    b = e.join(b, { id: "mender-1", name: "mender 1", role: "mender" }, clock(T0)).battle;
+    expect([sent(e, b).hostId, sent(e, b).lobby], "no host, no lobby, its first seat or not").toEqual([null, false]);
+    expect(e.checkStart(b, "mender-1"), "nobody's Start starts it").toMatchObject({ status: 403 });
+  });
+
+  it("the public raid's next fight pulls after the ready window, for whoever is still standing (rule 27)", async () => {
+    const e = await lobbyEngine();
+    const next = (e as unknown as Record<string, unknown>).nextFight as (ended: Battle, fresh: Battle, c: Clock) => Step;
+    let b = e.createBattle("public", true, T0);
+    (b as Battle & { room: string | null }).room = "RAID";
+    for (const [i, role] of ["warden", "striker"].entries()) b = e.join(b, { id: `p${i}`, name: `p ${i}`, role }, clock(T0)).battle;
+    const ended = structuredClone(b);
+    ended.status = "won";
+    const fresh = e.createBattle("public-2", true, T0 + 60_000);
+    (fresh as Battle & { room: string | null }).room = "RAID";
+    let n = next(ended, fresh, clock(T0 + 60_000)).battle;
+    expect(n.standing.filter((f) => f.kind === "character").length, "both carried").toBe(2);
+    for (let now = T0 + 60_000; now <= T0 + 60_000 + 7_500; now += 150) n = e.advance(n, clock(now))?.battle ?? n;
+    expect(n.status, "still in its ready window at 7.5 s").toBe("waiting");
+    for (let now = T0 + 67_500; now <= T0 + 68_500; now += 150) n = e.advance(n, clock(now))?.battle ?? n;
+    expect(n.status, "pulled at the window's end, with nobody's Start").toBe("fighting");
+    expect(n.pullSeats, "for the two carried").toBe(2);
   });
 
   it("nor mid-fight in a private room, nor by anyone but the host", async () => {
@@ -262,7 +293,9 @@ const post = (base: string, path: string, cookie: string, body: object = {}) =>
 
 describe("the lobby, over the wire", () => {
   it("the host's Start starts the room's fight; a guest's is refused; the room sits still until then", async () => {
-    server = await boot(scratchDatabase(), { TICK_MS: "5" });
+    // Nobody here holds a socket of their own on the room, so the lobby's presence sweep is put out of reach:
+    // what's measured is the lobby's clock, not who has left it.
+    server = await boot(scratchDatabase(), { TICK_MS: "5", LOBBY_GRACE_MS: "600000" });
     const host = await founded(server.base);
     const guest = await joinRoom(server.base, host.code, `guest-${suffix()}`, "striker");
     expect(guest.status, "a guest sits down in the lobby").toBe(200);
@@ -270,11 +303,21 @@ describe("the lobby, over the wire", () => {
     open.push(w);
     await w.opened;
 
-    await sleep(1_500); // three hundred ticks at 5 ms: far past the old countdown
-    const waiting = await w.waitFor((st) => st.battleId === host.battleId, "the room's fight", 2_000);
-    const last = w.states.at(-1) as BattleState & { hostId?: string; lobby?: boolean };
-    expect([last.status, last.hostId, last.lobby], "still a lobby, with its host named").toEqual(["waiting", host.characterId, true]);
-    expect(last.tick, "and its clock never moved").toBe(waiting.tick);
+    const before = await w.waitFor((st) => st.battleId === host.battleId, "the room's fight", 2_000);
+    // Past the old countdown (ten seconds of wall clock, ADR-006) and its thirty-second cap's first third, then
+    // read afresh on a socket opened now: a countdown in progress broadcasts nothing, so the first socket's last
+    // state would be the same object as before (the lobby gate's reviewer).
+    await sleep(11_000);
+    expect(w.messages.length, "the lobby broadcast nothing in eleven seconds: no tick, no countdown").toBe(1);
+    const fresh = watchRoom(server.base, host.code);
+    open.push(fresh);
+    const now = (await fresh.waitFor((st) => st.battleId === host.battleId, "the room's fight, read afresh", 2_000)) as BattleState & {
+      hostId?: string;
+      lobby?: boolean;
+    };
+    expect([now.status, now.hostId, now.lobby], "still a lobby, with its host named").toEqual(["waiting", host.characterId, true]);
+    expect(now.tick, "and its clock never moved").toBe(before.tick);
+    expect(now.tick, "from nought").toBe(0);
 
     const refused = await post(server.base, `/api/rooms/${host.code}/start`, guest.cookie);
     expect(refused.status, "a guest's Start is refused").toBe(403);
@@ -283,7 +326,7 @@ describe("the lobby, over the wire", () => {
     const fighting = await w.waitFor((st) => st.status === "fighting", "the fight to start", 5_000);
     expect(fighting.pullSeats, "pulled for the two seated").toBe(2);
     expect((await post(server.base, `/api/rooms/${host.code}/start`, host.cookie)).status, "a second Start is refused").toBe(409);
-  }, 20_000);
+  }, 30_000);
 
   it("an Echo can't be seated in the public raid", async () => {
     server = await boot(scratchDatabase(), { TICK_MS: "20" });
@@ -338,7 +381,15 @@ describe("the lobby, over the wire", () => {
     const next = await w.waitFor((st) => st.battleId !== host.battleId, "the room's next fight", 5_000);
     const lobbyState = next as BattleState & { hostId?: string; lobby?: boolean };
     expect([lobbyState.status, lobbyState.lobby, lobbyState.hostId], "a lobby again, the same host").toEqual(["waiting", true, host.characterId]);
-    expect(next.queue.filter((t) => t.kind === "character").length, "the host and the four Echoes, still seated").toBe(5);
+    const seated = next.queue.filter((t) => t.kind === "character");
+    expect(seated.length, "the host and the four Echoes, still seated").toBe(5);
+    // Still Echoes, each as its role, seated by the host; and the host still the person they were (the lobby
+    // gate's reviewer: five characters passed if the Echoes came back as people, or as other roles).
+    const echoes = seated.filter((t) => t.seatedBy !== null);
+    expect(echoes.map((t) => [t.role, t.echo, t.seatedBy]).sort(), "the four Echoes, as their roles, Echoes still, the host's").toEqual(
+      ["breaker", "chronist", "mender", "warden"].map((role) => [role, true, host.characterId]),
+    );
+    expect(seated.find((t) => t.id === host.characterId)?.role, "the host as the Striker they sat down as").toBe("striker");
   }, 140_000);
 });
 

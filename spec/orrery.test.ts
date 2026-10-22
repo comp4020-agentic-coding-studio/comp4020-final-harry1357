@@ -1,7 +1,7 @@
 import { afterAll, describe, expect, it } from "vitest";
 import { boot, cleanScratch, scratchDatabase } from "./boot.ts";
 import { announced, bossTurn, engine, events, fighter, ring, table, turn } from "./engine.ts";
-import { boss, join, newBattle, sleep, suffix, type BattleState } from "./raid.ts";
+import { act, boss, join, newBattle, sleep, suffix, type BattleState } from "./raid.ts";
 
 // The Orrery (CLAUDE.md rules 19-20; docs/design/overhaul.md, Priority 3).
 // Its script is held on the pure engine, where a phase threshold or a third
@@ -281,17 +281,22 @@ describe("HP is set at the pull, over the wire", () => {
     try {
       const battleId = await newBattle(server.base);
       const s = suffix();
-      expect((await join(server.base, battleId, `first-${s}`, "striker")).status).toBe(200);
+      const first = await join(server.base, battleId, `first-${s}`, "striker");
+      expect(first.status).toBe(200);
       expect((await join(server.base, battleId, `second-${s}`, "warden")).status).toBe(200);
       const running = await until(server.base, battleId, (st) => st.status === "fighting" && (st.pullSeats ?? 0) > 0, "the pull");
       const pulled = boss(running)?.maxHp;
       expect(running.pullSeats, "the pull counted the seats present").toBe(2);
 
       const share = (st: BattleState) => (boss(st)?.hp ?? 0) / (boss(st)?.maxHp ?? 1);
-      const before = await until(server.base, battleId, (st) => st.status === "fighting", "the fight");
+      // Wound it first, so the share kept can be told from a refill to the new max (the lobby gate's reviewer).
+      await until(server.base, battleId, (st) => st.activeId === first.characterId, "the Striker's turn");
+      expect((await act(server.base, battleId, first.cookie, "cleave")).status, "the Striker cleaves").toBe(200);
+      const before = await until(server.base, battleId, (st) => share(st) < 1, "the Orrery wounded");
       expect((await join(server.base, battleId, `late-${s}`, "mender")).status, "a late joiner still gets a seat").toBe(200);
       const after = await until(server.base, battleId, (st) => st.queue.some((t) => t.name === `late-${s}`), "the late joiner on the strip");
       expect(boss(after)?.maxHp, "a late joiner grows the running fight's HP to the curve for three").toBe((await engine()).orreryHp(3));
+      expect(share(after), "not refilled to the new max").toBeLessThan(1);
       expect(Math.abs(share(after) - share(before)), "with the share it stood at kept (within a blow or two)").toBeLessThan(0.1);
       void pulled;
 

@@ -101,7 +101,7 @@ describe("the fight is shown", () => {
       for (const [role, actions] of Object.entries(plan)) {
         const seat = await join(server.base, battleId, `${role}-${s}`, role);
         expect(seat.status).toBe(200);
-        seats.push({ ...seat, actions, turn: 0 });
+        seats.push({ ...seat, actions, turn: 0, landed: 0 });
       }
       expect((await join(server.base, battleId, `idler-${s}`, "chronist")).status).toBe(200);
 
@@ -118,14 +118,22 @@ describe("the fight is shown", () => {
         if (seat) {
           const action = seat.actions[seat.turn++ % seat.actions.length];
           // The state was read a moment ago: on a 250 ms turn the plate can pass before the POST lands, and the
-          // server refuses the late action with 409 (rule 10). That is the server's clock deciding, not a fault.
-          expect([200, 409], `${action} on my turn, or refused as late`).toContain((await act(server.base, battleId, seat.cookie, action)).status);
+          // server refuses the late action with 409 (rule 10). That is the server's clock deciding, not a fault,
+          // and its refusal names whose turn it is, or who just took it (ADR-005). Each role still has to land
+          // some (the lobby gate's reviewer: a server refusing every action passed the bare 200-or-409).
+          const res = await act(server.base, battleId, seat.cookie, action);
+          if (res.status === 200) seat.landed++;
+          else {
+            expect(res.status, `${action}: taken, or refused as late`).toBe(409);
+            expect(res.error, `${action} refused as late, naming the turn`).toMatch(/turn/);
+          }
         } else {
           await sleep(5);
         }
       }
       await sleep(100);
       w.close();
+      for (const seat of seats) expect(seat.landed, `${seat.actions[0]}'s seat landed some of its actions`).toBeGreaterThan(0);
 
       const seen = [...new Set(w.events.map((e) => e.kind))];
       expect(seen.filter((k) => !kinds.includes(k)), "the server broadcast event kinds the protocol doesn't declare").toEqual([]);

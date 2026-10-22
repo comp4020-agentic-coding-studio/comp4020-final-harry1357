@@ -104,11 +104,15 @@ describe("the queue is the truth", () => {
       from,
     );
     expect(moved.tick, "the change reached the other side within one tick").toBeLessThanOrEqual((res.tick as number) + 1);
-    // Off the plate: not active, and waiting again. Alone, a fast seat can come
-    // round before the Orrery (it keeps the room's pace, docs/adr/010), so the
-    // head of the queue may be me again; what moved is my wait.
-    expect(moved.activeId, "I'm off the strike plate").not.toBe(mine.characterId);
-    expect(token(moved, mine.characterId)?.counter, "with a wait to come round again").toBeGreaterThan(0);
+    // Off the plate, and the queue re-ordered by the server around my new wait. Alone, a fast seat can come
+    // round before the Orrery (it keeps the room's pace, docs/adr/010), so the head of the queue may be me again:
+    // what holds is that the queue as sent is in counter order, with me where my new wait puts me.
+    const counters = moved.queue.map((t) => t.counter);
+    expect(counters, "the queue is sent in the order its counters put it").toEqual([...counters].sort((x, y) => x - y));
+    const mineNow = token(moved, mine.characterId)?.counter ?? 0;
+    expect(moved.queue.findIndex((t) => t.id === mine.characterId), "and I'm placed behind everyone with less to wait").toBe(
+      moved.queue.filter((t) => t.counter < mineNow).length,
+    );
     const orrery = boss(moved);
     expect(orrery?.hp, "and the strike landed").toBeLessThan(orrery?.maxHp ?? 0);
   }, 25_000);
