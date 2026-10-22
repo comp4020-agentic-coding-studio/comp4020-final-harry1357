@@ -13,6 +13,7 @@ import {
   room,
   seatEcho,
   sleep,
+  startRoom,
   suffix,
   token,
   watch,
@@ -260,18 +261,19 @@ describe("nothing crosses between rooms", () => {
     const wb = watching(base, b.code);
     await Promise.all([wa.opened, wb.opened]);
 
-    // Room A pulls ten seconds after its last seat (docs/adr/006); then it's Alice's turn.
+    // Room A starts on its host's Start (rule 27): alice is its first person
+    // seated, so she is its host. Then it's Alice's turn.
+    expect((await startRoom(base, a.code, alice.cookie)).status, "alice, room A's host, starts its fight").toBe(200);
     await wa.waitFor((st) => st.activeId === alice.characterId, "alice's turn in room A", 25_000);
 
-    // Bob sits in room B only now, so room B is in its pull's countdown while
-    // Alice strikes: a waiting room's clock moves nothing and broadcasts
-    // nothing. Anything room B's socket carries from here on came from
+    // Bob sits in room B only now, so room B is a lobby while Alice strikes:
+    // a lobby's clock moves nothing and broadcasts nothing. Anything room B's socket carries from here on came from
     // somewhere else (review R17: comparing B's members alone passed if A's
     // action moved B's counters or order).
     const bob = await joinRoom(base, b.code, `bob-${s}`, "breaker");
     expect(bob.status, "bob sits in room B").toBe(200);
     const bSeated = await wb.waitFor((st) => token(st, bob.characterId) !== undefined, "bob on room B's strip", 5_000);
-    expect(bSeated.status, "room B is still counting down to its pull").toBe("waiting");
+    expect(bSeated.status, "room B is still a lobby, waiting on its host").toBe("waiting");
     const bQuiet = wb.messages.length;
     const bRooms = wb.rooms.length;
 
@@ -318,6 +320,8 @@ describe("nothing crosses between rooms", () => {
     const wb = watching(base, b.code);
     await Promise.all([wa.opened, wb.opened]);
     const id = host.characterId;
+    // The host of both lobbies starts each fight (rule 27).
+    for (const r of [a, b]) expect((await startRoom(base, r.code, host.cookie)).status, `the host starts room ${r.code}`).toBe(200);
     const [sa, sb] = await Promise.all([
       wa.waitFor((st) => token(st, id) !== undefined, "the seat on room A's strip", 5_000),
       wb.waitFor((st) => token(st, id) !== undefined, "the seat on room B's strip", 5_000),
@@ -396,12 +400,16 @@ describe("rooms expire; logs don't", () => {
     // Fifteen minutes is ROOM_EMPTY_MS; here three seconds. A fast clock, a short
     // turn and a short beat, and four Echoes beside one person who never acts,
     // so the fight plays itself to an ending (rule 25) in seconds, not minutes.
+    // After the fight the room returns to its lobby with the host still seated
+    // (rule 27); a host with no socket on it has left after LOBBY_GRACE_MS,
+    // short here, and only then is the room empty.
     const WINDOW_MS = 3_000;
     server = await boot(scratchDatabase(), {
       TICK_MS: "5",
       TURN_TIMEOUT_MS: "150",
       ECHO_BEAT_MS: "10",
       ROOM_EMPTY_MS: String(WINDOW_MS),
+      LOBBY_GRACE_MS: "300",
     });
     const at = server.base;
     const host = await seatedPlayer(at);
@@ -413,6 +421,7 @@ describe("rooms expire; logs don't", () => {
 
     const w = watching(at, made.code);
     await w.opened;
+    expect((await startRoom(at, made.code, host.cookie)).status, "the host starts the fight (rule 27)").toBe(200);
     const ended = await w.waitFor(
       (st) => st.battleId === made.battleId && ["won", "lost", "abandoned"].includes(st.status),
       "the room's fight to finish",
@@ -541,6 +550,7 @@ describe("rooms expire; logs don't", () => {
     const made = (await res.json()) as { code: string; battleId: string };
     const cookie = res.headers.getSetCookie().map((c) => c.split(";")[0]).join("; ");
     for (const role of ["warden", "mender", "breaker", "chronist"]) expect((await seatEcho(server.base, made.code, cookie, role)).status).toBe(201);
+    expect((await startRoom(server.base, made.code, cookie)).status, "the founder, its host, starts the fight (rule 27)").toBe(200);
     for (const deadline = Date.now() + 60_000; ; await sleep(200)) {
       const now = await room(server.base, made.code);
       if (now.room && now.room.battleId !== made.battleId) break;

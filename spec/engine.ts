@@ -153,11 +153,33 @@ export function table(e: Engine, roles: string[], now = 1_000_000): Battle {
   roles.forEach((role, i) => {
     b = e.join(b, { id: `${role}-${i + 1}`, name: `${role} ${i + 1}`, role }, clock(now)).battle;
   });
-  // The pull: a countdown in wall-clock time after the seats (docs/adr/006),
-  // then the Orrery's HP is set from whoever is there (rule 20). Run the clock
-  // past it, as a real room's would; thirty seconds is the cap.
+  // The pull: a bare battle's ready window in wall-clock time after its first
+  // seat (docs/adr/009), then the Orrery's HP is set from whoever is there
+  // (rule 20). Run the clock past it, as a real room's would.
   for (let at = now; at <= now + 31_000 && b.status !== "fighting"; at += 500) b = e.advance(b, clock(at))?.battle ?? b;
   if (b.status !== "fighting") throw new Error(`the battle never pulled (still ${b.status})`);
+  return b;
+}
+
+/**
+ * A private room's fight (docs/adr/009): these roles seated in its lobby as
+ * people, in order (ids as table()'s), then `echoes` seated by the first of
+ * them, the host, then the host's Start. The one door an Echo has into a fight
+ * (rule 25: only in a private lobby). The engine's lobby exports are named on
+ * the call, so a missing one is a failure with its name.
+ */
+export function lobbyTable(e: Engine, roles: string[], echoes: { id: string; role: string }[] = [], now = 1_000_000): Battle {
+  const x = e as unknown as Record<string, (...args: unknown[]) => { battle: Battle }>;
+  for (const name of ["seatEcho", "start"]) if (typeof x[name] !== "function") throw new Error(`the battle engine doesn't export ${name} yet`);
+  let b = e.createBattle("spec", false, now);
+  (b as Battle & { room: string | null }).room = "SPEC1";
+  roles.forEach((role, i) => {
+    b = e.join(b, { id: `${role}-${i + 1}`, name: `${role} ${i + 1}`, role }, clock(now)).battle;
+  });
+  const host = `${roles[0]}-1`;
+  for (const echo of echoes) b = x.seatEcho(b, { ...echo, seatedBy: host }, clock(now)).battle;
+  b = x.start(b, host, clock(now)).battle;
+  if (b.status !== "fighting") throw new Error(`the host's Start didn't start the fight (still ${b.status})`);
   return b;
 }
 

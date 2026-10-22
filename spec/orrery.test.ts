@@ -273,8 +273,10 @@ describe("HP is set at the pull, over the wire", () => {
     }
   }
 
-  it("a join during a running fight leaves max HP unchanged, and the next fight re-scales", async () => {
-    // 20 ms ticks: the pull's countdown is long enough for two joins to land inside it.
+  it("a join during a running fight grows max HP with its share kept, and the next fight re-scales", async () => {
+    // Rule 20 as ADR-009 amends it: a late joiner raises the Orrery to the
+    // curve for the seats now present, its percentage kept. 20 ms ticks: the
+    // ready window is long enough for two joins to land inside it.
     const server = await boot(scratchDatabase(), { TICK_MS: "20" });
     try {
       const battleId = await newBattle(server.base);
@@ -285,9 +287,13 @@ describe("HP is set at the pull, over the wire", () => {
       const pulled = boss(running)?.maxHp;
       expect(running.pullSeats, "the pull counted the seats present").toBe(2);
 
+      const share = (st: BattleState) => (boss(st)?.hp ?? 0) / (boss(st)?.maxHp ?? 1);
+      const before = await until(server.base, battleId, (st) => st.status === "fighting", "the fight");
       expect((await join(server.base, battleId, `late-${s}`, "mender")).status, "a late joiner still gets a seat").toBe(200);
       const after = await until(server.base, battleId, (st) => st.queue.some((t) => t.name === `late-${s}`), "the late joiner on the strip");
-      expect(boss(after)?.maxHp, "a late joiner doesn't change a running fight's HP").toBe(pulled);
+      expect(boss(after)?.maxHp, "a late joiner grows the running fight's HP to the curve for three").toBe((await engine()).orreryHp(3));
+      expect(Math.abs(share(after) - share(before)), "with the share it stood at kept (within a blow or two)").toBeLessThan(0.1);
+      void pulled;
 
       // The next fight, with the same three, is pulled for three.
       const next = await newBattle(server.base);

@@ -104,7 +104,11 @@ describe("the queue is the truth", () => {
       from,
     );
     expect(moved.tick, "the change reached the other side within one tick").toBeLessThanOrEqual((res.tick as number) + 1);
-    expect(moved.queue[0]?.id, "I'm off the strike plate").not.toBe(mine.characterId);
+    // Off the plate: not active, and waiting again. Alone, a fast seat can come
+    // round before the Orrery (it keeps the room's pace, docs/adr/010), so the
+    // head of the queue may be me again; what moved is my wait.
+    expect(moved.activeId, "I'm off the strike plate").not.toBe(mine.characterId);
+    expect(token(moved, mine.characterId)?.counter, "with a wait to come round again").toBeGreaterThan(0);
     const orrery = boss(moved);
     expect(orrery?.hp, "and the strike landed").toBeLessThan(orrery?.maxHp ?? 0);
   }, 25_000);

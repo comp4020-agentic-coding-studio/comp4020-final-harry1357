@@ -1,11 +1,12 @@
 import { afterEach, describe, expect, inject, it } from "vitest";
-import { clock, engine, fighter, sent, table, turn, type Battle, type Clock, type Engine, type Step } from "./engine.ts";
+import { clock, engine, fighter, lobbyTable, sent, table, turn, type Battle, type Clock, type Engine, type Step } from "./engine.ts";
 import {
   createRoom,
   join,
   joinRoom,
   newBattle,
   seatEcho,
+  startRoom,
   sleep,
   suffix,
   token,
@@ -58,14 +59,19 @@ async function echoEngine(): Promise<EchoEngine> {
 const T0 = 3_000_000;
 const PAST_BEAT = 3_500;
 
-/** A table with one person (`<role>-1` for each role given) and an Echo of `role` seated by the first of them. */
+/**
+ * A table with one person (`<role>-1` for each role given) and an Echo of
+ * `role` seated by the first of them, the host, in a private room's lobby
+ * before the host's Start: the one door an Echo has (rule 25; docs/adr/009).
+ */
 function withEcho(e: EchoEngine, role: string, people: string[] = ["mender"]): { b: Battle; echoId: string; seatedBy: string } {
-  const b = table(e, people);
   const seatedBy = `${people[0]}-1`;
   const echoId = `echo-${role}`;
-  const refused = e.checkSeatEcho(b, seatedBy, role);
-  expect(refused, `someone seated in the fight can seat a ${role} Echo`).toBeNull();
-  return { b: e.seatEcho(b, { id: echoId, role, seatedBy }, clock()).battle, echoId, seatedBy };
+  let lobby = e.createBattle("spec", false, 1_000_000);
+  (lobby as Battle & { room: string | null }).room = "SPEC1";
+  people.forEach((r, i) => (lobby = e.join(lobby, { id: `${r}-${i + 1}`, name: `${r} ${i + 1}`, role: r }, clock()).battle));
+  expect(e.checkSeatEcho(lobby, seatedBy, role), `the host can seat a ${role} Echo in the lobby`).toBeNull();
+  return { b: lobbyTable(e, people, [{ id: echoId, role }]), echoId, seatedBy };
 }
 
 /** The Echo's turn: on the plate, past its beat, played by the clock. */
@@ -372,7 +378,9 @@ describe("a refused Echo is told why", () => {
     // Breaker Q4: at the cap, a second Warden Echo was told the table was full,
     // not that it already had a Warden Echo.
     const e = await echoEngine();
-    let b = table(e, ["mender"]);
+    let b = e.createBattle("spec", false, 1_000_000);
+    (b as Battle & { room: string | null }).room = "SPEC1";
+    b = e.join(b, { id: "mender-1", name: "mender 1", role: "mender" }, clock()).battle;
     for (const role of ["warden", "mender", "striker", "breaker"]) {
       b = e.seatEcho(b, { id: `echo-${role}`, role, seatedBy: "mender-1" }, clock()).battle;
     }
@@ -461,7 +469,8 @@ describe("Echoes in a room, live", () => {
     const marked = await w.waitFor((st) => token(st, echoId) !== undefined, "the Echo on the strip", 5_000);
     expect(token(marked, echoId), "marked as an Echo, with who seated it").toMatchObject({ echo: true, seatedBy: hostId, role: "breaker" });
 
-    // The pull (ten seconds after the last seat), then the Echo's turn and its beat.
+    expect((await startRoom(base, code, cookie)).status, "the host starts the fight").toBe(200);
+    // The host's Start (rule 27), then the Echo's turn.
     let at = -1;
     for (const deadline = Date.now() + 35_000; at < 0; await sleep(50)) {
       at = w.messages.findIndex((m) => m.events.some((ev: Event) => ev.actorId === echoId && EVERY_ACTION.has(ev.kind)));
@@ -492,7 +501,8 @@ describe("Echoes in a room, live", () => {
     expect(fifth.status, "four Echoes is the most a room seats: a fifth is refused").toBe(409);
     expect(fifth.error, "with a reason").toEqual(expect.any(String));
 
-    // Four Echoes on the strip, and at the pull each counts half a seat (rule 20).
+    // Four Echoes on the strip, and at the host's Start each counts half a seat (rule 20).
+    expect((await startRoom(base, code, cookie)).status, "the host starts the fight").toBe(200);
     const pulled = await w.waitFor((st) => st.status === "fighting", "the pull", 25_000);
     expect(pulled.queue.filter((t) => t.echo === true).length, "four Echoes on the strip").toBe(4);
     expect(pulled.pullSeats, "one person and four Echoes: 1 + 4 × ½ seats").toBe(3);

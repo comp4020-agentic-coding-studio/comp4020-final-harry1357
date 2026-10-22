@@ -208,6 +208,17 @@ export async function seatEcho(
   };
 }
 
+/** The host's Start (rule 27; docs/adr/009): a private room's fight begins only on it. */
+export async function startRoom(base: string, code: string, cookie: string): Promise<{ status: number; error: string | null }> {
+  const res = await fetch(new URL(`/api/rooms/${encodeURIComponent(code)}/start`, base), {
+    method: "POST",
+    headers: { "content-type": "application/json", ...(cookie ? { cookie } : {}) },
+    body: "{}",
+  });
+  const { error } = await body(res);
+  return { status: res.status, error: typeof error === "string" ? error : null };
+}
+
 export const token = (state: BattleState, id: string | null): Token | undefined =>
   state.queue.find((t) => t.id === id);
 

@@ -1,22 +1,22 @@
 import { describe, expect, it } from "vitest";
 import { clock, engine, type Battle, type Engine } from "./engine.ts";
 
-// The pull (docs/adr/006, "The pull"; CLAUDE.md rule 20). The Orrery's HP is
-// set once, at the pull, from the seats present, so the room needs a moment to
-// sit down first. The countdown starts at the first seat and restarts to ten
-// seconds whenever someone new sits down, but never runs past thirty seconds
-// from the first seat: after that it pulls regardless, so a steady trickle of
-// arrivals can't hold the fight off for ever.
+// The pull (docs/adr/006, amended by docs/adr/009; CLAUDE.md rules 20 and 27).
+// A countdown assumes a table arrives together, and tables don't, so it is
+// gone. A private room's fight pulls on its host's Start (spec/lobby.test.ts).
+// The public raid, and a bare battle, have no host: theirs pulls after a short
+// ready window from its first seat, READY_MS (eight seconds, ours), and a
+// later seat doesn't put it off. Anyone who arrives after the pull grows the
+// Orrery instead (rule 20), so nobody is missed by pulling early.
 //
 // It is counted in seconds on the clock the caller supplies, not in ticks: a
-// tick is 150 ms live and 5 ms in a fast spec, and the countdown must be ten
+// tick is 150 ms live and 5 ms in a fast spec, and the window must be eight
 // seconds either way. The engine is pure, so the clock is injected here.
 
-const RESTART_MS = 10_000;
-const CAP_MS = 30_000;
+const READY_MS = 8_000;
 const T0 = 1_000_000;
 
-/** Seat one character at `at`. */
+/** Seat one character at `at` in this battle. */
 function sit(e: Engine, b: Battle, n: number, at: number): Battle {
   return e.join(b, { id: `seat-${n}`, name: `Seat ${n}`, role: "striker" }, clock(at)).battle;
 }
@@ -27,61 +27,54 @@ function runTo(e: Engine, b: Battle, from: number, at: number): Battle {
   return b;
 }
 
-describe("the pull", () => {
-  it("waits ten seconds from the first seat, then pulls", async () => {
-    const e = await engine();
-    let b = sit(e, e.createBattle("pull", false, T0), 1, T0);
-    expect(b.status, "nobody is fought the moment they sit down").toBe("waiting");
+/** A public raid's fight, as the table opens one. */
+function publicFight(e: Engine): Battle {
+  const b = e.createBattle("pull", true, T0);
+  (b as Battle & { room: string | null }).room = "RAID";
+  return b;
+}
 
-    b = runTo(e, b, T0, T0 + RESTART_MS - 500);
-    expect(b.status, "still seating, half a second short of ten").toBe("waiting");
-    b = runTo(e, b, T0 + RESTART_MS - 500, T0 + RESTART_MS + 500);
-    expect(b.status, "ten seconds on, the Orrery wakes").toBe("fighting");
+describe("the public raid's pull", () => {
+  it("waits for the first seat, then pulls after the ready window", async () => {
+    const e = await engine();
+    let b = runTo(e, publicFight(e), T0, T0 + 60_000);
+    expect(b.status, "with nobody seated, nothing pulls, however long").toBe("waiting");
+
+    b = sit(e, b, 1, T0 + 60_000);
+    b = runTo(e, b, T0 + 60_000, T0 + 60_000 + READY_MS - 500);
+    expect(b.status, "half a second short of the window, still waiting").toBe("waiting");
+    b = runTo(e, b, T0 + 60_000 + READY_MS - 500, T0 + 60_000 + READY_MS + 500);
+    expect(b.status, "the window up, the Orrery wakes").toBe("fighting");
     expect(b.pullSeats, "pulled for the one seat present").toBe(1);
   });
 
-  it("restarts to ten seconds when a new seat joins during the countdown", async () => {
+  it("a later seat doesn't put the pull off: the window runs from the first", async () => {
     const e = await engine();
-    let b = sit(e, e.createBattle("pull", false, T0), 1, T0);
-    b = runTo(e, b, T0, T0 + 8_000);
-    b = sit(e, b, 2, T0 + 8_000);
-
-    // Without the restart it would pull at T0 + 10 s; with it, not before T0 + 18 s.
-    b = runTo(e, b, T0 + 8_000, T0 + 17_500);
-    expect(b.status, "the second seat bought the room another ten seconds").toBe("waiting");
-    b = runTo(e, b, T0 + 17_500, T0 + 18_500);
-    expect(b.status, "ten seconds after the last seat, it pulls").toBe("fighting");
-    expect(b.pullSeats, "counting both").toBe(2);
+    let b = sit(e, publicFight(e), 1, T0);
+    b = runTo(e, b, T0, T0 + 6_000);
+    b = sit(e, b, 2, T0 + 6_000);
+    // The old countdown would restart here, to T0 + 16 s. The window doesn't.
+    b = runTo(e, b, T0 + 6_000, T0 + READY_MS + 500);
+    expect(b.status, "it pulls on the first seat's window").toBe("fighting");
+    expect(b.pullSeats, "counting everyone seated by then").toBe(2);
+    const boss = b.standing.find((f) => f.id === "orrery")!;
+    expect(boss.maxHp, "on the curve for two seats").toBe(e.orreryHp(2));
   });
 
-  it("pulls at thirty seconds from the first seat regardless, however many keep arriving", async () => {
+  it("a private room's fight never pulls on a timer", async () => {
     const e = await engine();
-    let b = sit(e, e.createBattle("pull", false, T0), 1, T0);
-    // A new seat every eight seconds would restart a plain countdown for ever.
-    let n = 2;
-    let now = T0;
-    for (const at of [8_000, 16_000, 24_000]) {
-      b = runTo(e, b, now, T0 + at);
-      b = sit(e, b, n++, T0 + at);
-      now = T0 + at;
-    }
-    b = runTo(e, b, now, T0 + CAP_MS - 500);
-    expect(b.status, "the last arrival at 24 s would push it to 34 s, but not past the cap yet").toBe("waiting");
-    b = runTo(e, b, T0 + CAP_MS - 500, T0 + CAP_MS + 500);
-    expect(b.status, "at thirty seconds from the first seat it pulls anyway").toBe("fighting");
-    expect(b.pullSeats, "with everyone who had sat down").toBe(4);
-    // The pull sets HP on the curve, base × seats^0.75: at four seats that is
-    // not four times one seat's, so a pull that multiplied linearly fails here.
-    const boss = b.standing.find((f) => f.id === "orrery")!;
-    expect(boss.maxHp, "the pull set the Orrery's HP from four seats, on the curve").toBe(e.orreryHp(4));
-    expect(e.orreryHp(4), "which is below four times one seat's, so the curve is what's being tested").toBeLessThan(4 * e.orreryHp(1));
+    let b = e.createBattle("pull", false, T0);
+    (b as Battle & { room: string | null }).room = "QZ7MK";
+    b = sit(e, b, 1, T0);
+    b = runTo(e, b, T0, T0 + 120_000);
+    expect(b.status, "two minutes on, with no Start, it is still a lobby").toBe("waiting");
   });
 
   it("announces the pull as an event, so the screen can show it before the log does", async () => {
     const e = await engine();
-    let b = sit(e, e.createBattle("pull", false, T0), 1, T0);
+    let b = sit(e, publicFight(e), 1, T0);
     let pulled: { kind: string; seats?: unknown; maxHp?: unknown } | undefined;
-    for (let now = T0; now <= T0 + RESTART_MS + 500 && !pulled; now += 150) {
+    for (let now = T0; now <= T0 + READY_MS + 500 && !pulled; now += 150) {
       const step = e.advance(b, clock(now));
       if (!step) continue;
       b = step.battle;
