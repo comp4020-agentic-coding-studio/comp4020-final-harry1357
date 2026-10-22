@@ -145,9 +145,12 @@ seats that timed out into them (rule 8), will. A room with a person seated
 in it never expires (rule 26), so without the clock that table plays forever.
 The owner's ruling on the lobby gate's L1.
 
-- `ENRAGE_AFTER` (ours): **40** Orrery turns. It is past the target (twelve
-  to thirty) so that no fight that ends on its own ever meets it: every room
-  in the table above ends before turn 40, and `spec/pace.test.ts` holds that.
+- `ENRAGE_AFTER` (ours): **40** Orrery turns. 40 is past the 12–30 target,
+  so no fight that ends inside the target meets it; a slow table that runs
+  past 40 can (the Cost below names the one measured room). Every room in the
+  table above ends before turn 40, and every room of one to three seats that
+  ends before it meets no clock; `spec/pace.test.ts` holds both. (The owner's
+  ruling on the lobby gate's second confirm pass, finding 1.)
 - It adds no card, event or renderer. It uses the Grand Alignment's own card,
   its `alignment` event and the strip's clock (drawn from the state's
   `alignmentLeft`), so a table sees the enrage coming exactly as it sees
@@ -172,7 +175,10 @@ The owner's ruling on the lobby gate's L1.
   told why it was wiped (the confirm pass's F1). Phase III's own entry line
   says the Grand Alignment, "already begun by the clock, goes on".
 
-**The cost.** A slow table that is winning can still be wiped: a table that
+**The cost.** One measured room runs past the clock that ended on its own
+before it: a Mender, Breaker and Chronist, which lost at 75 Orrery turns
+before this pass, now meets the clock's first Alignment at 45 and falls at
+48. More generally, a slow table that is winning can still be wiped: a table that
 hasn't brought the Orrery below 35% by turn 40 meets the wipe about twelve
 Orrery turns later, around turn 52 to 56 (four cards to an Alignment,
 three Alignments), however close it was. The clock is visible from the first
