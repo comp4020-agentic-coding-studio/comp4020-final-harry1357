@@ -372,6 +372,16 @@
      display: none), so whatever the scene and strip run while someone picks
      (animations, their end events, measurements) runs the same as ever. */
 
+  /* A phase's title (ADR-010) sits in the sky band at the top of the scene,
+     over the Orrery, where the strip's row (which stacks over the scene's
+     lower half here) can't cover it. */
+  #battle .scene-title {
+    top: 0.6rem;
+    translate: -50% 0;
+    padding: 0.5rem 0.8rem;
+    font-size: 0.75rem;
+  }
+
   #battle:not([data-phase="fight"]) > .stage {
     position: absolute;
     inset: 0;
