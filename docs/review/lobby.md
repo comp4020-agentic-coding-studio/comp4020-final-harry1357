@@ -552,7 +552,7 @@ Its report, summarised; its verdicts are kept as it gave them.
 
 | finding | what was done | red | fix |
 | --- | --- | --- | --- |
-| 1 | **Open: the owner's ruling.** Rule 28's and ADR-010's clause "no fight that ends on its own meets it" is the owner's own wording, from their ruling on L1, and a measured room contradicts it. The room is a Mender, Breaker and Chronist that ended on its own before this pass, lost at 75 Orrery turns. It now meets the clock's first Alignment at 45, survives it, and falls to ordinary blows at 48. ADR-010 had said it was "wiped at 48"; that is corrected in `adffc96`. The clause is not reworded here, because rewording it is the owner's to do. The gate does not close until it is ruled on. | | |
+| 1 | **Closed by the owner's ruling (below).** Before it: Rule 28's and ADR-010's clause "no fight that ends on its own meets it" is the owner's own wording, from their ruling on L1, and a measured room contradicts it. The room is a Mender, Breaker and Chronist that ended on its own before this pass, lost at 75 Orrery turns. It now meets the clock's first Alignment at 45, survives it, and falls to ordinary blows at 48. ADR-010 had said it was "wiped at 48"; that is corrected in `adffc96`. The clause is not reworded here, because rewording it is the owner's to do. The gate does not close until it is ruled on. | | |
 | 2 | The timing is held again, and tighter than the dropped bound: the first enraged Alignment within six Orrery turns of the clock, each after it within six of the last, and the wipe twelve to sixteen Orrery turns after the clock, which is ADR-010's "around 52 to 56". The removal of the bound in `f15b4fe`, without its own commit, is recorded here as history. | `bd6a2f9` | (held) |
 | 3 | A table put into phase III at turn 34 that defends past the clock: no line of its Grand Alignment claims the clock, and its Alignments stay four cards apart across turn 40. Deleting the phase guard fails it, and so does keying the reason on the turn. | `bd6a2f9` | (held) |
 | 4 | The F1 test reads the phase III line ("already begun by the clock", not "begins:") and the phase each Alignment lands in, and requires one of the clock's Alignments to land in phase III. Putting the old line back fails it, and so does the phase-read reason, on any timing. | `bd6a2f9` | (held) |
@@ -565,4 +565,22 @@ Its report, summarised; its verdicts are kept as it gave them.
 - ADR-010's table: unchanged.
 - The roster on a fresh instance of HEAD (`adffc96`), `APP_URL=http://localhost:8090 pnpm check`: 289 green, R7 red.
 
-**The gate is not closed.** Finding 1 is open, waiting on the owner's ruling. The stopping rule permits one fix round on a confirm pass's findings, so the fixes to 2–6 are not re-reviewed by a third pass. Under CLAUDE.md, a gate closes when every finding is fixed, carried red, closed by ruling or recorded as history, and the last review finds no rule or ADR violation; finding 1 is a rule violation until it is ruled on. Nothing is pushed while the gate is open.
+The stopping rule permits one fix round on a confirm pass's findings, so the fixes to 2–6 are not re-reviewed by a third pass.
+
+## The owner's rulings on the second confirm pass, and the gate closes
+
+- **Finding 1: reworded, as the owner worded it.** "40 is past the 12–30 target, so no fight that ends inside the target meets it; a slow table that runs past 40 can (ADR-010's Cost names the one measured room)."
+  - Rule 28: `803c478`.
+  - ADR-010: `9882a97`. Its Cost names the room.
+  - The comment and test name that repeated the old wording: `071c313`.
+  - The thirty-room test already holds exactly this. A reword of the owner's own clause to what the test holds is not a code change, so it closes with no further pass.
+- **`assets.test.ts`'s `ECONNRESET` on the second confirm pass's first run: a risk, not a finding.** It passed alone (4 of 4) and on that pass's second run.
+
+**The gate is closed under the stopping rule.** Every finding is fixed, carried red, closed by ruling, or recorded as history:
+- the breaker's B1–B6, P1, P2 and R1 to R3;
+- the reviewer's 1a–1h and its §0, §2 and §3;
+- L1;
+- the first confirm pass's F1–F6;
+- the second confirm pass's 1–6.
+
+The last review found no rule or ADR violation that a ruling or a fix hasn't answered. R7 (the README) stays carried red: it is the owner's, and the branch doesn't merge while it is open.
