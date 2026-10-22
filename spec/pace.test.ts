@@ -223,6 +223,15 @@ describe("every fight ends (L1)", () => {
     // Exactly three resolve, and the third is the wipe (F3).
     expect(f.alignments.length, "three Alignments resolve").toBe(3);
     expect(f.wipedAt, "the third is the wipe").toBe(f.alignments[2]);
+    // When (the second confirm pass's 2: the bound f15b4fe dropped). The first Alignment is the fourth card of
+    // the rotation after the clock, a card announced at most AHEAD (two) Orrery turns before it resolves, and the
+    // others follow four cards apart; so the first lands within six Orrery turns of the clock and each after it
+    // within six of the last. ADR-010's Cost: the wipe about twelve to sixteen Orrery turns after the clock.
+    expect(f.alignments[0] - ENRAGE_AFTER, `the first Alignment within six Orrery turns of the clock (at ${f.alignments[0]})`).toBeLessThanOrEqual(6);
+    expect(f.alignments[1] - f.alignments[0], "the second within six of the first").toBeLessThanOrEqual(6);
+    expect(f.alignments[2] - f.alignments[1], "the third within six of the second").toBeLessThanOrEqual(6);
+    expect((f.wipedAt as number) - ENRAGE_AFTER, `the wipe twelve to sixteen Orrery turns after the clock (at ${f.wipedAt})`).toBeGreaterThanOrEqual(12);
+    expect((f.wipedAt as number) - ENRAGE_AFTER, "no more than sixteen").toBeLessThanOrEqual(16);
     expect(f.outcome, "which ends the fight").toBe("lost");
     // The fight log says so (the owner's ruling): every line of it, the wipe's included.
     expect(f.alignmentLines.every((l) => /40 times/.test(l)), "every Alignment line names the clock").toBe(true);
@@ -241,6 +250,8 @@ describe("every fight ends (L1)", () => {
     b = e.start(b, "p0", clock()).battle;
     const turns = (x: Battle) => (x as Battle & { bossTurns: number }).bossTurns;
     const lines: string[] = [];
+    const inPhase: number[] = [];
+    let phaseLine = "";
     let primed = false;
     let crossedAt: number | null = null;
     for (let i = 0; i < 200_000 && b.status === "fighting" && turns(b) < 200; i++) {
@@ -260,15 +271,106 @@ describe("every fight ends (L1)", () => {
       } else step = e.advance(b, clock());
       if (!step) continue;
       for (const ev of step.effects.events) {
-        if (ev.kind === "phase" && ev.phase === 3) crossedAt = turns(step.battle);
-        if (ev.kind === "alignment") lines.push(step.battle.log.find((l) => (l as { seq?: number }).seq === ev.seq)?.text ?? "");
+        const line = step.battle.log.find((l) => (l as { seq?: number }).seq === ev.seq)?.text ?? "";
+        if (ev.kind === "phase" && ev.phase === 3) {
+          crossedAt = turns(step.battle);
+          phaseLine = line;
+        }
+        if (ev.kind === "alignment") {
+          lines.push(line);
+          inPhase.push(step.battle.phase);
+        }
       }
       b = step.battle;
     }
     expect(crossedAt, "the table crossed into phase III after the clock").not.toBeNull();
     expect(crossedAt as number, "after it").toBeGreaterThanOrEqual(ENRAGE_AFTER);
-    expect(lines.length, "and met the Alignment the clock began").toBeGreaterThan(0);
+    // Its phase line says the clock began it, not that it begins now (the first confirm pass's F1, its other half).
+    expect(phaseLine, "the phase III line says it was already begun by the clock").toMatch(/already begun by the clock/);
+    expect(phaseLine, "not that it begins").not.toMatch(/begins:/);
+    // At least one Alignment the clock began resolves in phase III, so the old phase-read reason can't pass
+    // (the second confirm pass's 4): and every line says the clock began it.
+    expect(inPhase.filter((p) => p === 3).length, `an Alignment the clock began lands in phase III (phases ${JSON.stringify(inPhase)})`).toBeGreaterThan(0);
     expect(lines.every((l) => /40 times/.test(l)), `every line says the clock began it: ${JSON.stringify(lines)}`).toBe(true);
+  }, WHOLE_FIGHTS_MS);
+
+  it("a table already in phase III at the clock keeps phase III's own Grand Alignment: its reason and its count (2nd pass, 3)", async () => {
+    // The second confirm pass's 3: a table in phase III before turn forty and still fighting at it was never held.
+    // Its Grand Alignment was begun by phase III, not the clock: no line of it claims the clock, and its count
+    // isn't restarted at forty.
+    const { e } = await parts();
+    let b = e.createBattle("p3", false, 9_000_000);
+    (b as Battle & { room: string | null }).room = "P3";
+    for (const [i, role] of ["warden", "mender", "mender"].entries()) b = e.join(b, { id: `p${i}`, name: `P${i}`, role }, clock()).battle;
+    b = e.start(b, "p0", clock()).battle;
+    const turns = (x: Battle) => (x as Battle & { bossTurns: number }).bossTurns;
+    const lines: string[] = [];
+    const cards: [number, string][] = [];
+    let entered = false;
+    for (let i = 0; i < 400_000 && b.status === "fighting" && turns(b) < 120; i++) {
+      // Into phase III at turn 34, with too few Alignments to come before the clock to end it there.
+      if (!entered && turns(b) >= ENRAGE_AFTER - 6) {
+        b = structuredClone(b);
+        b.phase = 3;
+        b.standing.find((f) => f.id === "orrery")!.hp = Math.floor(b.standing.find((f) => f.id === "orrery")!.maxHp * 0.3);
+        entered = true;
+      }
+      const up = b.standing.find((f) => f.id === b.activeId);
+      const step =
+        up && up.kind === "character" && up.counter === 0
+          ? e.act(b, up.id, up.role === "mender" ? "ward" : "brace", up.role === "mender" ? up.id : null, clock())
+          : e.advance(b, clock());
+      if (!step) continue;
+      for (const ev of step.effects.events) {
+        if (ev.kind === "card" && entered) cards.push([turns(step.battle), String((ev.card as { intent: string }).intent)]);
+        if (ev.kind === "alignment") lines.push(step.battle.log.find((l) => (l as { seq?: number }).seq === ev.seq)?.text ?? "");
+      }
+      b = step.battle;
+    }
+    expect(turns(b), "the table was still fighting past the clock").toBeGreaterThan(ENRAGE_AFTER);
+    expect(lines.length, "its phase III Alignments resolved").toBeGreaterThan(0);
+    expect(lines.filter((l) => /40 times/.test(l)), "none claims the clock: phase III began them").toEqual([]);
+    const rotation = cards.map(([, c]) => c).filter((c) => c !== "perihelion");
+    const at = rotation.flatMap((c, i) => (c === "alignment" ? [i] : []));
+    expect(at.slice(1).map((x, i) => x - at[i]), `its Alignments four cards apart across the clock: ${rotation.join(", ")}`).toEqual(at.slice(1).map(() => 4));
+  }, WHOLE_FIGHTS_MS);
+
+  it("an enraged Grand Alignment goes on across a phase line: four cards apart still (2nd pass, 5)", async () => {
+    // ADR-010: the Grand Alignment, begun by the clock, "goes on" if the table crosses into phase III; its count
+    // restarted on the phase change, putting two Alignments up to seven cards apart.
+    const { e, policy } = await parts();
+    let b = e.createBattle("go", false, 9_000_000);
+    (b as Battle & { room: string | null }).room = "GO";
+    for (const [i, role] of ["warden", "mender", "breaker"].entries()) b = e.join(b, { id: `p${i}`, name: `P${i}`, role }, clock()).battle;
+    b = e.start(b, "p0", clock()).battle;
+    const turns = (x: Battle) => (x as Battle & { bossTurns: number }).bossTurns;
+    const cards: string[] = [];
+    let crossed = false;
+    for (let i = 0; i < 400_000 && b.status === "fighting" && turns(b) < 120; i++) {
+      // Past the clock, two cards after its first Alignment was announced (mid-way through the next four), the table
+      // crosses into phase III: a recount there would put the next Alignment six cards on, not two.
+      const sinceFirst = cards.filter((c) => c !== "perihelion").length - 1 - cards.filter((c) => c !== "perihelion").indexOf("alignment");
+      if (!crossed && cards.includes("alignment") && sinceFirst >= 2) {
+        b = structuredClone(b);
+        b.phase = 3;
+        crossed = true;
+      }
+      const up = b.standing.find((f) => f.id === b.activeId);
+      let step: Step | null;
+      if (up && up.kind === "character" && up.counter === 0) {
+        const move = policy.onTurn(e.view(b, { tickMs: 0, turnMs: 12_000 }), up.id);
+        const ok = "status" in e.checkAction(b, up.id, move.action, move.targetId) ? { action: "brace", targetId: null } : move;
+        step = e.act(b, up.id, ok.action, ok.targetId, clock());
+      } else step = e.advance(b, clock());
+      if (!step) continue;
+      for (const ev of step.effects.events) if (ev.kind === "card" && turns(step.battle) >= ENRAGE_AFTER) cards.push(String((ev.card as { intent: string }).intent));
+      b = step.battle;
+    }
+    expect(crossed, "the table crossed into phase III during the enrage").toBe(true);
+    const rotation = cards.filter((c) => c !== "perihelion");
+    const at = rotation.flatMap((c, i) => (c === "alignment" ? [i] : []));
+    expect(at.length, "more than one Alignment, either side of the line").toBeGreaterThan(1);
+    expect(at.slice(1).map((x, i) => x - at[i]), `four cards apart across the phase line: ${rotation.join(", ")}`).toEqual(at.slice(1).map(() => 4));
   }, WHOLE_FIGHTS_MS);
 
   it("of the thirty rooms of one to three seats, every one that ends before the clock never meets it (F2)", async () => {
@@ -291,7 +393,7 @@ describe("every fight ends (L1)", () => {
     for (const people of rooms) {
       const f = play(e, policy, people, [], MAX_TURNS);
       if (f.bossTurns >= ENRAGE_AFTER) past.push(people.join("/"));
-      else expect(f.alignments.every(() => f.phaseNumbers.includes(3)), `${people.join("/")} ended at ${f.bossTurns}, meeting no clock`).toBe(true);
+      else expect(f.alignments.every((t) => f.phaseNumbers.includes(3) && t >= f.phases[f.phaseNumbers.indexOf(3)]), `${people.join("/")} ended at ${f.bossTurns}, every Alignment it met phase III's own`).toBe(true);
     }
     expect(past.sort(), "the rooms that run past the clock").toEqual(
       ["mender", "mender/mender", "mender/breaker", "warden/mender/breaker", "warden/mender/chronist", "mender/striker/chronist", "mender/breaker/chronist"].sort(),
