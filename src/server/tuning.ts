@@ -93,6 +93,6 @@ export const ALIGNMENT_EVERY = 4;
 /**
  * ADR-010, "The enrage": past this many Orrery turns, whatever the phase, the
  * Grand Alignment begins (every ALIGNMENT_EVERY-th card, the third the wipe).
- * Ours: past the 12-30 target, so no fight that ends on its own meets it.
+ * Ours: past the 12-30 target, so no fight that ends inside the target meets it; a slow table can.
  */
 export const ENRAGE_AFTER = 40;

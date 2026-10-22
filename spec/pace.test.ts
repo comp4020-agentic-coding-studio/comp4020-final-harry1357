@@ -181,7 +181,7 @@ describe("every fight ends (L1)", () => {
   // seats, played out by its roles' policies, reaches an ending within
   // MAX_TURNS Orrery turns, won or lost.
   const MAX_TURNS = 200;
-  /** ADR-010's enrage clock, a tuning value marked ours: past the 12-30 target, so no fight that ends on its own meets it. */
+  /** ADR-010's enrage clock, a tuning value marked ours: past the 12-30 target, so no fight that ends inside the target meets it. */
   const ENRAGE_AFTER = 40;
 
   it("every room of one, two or three seats reaches an ending", async () => {
@@ -429,7 +429,7 @@ describe("every fight ends (L1)", () => {
     expect(lines.filter((l) => /40 times/.test(l)), "and none of them claims the clock").toEqual([]);
   }, WHOLE_FIGHTS_MS);
 
-  it("no fight that ends on its own meets the enrage: every room in ADR-010's table ends before turn forty", async () => {
+  it("no fight that ends inside the target meets the enrage: every room in ADR-010's table ends before turn forty", async () => {
     const { e, policy } = await parts();
     const rooms: [string[], string[]][] = [
       ...ROLES.map((r) => [[r], ROLES.filter((x) => x !== r).slice(0, 4)] as [string[], string[]]),
