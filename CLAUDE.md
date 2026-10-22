@@ -356,7 +356,10 @@ the rules.
     someone asks with a name and a role, which seats them in it as its first
     seat. Nothing
     lists rooms, nothing owns one, and no password, invite or account stands
-    behind a code (rule 3). A wrong code is refused (404), never guessed at or
+    behind a code (rule 3). A private room's host (rule 27) is not an owner:
+    their only say is Start and the Echoes, in the lobby, and it passes to
+    the next person seated when they leave; there is no kick and no lock,
+    and nothing of it outlives their seat. A wrong code is refused (404), never guessed at or
     redirected to another room. While a private room is open, its code is
     the only way in: none of its fights, live or finished, is joined, watched
     or read by battle id.
