@@ -161,7 +161,7 @@ export function createLobby(root: HTMLElement, opts: LobbyOptions): Lobby {
     echoes.hidden = !isHost;
     echoTitle.textContent = `Echoes ${echoCount} of ${ECHO_MAX}`;
     echoButtons.replaceChildren(
-      ...state.echoRoles.map((role) => {
+      ...(isHost ? state.echoRoles : []).map((role) => {
         const button = el("button", "lobby-add");
         button.type = "button";
         button.dataset.addEcho = role;
