@@ -515,4 +515,38 @@ describe("who did what, in the logs (docs/adr/008)", () => {
       await server.kill();
     }
   }, 45_000);
+
+  it("a lobby's lines name the room by its code, carry echo on every seat, and credit a seated Echo to whoever seated it", async () => {
+    // The merge of ADR-008 onto the lobby: a line about a room's fight names the room's code beside the battle id,
+    // every line about a seat says whether an Echo is that seat (rule 25), and seating an Echo is the seater's act,
+    // logged under their session, not the clock's.
+    const server = await boot(scratchDatabase(), { TICK_MS: "20", LOBBY_GRACE_MS: "600000" });
+    try {
+      const at = server.base;
+      const made = await fetch(new URL("/api/rooms", at), {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ name: `ada-${suffix()}`, role: "striker" }),
+      });
+      const room = (await made.json()) as { code: string; characterId: string };
+      const host = made.headers.getSetCookie().map((c) => c.split(";")[0]).join("; ");
+      const echo = await fetch(new URL(`/api/rooms/${room.code}/echoes`, at), {
+        method: "POST",
+        headers: { "content-type": "application/json", cookie: host },
+        body: JSON.stringify({ role: "warden" }),
+      });
+      expect(echo.status, "the host seats a Warden Echo").toBe(201);
+      const all = await lines(server, (ls) => ls.some((l) => l.action === "seat"), "the Echo's seat line");
+      const joined = all.find((l) => l.action === "join" && l.seat === room.characterId);
+      const seated = all.find((l) => l.action === "seat");
+      expect(joined?.code, "the host's join names the room's code").toBe(room.code);
+      expect(joined?.echo, "and says the host isn't an Echo").toBe("false");
+      expect(seated?.code, "the Echo's seat line names the room's code").toBe(room.code);
+      expect(seated?.echo, "and says the seat is an Echo").toBe("true");
+      expect(seated?.actor, "seated by a person's request: no actor but them").toBeUndefined();
+      expect(seated?.sid, "under the host's session").toBe(joined?.sid);
+    } finally {
+      await server.kill();
+    }
+  }, 30_000);
 });
