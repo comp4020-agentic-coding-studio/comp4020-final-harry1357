@@ -108,7 +108,108 @@ three.
 
 ## The reviewer's report
 
-*(pending)*
+The reviewer approves and rejects nothing; this is what it found. Scope: `git diff b53ddcf...HEAD` (HEAD df2cc47). It read CLAUDE.md in full, all nine ADRs, every file in spec/ and its helpers, and every changed source file in full.
+
+### The roster
+
+- **The run did not hit :8090.** The reviewer's Bash hook refuses an env prefix, so `APP_URL=http://localhost:8090 pnpm check` was rejected, and `pnpm check` ran against the default http://localhost:8080. It couldn't confirm which source that instance ran. It answers `/api/rooms/:code/start`, because the rooms and echoes tests that call `startRoom` passed. The specs that boot their own server (lobby.test's wire tests, rooms.test expiry, shown, gate-two-page) did run against HEAD's source.
+- **Full run:** typecheck passed and stylelint passed. vitest ran 35 files and 262 tests: **251 passed, 11 failed** (9 files).
+  - owner.test R7 failed: the README finding the owner holds, carried red and not re-argued.
+  - 8 tests hit vitest's 5 s default timeout: assets (frames), echo-lines C1, gates (soft stage), sprites (silhouette), pace ×2, and moment's "server's phase event carries the phase's name".
+  - 2 rooms.test tests failed to boot their server ("didn't answer within 15s").
+  - shown T4 failed at 217 ms against a 150 ms tick.
+- **Rerun one file at a time:** pace + moment + lobby + pull 26/26; assets + echo-lines + gates + sprites + shown 29/29; rooms 17/17. Run alone, only R7 is red.
+- **New tests from this pass go red under load.** All three pace.test tests and moment.test's engine test pass no timeout argument and take about 7 s in a parallel run, so they fail a full `pnpm check` on this machine.
+
+### 1. Places the diff breaks a rule or an ADR
+
+**1a. Most serious: someone who opens a shared `/?room=CODE` link for the first time is unseated from the lobby while their page is still open.**
+- At boot the page opens the room socket before any cookie exists.
+- They sit down through the pre-filled code door. `src/client/main.ts:236` (`if (code && code !== app.code) enter(code);`) skips `enter()` because the code is already the one being watched, so the socket is never reopened with the cookie the join just minted.
+- The server records whose socket it is only at the upgrade (`src/server/app.ts:293-294`, `src/server/hub.ts:64`), so `hub.watching` (`hub.ts:82-85`) never matches them, and `sweepLobbies` (`src/server/table.ts:171-182`) calls `leave()` after LOBBY_GRACE_MS. If that person was host, the host role passes on.
+- This breaks ADR-009 §Decision ("has had no socket open on the room for `LOBBY_GRACE_MS` … so a reload or a dropped connection isn't a leave") and rule 27 ("if they leave the lobby before Start, the next person seated becomes host"). This person never left.
+- `enter()` itself writes `?room=` into the address "so a reload, or a link, comes back to it" (`main.ts:278`), so links are an intended way in. No test covers this.
+
+**1b. A room's next fight brings timed-out Echoes back as fresh people.**
+- `nextFight` (`src/server/rules.ts:595-607`) re-seats every character still standing or downed through `join()`, which builds the seat from `blankFighter()` (`rules.ts:396-409`, `866-882`). So `echo` becomes false and `timeouts` becomes 0.
+- This breaks rule 8 ("until the person acts again, which ends the Echo at once"; "Acting resets the count"): the person hasn't acted.
+- It breaks rule 20 ("an Echo counting as half a seat"): `seatsOf` (`economy.ts:66-68`) counts the absent seat as a whole seat at the next pull.
+- The public raid has no presence check, so an absent person is carried into every following public fight indefinitely, and each fight their seat costs 3 × TURN_TIMEOUT_MS before it is an Echo again.
+- In a private room the person is carried first and removed by the sweep only 10 s later. ADR-009 says "A person who has gone between fights is not carried over." No test covers this.
+
+**1c. Rule 27 says "Creating a room seats its creator as host in a lobby", but the seated-player path doesn't.**
+- `POST /api/rooms` with no name or role (`src/server/app.ts:168-171`) creates a room and seats nobody, and the first person to join becomes host (`rules.ts:412`).
+- Rule 22 allows this path, so rules 22 and 27 contradict each other, and ADR-007's new status note ("its creator is the room's host", `docs/adr/007…md:8-10`) is false for it.
+- `spec/rooms.test.ts:264-266` depends on it: "alice is its first person seated, so she is its host" of a room someone else created.
+
+**1d. Rule 22 and the new host don't fit together, and nothing amends rule 22.**
+- Rule 22 says "nothing owns one"; ADR-007 says "There is no owner, password or invite list."
+- Under rule 27 the host alone can Start and seat Echoes, and ADR-009 §Cost says the host "holds the table for as long as they like … no vote and no timer to take it from them".
+- ADR-009's Amends line names neither rule 22 nor ADR-007's "no owner". This is a judgement call, but the conflict between the texts is unresolved.
+
+**1e. Echoes carried into the next lobby don't follow ADR-009.**
+- `rules.ts:608-610` re-seats an Echo only if the person who seated it is still standing, so an Echo seated by a host who later left the lobby is dropped at the next fight. ADR-009 says "The Echoes stay too: they belong to the table, not to one fight."
+- All Echoes are seated after all people, where ADR-009 says "in their seat order".
+- No test covers either.
+
+**1f. Rule 11: the next fight's join and seat events are thrown away, but their log lines are kept.**
+- `table.ts:86-92` writes `nextFight`'s log lines, then `hub.moved` sends the state with `[]` events (`hub.ts:108-112`).
+- The conductor's carry path appends those lines directly (`conductor.ts:154-157`), and the join and seat renderers never run.
+- Rule 11 says "the client writes an event's log line only once its renderer has shown it". In mitigation, `strip.render` draws the seats from the same state just before (`conductor.ts:146`). Low severity.
+
+**1g. Rule 13's text no longer describes the Orrery's reset.** Low severity, a judgement call.
+- Rule 13 says "wait = tickSpeed × rank × haste … (A1's model, `src/server/ctb.ts`)".
+- The Orrery's counter is now set directly (`rules.ts:477`, `510`, `623-627`). It bypasses `ctb.ts` and `reset()` (`rules.ts:817`), uses `round()` instead of floor, and clamps at TEMPO_MIN.
+- ADR-010 recasts this as an "effective tick speed", but it doesn't list rule 13 as amended, and rule 13's text is unchanged.
+
+**1h. Commit history (record only).**
+- Commit 0880745 changes the text of rules 20, 25, 27 and 28 in one commit, where ADR-009's header says "Each change to a rule's text is its own commit."
+- c2d8e9f bundles shown.test's 409 relaxation, which has nothing to do with the lobby, into the lobby spec commit, where CLAUDE.md says a wrong spec is changed "in its own commit".
+
+### 2. Rules with no test that would fail
+
+- **Rule 27, "The client draws who is host and never decides it".** No spec exercises `src/client/lobby/lobby.ts`. gate-two-page's `start()` helper (`spec/gate-two-page.test.ts:59-63`) looks only at the host's own page, and the host is also the first person seated, so a lobby that showed Start to the first character in the queue, or to everyone, would pass.
+- **Rule 27, "The public raid has no host and no lobby … its next one pulls after a short ready window".** No test checks that the public raid has `hostId: null` and `lobby: false`, or that a Start there is refused (`rules.ts:534-537`). The *next* public fight (carry-over plus READY_MS) is untested: pull.test covers only a fresh fight's first seat.
+- **Rule 28, "across one, three and five seats".**
+  - No test holds a room of one seat. The "one" case is one person plus four Echoes, which rule 20 counts as three seats.
+  - ADR-010 itself says a lone Striker who only Jabs is outside the band (`docs/adr/010…md:76-79`), so rule 28's text claims more than ADR-010 or the spec delivers.
+  - Commit 93304d1 swapped "one person, one Echo" for "one person, two Echoes". It was its own commit and landed while the spec was still red, before the server, but its comment explains dropping the lone seat and gives no reason for moving from one Echo to two. Whether that is a deliberate amendment or a narrowing toward what passes is for the gate to judge.
+- **ADR-009 lobby presence** (finding 1a) is held only indirectly, through rooms.test's expiry test and gate-two-page Q2. Nothing tests "a socket open means still seated".
+- **ADR-010's mechanics have no direct test**: weighting by seat speed rather than head count, a downed seat slowing the Orrery, TEMPO_MIN, and the first turn coming at the room's pace. Only the wide band (2.5–4.5) holds any of it.
+- **Rule 28, "a card the strip draws".** `strip.phaseCard`'s DOM output is never checked; only the recorded API call is. Low.
+
+### 3. Tests that would pass under a wrong implementation
+
+- **`spec/shown.test.ts:120-122` passes under a server that refuses every action.** With `[200, 409]` accepted, if every person's action came back 409, timed-out seats would become Echoes and the Striker's Echo would jab, so the fight would end and every asserted kind would still be seen (join, jab, hold, end, an Orrery move). The change has a stated reason, but it drops the test's premise of "every role acting". A fix: require at least one 200 per role, or that each 409's error names whose turn it is.
+- **`spec/lobby.test.ts:200-204` passes if a private room pulled on any timer longer than 1.5 s.** The comment says 1.5 s is "far past the old countdown", but the old countdown was 10 s of wall clock (ADR-006: "The countdown is wall-clock time, not ticks"). A countdown in progress broadcasts nothing, so `last` and `waiting` are the same state, and `last.tick === waiting.tick` compares a value with itself. The engine tests do hold the rule (`lobby.test.ts:61-77`, `pull.test.ts:64-71`).
+- **`spec/pace.test.ts:127-133` would have passed the tuning ADR-010 rejected.** It allows up to 40 Orrery turns for five people, against ADR-010's target of "twelve to thirty", and the tuning commit records 34 turns and a loss at CARD_DAMAGE 0.55. There is no outcome check for five people either.
+- **`spec/pace.test.ts:59, 123, 132` can't tell which phase was reached.** `phases.length === 2` counts the boss turn of each phase event, not the phase number, so a server that emitted phase II twice and never reached phase III would pass. orrery.test pins the phase lines separately. Low.
+- **`spec/orrery.test.ts:290-295` and `spec/lobby.test.ts:281-287`: the Orrery is at 100% when the late joiner arrives.** Nobody acts first, so "share kept" can't be told apart from "refilled to the new max". Only lobby.test's engine test (`:141-159`, wounded to 60%) distinguishes the two.
+- **`spec/lobby.test.ts:254-269` passes if the Echoes came back as people.** It asserts five characters and the same host. It doesn't check that four of them are still Echoes (`echo`/`seatedBy`), or that roles are kept, so shuffled roles would pass too.
+- **`spec/queue.test.ts:100-111` asserts what its own filter already guaranteed.** The two new assertions repeat the `waitFor` predicate on the state it selected, and the queue-order check they replaced (`queue[0]`) is gone. The reason given is sound; the new lines add nothing. Low.
+- **`spec/moment.test.ts:83-95` checks only phase II's name**, so a server that named every phase "Conjunction" would pass. Separately, the client hard-codes the names (`src/client/strip/strip.ts:52`) for the card it draws from state, and nothing checks them against the server's. Low.
+- **`spec/lobby.test.ts:123-129`: the test name over-claims.** It says "in its lobby or its fight", but only the waiting public fight is tested. Low.
+
+### 4. Events with no renderer
+
+**None found.**
+- EVENT_KINDS (`src/shared/protocol.ts:325-377`) has 47 kinds, and the registry's OWNERS (`src/client/battle/registry.ts:19-30`) lists 13 + 2 + 32 = 47, the same set.
+- `FEEL.renderers` (`src/client/battle/effects/feel.ts:85-119`) has all 32 of its kinds, including the new start, host and grow.
+- The strip and command areas are unchanged in this pass, and shown.test's registry check passes when run alone.
+- On the server side (grep isn't available to the reviewer) it read every file that raises events and was touched by this pass: rules.ts, orrery.ts and economy.ts (roles.ts is unchanged). Every `kind` they raise is declared.
+
+### Older specs this pass changed: amendment or weakening
+
+- **Deliberate amendments with stated reasons:**
+  - echoes.test: Echo seating moved into the lobby, as rule 25 now requires.
+  - engine.ts: `lobbyTable` added.
+  - pull.test: the restart and cap tests are gone because ADR-009 removed those features; the new tests hold READY_MS and "a private room never pulls on a timer".
+  - orrery.test: the late-joiner assertion is inverted to match amended rule 20 (its share check is weak; see section 3).
+  - rooms.test: `startRoom` calls and LOBBY_GRACE_MS added.
+  - gate-two-page: reworked for the lobby flow, with Q2 moved to a second browser that isn't seated.
+  - contrast.test: lobby selectors added.
+- **Amended but weak:** queue.test (section 3).
+- **Open to question:** pace.test in 93304d1 (section 2), and shown.test's 409 relaxation, which is not driven by the lobby (sections 3 and 1h).
 
 ## The breaker's report
 
@@ -285,9 +386,17 @@ Scratch scripts are in `/tmp/brk/` (`h.ts` is the helper; `t*.ts` are HTTP/WebSo
 
 ## Disposition
 
-One fix round, under the stopping rule. Every finding below got its failing
-test in a commit ahead of its fix. The reviewer's findings are added when its
-report lands.
+One fix round, under the stopping rule. Every finding that a test can hold
+got its failing test in a commit ahead of its fix.
+
+**A correction to the record, found while triaging the reviewer's roster
+note.** The shared app on `:8080` was never restarted after `df2cc47`: the
+restart's kill matched the wrong pattern, and the new process failed on
+`EADDRINUSE`. So the roster reported after the breaker's fix round, 268 green,
+had its over-HTTP specs run against the pre-fix server. The reviewer's run on
+`:8080` was against that same old server too. The specs that boot their own
+server did test HEAD each time. The roster below is against a server confirmed
+at HEAD from its start line, killed and started by port.
 
 ### The breaker's findings
 
@@ -304,6 +413,37 @@ report lands.
 | R1: guests offered Echo buttons on the table's panel | risk (rule 25: Echoes are the host's) | Fixed, not just recorded, because it was one condition: only the host is offered them. | `a5e7e59` | `3483e13` |
 | R2: leaving the raid says "this room's lobby" | risk, no rule | Recorded and closed: the status (409) is right. | | |
 | R3: an Echo's `seatedBy` points at a departed host | risk, no rule | Closed by B2's fix: a next lobby re-seats Echoes as the host's. Within one lobby the stale `seatedBy` is read by nothing. | | |
+
+### The reviewer's findings
+
+| finding | what was done | red | fix |
+| --- | --- | --- | --- |
+| 1a: a room-link guest unseated with the page open | The same defect as the breaker's B1; closed by its fix. | `a5e7e59` | `3483e13` |
+| 1b: a timed-out Echo carried back as a fresh person | The public raid half was the breaker's B3, closed by `186bfe7`. In a private room a seat left to an Echo is now carried as that Echo, its count kept, until its person acts (rule 8), and is half a seat at Start (rule 20). ADR-009 now says who has gone isn't known when a fight ends, and the lobby's presence unseats them. | `592ef41` | `3d106ac`, `efb89c0` |
+| 1c: a seated player's bodiless room has no host | The same defect as the breaker's B4; closed by its fix. `rooms.test.ts`'s cross-room test, which relied on the old behaviour, makes room A alice's own. | `3951f09` | `186bfe7`, `b28018e` |
+| 1d: rule 22's "nothing owns one" against the host | Rule 22 now says a host is not an owner: their only say is Start and the Echoes in the lobby, it passes on, and there's no kick and no lock. ADR-009's Amends line names rule 22 and ADR-007's "no owner". | | `2ded35c`, `efb89c0` |
+| 1e: Echoes dropped with their seater; Echoes after people | The first half was the breaker's B2 (`186bfe7`). The table is now seated in its seat order, Echoes among people, as the host's: the host is set first. | `592ef41` | `3d106ac` |
+| 1f: the carry's lines written with no event shown (rule 11) | The carry is silent: no line and no event, since the next fight reaches every screen as a whole state. Member rows are still written. | `592ef41` | `3d106ac` |
+| 1g: rule 13's text doesn't cover the Orrery's reset | Rule 13 now says the Orrery's tick speed is the room's pace and its counter still drops by 1 a tick. ADR-010's Amends line names rule 13. | | `62fed4b`, `efb89c0` |
+| 1h: four rules in one commit; an unrelated spec change bundled | Recorded, as the owner's ruling says: a finding about history is closed by being recorded. ADR-009's header now notes it. | | `efb89c0` |
+| §0: new tests go red on the 5 s default under load | Each test that plays whole fights or decodes sheets has an explicit timeout, sized from its measured time alone (up to 3.2 s). | | `b28018e` |
+| §2: rule 27, the client draws who is host | jsdom test of the lobby with the host as the second seat: no Start, no Echoes and "waiting for Sol" for the first seat; Start for the host; Start leaves when the server moves the host. It found the lobby drawing hidden Echo buttons for a guest. | `b28018e` | `d68fad3` |
+| §2: rule 27, the public raid has no host or lobby; its next pull | Engine tests: `hostId` null, `lobby` false, Start refused; the next public fight carries the standing and pulls at `READY_MS`, not before. | `b28018e` | (held) |
+| §2: rule 28, "one, three and five seats" claims more than delivered | Rule 28 now claims the band for what ADR-010 and the spec hold: a solo person with four Echoes, and rooms of three and five. 93304d1's swap was a narrowing toward what passed (one Echo measured 2.42), and is recorded as such. The band now holds two three-person mixes and no two-seat room. | | `bf15a55`, `98036e7` |
+| §2: lobby presence held only indirectly | B1's page test holds it in Chrome: a page with its socket open stays seated past twice the grace. | `a5e7e59` | `3483e13` |
+| §2: ADR-010's mechanics untested | Direct tests of `orreryReset`: weighted by speed (three Chronists against three Wardens, about 2×), a bigger room is faster (one Striker against three, about 3×), a downed seat slows it, 45 seats floor at `TEMPO_MIN`, and the first counter at Start is the room's reset. | `b28018e` | (held) |
+| §2: the phase card's DOM unchecked | The strip rendered at phases 2 and 3: the card up, naming each as the server's phase event does. | `b28018e` | (held) |
+| §3: shown.test passes a server that refuses everything | Each role must land some of its actions, and each late 409 must name the turn. | `b28018e` | (held) |
+| §3: the stillness test compared a state with itself | It waits 11 s, past the old 10 s countdown, checks the lobby broadcast nothing, and reads it afresh on a new socket: waiting, the host named, tick 0. The presence sweep is put out of its reach, since nobody holds a socket of their own. | `b28018e` | (held) |
+| §3: five people allowed 40 turns, no outcome; phases by count | Five people within 12 to 30, and won; phases held as `[2, 3]`. | `b28018e` | (held) |
+| §3: the late joiner meets a full Orrery | The wire test has the Striker cleave first, so the Orrery is wounded, then checks the share is kept and isn't a refill. | `b28018e` | (held) |
+| §3: the next lobby's Echoes could come back as people | Held as four Echoes, as their roles, the host's, with the host still the Striker. | `b28018e` | (held) |
+| §3: queue.test re-asserted its filter | Holds that the queue as sent is in counter order, with the actor placed behind everyone with less to wait. | `b28018e` | (held) |
+| §3: one phase name checked; client names not held to the server's | Phase III's name too, and the strip's card names held to the server's events. | `b28018e` | (held) |
+| §3: an over-claiming test name | It now tests what it says: no Echo in the public raid, waiting or running. | `b28018e` | (held) |
+
+"(held)" means the stronger test passed against the code as it stood. The
+weakness was in the test, not the code.
 
 ### L1: waiting on the owner's ruling
 
@@ -329,10 +469,8 @@ Until the owner rules, L1 is open and the branch doesn't merge (CLAUDE.md:
 
 ### The roster after the fix round
 
-`pnpm check` against HEAD `3483e13`: 268 green, 4 red.
+`pnpm check` against HEAD `efb89c0`, on a server confirmed at HEAD: 279
+green, 2 red.
 - R7 (the README) is the owner's, carried red.
-- L1 is red by intent.
-- `spec/assets.test.ts` (a 5 s timeout reading PNGs) and `spec/shown.test.ts`
-  T4 (168 ms against a 150 ms tick) failed only because the reviewer's own
-  roster on `:8090` was running at the same time. Both pass alone, twice.
+- L1 is red by intent, until the owner rules.
 
