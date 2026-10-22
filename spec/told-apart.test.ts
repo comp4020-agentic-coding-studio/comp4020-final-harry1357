@@ -419,8 +419,9 @@ describe("who did what, in the logs (docs/adr/008)", () => {
   }, 60_000);
 
   it("every log line is key=value pairs with ts, room, sid, name, action and outcome, across a whole fight", async () => {
-    // A fast clock and a short turn, so one fight runs from the first seat to its end.
-    const server = await boot(scratchDatabase(), { TICK_MS: "5", TURN_TIMEOUT_MS: "400" });
+    // A fast clock, a short turn and a short Echo beat (rule 8: a seat that times out becomes an Echo, which
+    // waits a beat on the plate for its person), so one fight runs from the first seat to its end.
+    const server = await boot(scratchDatabase(), { TICK_MS: "5", TURN_TIMEOUT_MS: "400", ECHO_BEAT_MS: "50" });
     try {
       const at = server.base;
       const battleId = await newBattle(at);

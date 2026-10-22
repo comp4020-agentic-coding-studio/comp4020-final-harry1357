@@ -41,7 +41,11 @@ describe("nothing answers a refusal but the one function that logs it", () => {
       }
       if (/\bfail\(/.test(line) || /c\.json\(\s*\{\s*error\b/.test(line)) bare.push(`${i + 1}: ${line.trim()}`);
     }
-    expect(bare, "refusals answered without the logger").toEqual([]);
+    // The one answer that isn't a refusal: a crash's 500, whose trace goes to stderr (rule 32), not a refusal line.
+    const crash = bare.filter((l) => /, 500\);/.test(l));
+    expect(crash.length, "one crash answer, the error handler's").toBeLessThanOrEqual(1);
+    expect(source, "and it writes the crash to stderr").toMatch(/app\.onError\(\(err, c\) => \{\s*console\.error\(err\);/);
+    expect(bare.filter((l) => !crash.includes(l)), "refusals answered without the logger").toEqual([]);
   });
 });
 
