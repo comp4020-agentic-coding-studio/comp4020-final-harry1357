@@ -5,7 +5,9 @@
   name and a role, which seats them in it as its first seat (rule 22). The
   "create a room" door needs it, since a newcomer has no character to be a
   seated player with. A founder the seat refuses makes no room. Otherwise a
-  room is still made only by someone sitting down.
+  room is still made only by someone sitting down. Amended by ADR-009
+  (2026-10-22): its creator is the room's host, and Echoes are seated only
+  in a private room's lobby, by its host, never in the public raid.
 - **Date:** 2026-10-17
 - **Builds on:** ADR-001 (one process, one tick, one volume), ADR-002 (a room
   can't wait on one person), ADR-005 (two at once, the clock decides) and
