@@ -425,7 +425,10 @@ the rules.
     for rooms of three and five people, its turns per player turn stay
     within one band. A room of one or two seats isn't held to it, because
     its ratio is its players' rank choices, not its size. A solo person with four Echoes sees
-    at least twelve Orrery turns and all three phases before an ending.
+    at least twelve Orrery turns and all three phases before an ending. No
+    fight is endless: past forty Orrery turns (`ENRAGE_AFTER`), whatever the
+    phase, the Orrery enrages, and the Grand Alignment ends the fight, its
+    log saying the clock began it; no fight that ends on its own meets it.
     Every phase change emits a card the strip draws, and the client shows
     it as a moment (a title, the rings' change, a flash), under reduced
     motion too. *Spec: `spec/pace.test.ts`, `spec/effects.test.ts`.*
