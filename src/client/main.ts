@@ -233,7 +233,10 @@ async function onJoin(door: Door, name: string, role: RoleId): Promise<JoinResul
   app.myId = res.data.characterId;
   app.role = role;
   conductor.setMe(app.myId);
-  if (code && code !== app.code) enter(code);
+  // Watch the room on a socket opened now, even if it's the room already watched: the server tells who is
+  // present in a lobby by the cookie a socket opened with, and a first-time visitor's socket opened before
+  // this seat minted one (rule 27; the lobby gate's B1).
+  if (code) enter(code);
   say(`You take your seat as ${ROLES[role].label}.`);
   // The broadcast that seated us usually lands before this POST answers, while
   // myId was still unknown, and the next one may be a whole turn away.

@@ -23,6 +23,7 @@ export interface ScreenState {
   status: string;
   lobby?: boolean;
   queue: { id: string; kind: string }[];
+  fallen?: { id: string; kind: string; hp?: number }[];
 }
 
 export interface ScreenParts {
@@ -75,7 +76,12 @@ export function createScreen(parts: ScreenParts): Screen {
 
   return {
     state(state, myId) {
-      const seated = myId !== null && state.queue.some((t) => t.id === myId && t.kind === "character");
+      // Seated: on the strip, or downed in this fight and so still at the table (Restore brings them back, and
+      // the server refuses them another seat in it; the lobby gate's P1). Someone who left isn't.
+      const seated =
+        myId !== null &&
+        (state.queue.some((t) => t.id === myId && t.kind === "character") ||
+          (state.fallen ?? []).some((t) => t.id === myId && t.kind === "character" && (t.hp ?? 0) <= 0));
       const over = OVER.has(state.status);
 
       if (over) {
@@ -100,9 +106,11 @@ export function createScreen(parts: ScreenParts): Screen {
       if (state.status === "fighting") ran.add(state.battleId);
 
       if (fresh) {
-        // The first state of a room or fight this page has entered: nothing of the last one stays up.
+        // The first state of a room or fight this page has entered: nothing of the last one stays up. Unless this
+        // page isn't seated in it and an ending is up: then it has nowhere to be, and the panel stays until the
+        // person goes on (the lobby gate's P2).
         fresh = false;
-        clean();
+        if (seated || shown !== "ended" || wentOn) clean();
       }
 
       if (seated) {

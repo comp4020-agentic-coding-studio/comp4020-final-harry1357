@@ -69,6 +69,7 @@ export function createSeats(root: HTMLElement, opts: SeatsOptions): Seats {
     const seated = !!myId && state.queue.some((t) => t.id === myId);
     const key = JSON.stringify([
       busy,
+      state.hostId,
       roomCode,
       state.room?.isPublic ?? null,
       myId,
@@ -113,11 +114,14 @@ export function createSeats(root: HTMLElement, opts: SeatsOptions): Seats {
       }),
     );
 
-    // Echoes: exactly the roles the server lists, and the cap in plain sight.
+    // Echoes: exactly the roles the server lists, and the cap in plain sight. Seating one is the host's
+    // (rule 25, ADR-009): the server names the host, and only the host is offered the buttons (the lobby
+    // gate's R1).
+    const isHost = !!myId && state.hostId === myId;
     echoTitle.textContent = `Echoes ${echoCount} of ${ECHO_MAX}`;
     echoes.dataset.full = String(echoCount >= ECHO_MAX);
     echoButtons.replaceChildren(
-      ...state.echoRoles.map((role) => {
+      ...(isHost ? state.echoRoles : []).map((role) => {
         const button = el("button", "seats-add");
         button.type = "button";
         button.dataset.addEcho = role;
@@ -128,8 +132,9 @@ export function createSeats(root: HTMLElement, opts: SeatsOptions): Seats {
         return button;
       }),
     );
-    if (state.echoRoles.length === 0) {
-      echoButtons.append(el("p", "seats-none", echoCount >= ECHO_MAX ? `The table has its ${ECHO_MAX} Echoes.` : "No Echo can be seated now."));
+    if (!isHost || state.echoRoles.length === 0) {
+      const why = echoCount >= ECHO_MAX ? `The table has its ${ECHO_MAX} Echoes.` : isHost || state.echoRoles.length === 0 ? "No Echo can be seated now." : "The host seats Echoes, in the lobby.";
+      echoButtons.append(el("p", "seats-none", why));
     }
   }
 
