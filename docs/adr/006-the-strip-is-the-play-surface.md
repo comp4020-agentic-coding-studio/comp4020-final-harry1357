@@ -4,7 +4,11 @@
   three-second beat is a timed-out seat's, for its person to come back, and
   an Echo seated on purpose, with no person, gets none; and an Echo may take
   a Reaction off its turn against a card already on the strip, as anyone may
-  (rule 18). Otherwise nothing happens off-turn.
+  (rule 18). Otherwise nothing happens off-turn. Amended by ADR-009
+  (2026-10-22) in "The pull": the countdown is gone (a private room starts
+  on its host's Start, the public raid after a ready window), and a late
+  joiner grows the Orrery with its percentage kept. Amended by ADR-010 in
+  the Orrery's tempo and the starting values.
 - **Date:** 2026-10-15
 - **Builds on:** ADR-001 (one process, one tick), ADR-002 (a room can't wait on
   one person) and ADR-005 (two at once, the clock decides). The research behind
