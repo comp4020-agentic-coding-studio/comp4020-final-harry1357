@@ -5,10 +5,16 @@
 - **Builds on:** ADR-006 (the strip is the play surface, and its pull) and
   ADR-007 (a room is a code, a bot is an Echo).
 - **Amends:** ADR-006's "The pull" (the countdown, and "a late joiner after
-  the pull … doesn't change the HP"), and ADR-007's Echo seating ("seated on
-  purpose by whoever's in the room", now only in a private room's lobby).
-- **Rules:** 20 and 25 change with it; 27 is new. Each change to a rule's
-  text is its own commit.
+  the pull … doesn't change the HP"); ADR-007's Echo seating ("seated on
+  purpose by whoever's in the room", now only in a private room's lobby, by
+  its host); and ADR-007's "There is no owner" and rule 22's "nothing owns
+  one", which a host qualifies without breaking: a host's only say is Start
+  and the Echoes, in the lobby, and it passes on (rule 22 says so, since the
+  lobby gate).
+- **Rules:** 20 and 25 change with it; 27 is new; 22 says what a host is.
+  Each change to a rule's text should be its own commit. (The first one,
+  `0880745`, changed 20, 25, 27 and 28 together; the lobby gate's reviewer
+  recorded it, and later changes were made one at a time.)
 
 ## Context
 
@@ -79,8 +85,14 @@ and rule 26's window starts.
 
 **After a fight ends, the room returns to its lobby.** Everyone still seated
 in it is seated in the new lobby, in their seat order, with their roles. The
-Echoes stay too: they belong to the table, not to one fight. The host starts
-the next fight. A person who has gone between fights is not carried over.
+Echoes stay too: they belong to the table, not to one fight, and are the
+host's. A seat its person left to an Echo comes back as that Echo until the
+person acts (rule 8), so it is half a seat at Start. The host starts the next
+fight. Who has gone isn't known at the moment a fight ends; a person who has
+gone between fights is unseated from the new lobby when the lobby's presence
+says so (no socket for `LOBBY_GRACE_MS`, below). The carry is silent: the
+next fight reaches every screen as a whole state, so it narrates nothing a
+screen won't show (rule 11).
 
 **Echoes are seated only in a private room's lobby, by its host.** Never in
 the public raid, because strangers shouldn't be able to fill a public fight

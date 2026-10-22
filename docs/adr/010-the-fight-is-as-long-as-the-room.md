@@ -5,9 +5,12 @@
 - **Builds on:** ADR-006 (the strip is the play surface), ADR-007 (Echoes)
   and ADR-009 (the fight starts on a decision).
 - **Amends:** the Orrery's tempo, which was a fixed rank-3 reset (21 ticks)
-  whatever the room, and the starting values ADR-006 called "for
-  playtesting": base HP, Echo output and the cards' damage.
-- **Rules:** 28 is new, with `spec/pace.test.ts`. The tuning values are in `src/server/tuning.ts`,
+  whatever the room, and with it rule 13's text, since the Orrery's tick
+  speed is now the room's pace and not a band of `ctb.ts`; and the starting
+  values ADR-006 called "for playtesting": base HP, Echo output and the
+  cards' damage.
+- **Rules:** 28 is new, with `spec/pace.test.ts`; 13 says the Orrery's tick
+  speed is the room's pace. The tuning values are in `src/server/tuning.ts`,
   each marked ours.
 
 ## Context
