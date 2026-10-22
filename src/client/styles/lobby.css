@@ -1,0 +1,250 @@
+/* A private room's lobby (docs/adr/009): the waiting room before its host's
+   Start, laid over the stage like the join screen and placed the same way
+   (stage.css). One window: the code to read out, large, in the display face,
+   because the room is a code and nothing more (rule 22); the seats with the
+   host marked in words; the host's Echoes and Start; everyone else's
+   "waiting for the host". The genre's party-select screen, drawn new. */
+
+#battle .lobby {
+  position: absolute;
+  inset: 0;
+  z-index: 19;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  overflow: auto;
+  background: color-mix(in srgb, var(--void) 72%, transparent);
+}
+
+#battle .lobby[hidden] {
+  display: none;
+}
+
+#battle .lobby-panel {
+  display: grid;
+  gap: 0.7rem;
+  width: min(100%, 40rem);
+  padding: clamp(1rem, 3vw, 1.8rem);
+}
+
+#battle .lobby-kicker,
+#battle .lobby-label {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 0.6rem;
+  letter-spacing: 0.1em;
+  line-height: 1.4;
+  text-transform: uppercase;
+  color: var(--card-quiet);
+}
+
+#battle .lobby-title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: clamp(1rem, 3vw, 1.4rem);
+  font-weight: 400;
+  color: var(--card);
+}
+
+#battle .lobby-code-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.4rem 1rem;
+  margin: 0;
+  padding: 0.6rem 0.8rem;
+  background: var(--void);
+  border: 2px dashed var(--brass-dim);
+  border-radius: 2px;
+}
+
+#battle .lobby-code-label {
+  font-size: 1.1rem;
+  color: var(--card-quiet);
+}
+
+/* The signature of the room: its code, set like a plate on a door. */
+#battle .lobby-code {
+  font-family: var(--font-display);
+  font-size: clamp(1.4rem, 5vw, 2.2rem);
+  letter-spacing: 0.35em;
+  color: var(--brass-lit);
+}
+
+#battle .lobby-last {
+  margin: 0;
+  font-size: 1.2rem;
+  color: var(--card);
+}
+
+#battle .lobby-last[data-outcome="lost"] {
+  color: var(--ember);
+}
+
+#battle .lobby-last[hidden],
+#battle .lobby-echoes[hidden],
+#battle .lobby-start[hidden],
+#battle .lobby-waiting[hidden] {
+  display: none;
+}
+
+#battle .lobby-seats {
+  display: grid;
+  gap: 0.2rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 1.25rem;
+}
+
+#battle .lobby-seat {
+  display: grid;
+  grid-template-columns: 3.4em minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: 0.6rem;
+  padding: 0.15rem 0.4rem;
+  border-left: 3px solid transparent;
+}
+
+#battle .lobby-seat[data-host="true"] {
+  border-left-color: var(--brass);
+  background: color-mix(in srgb, var(--brass) 10%, var(--ink));
+}
+
+#battle .lobby-mark {
+  font-family: var(--font-display);
+  font-size: 0.55rem;
+  color: var(--brass);
+}
+
+#battle .lobby-name {
+  overflow-wrap: anywhere;
+}
+
+#battle .lobby-seat[data-echo="true"] .lobby-name {
+  font-style: italic;
+  color: var(--card-quiet);
+}
+
+#battle .lobby-role {
+  color: var(--card-quiet);
+}
+
+#battle .lobby-echoes {
+  display: grid;
+  gap: 0.35rem;
+}
+
+#battle .lobby-echo-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+#battle .lobby-add,
+#battle .lobby-leave {
+  padding: 0.25rem 0.6rem;
+  font-family: var(--font-body);
+  font-size: 1.1rem;
+  color: var(--card);
+  background: var(--ink);
+  border: 2px solid var(--brass-dim);
+  border-radius: 2px;
+  cursor: pointer;
+}
+
+#battle .lobby-none,
+#battle .lobby-said,
+#battle .lobby-waiting {
+  margin: 0;
+  font-size: 1.15rem;
+  color: var(--card-quiet);
+}
+
+#battle .lobby-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem 1rem;
+  margin-top: 0.3rem;
+}
+
+#battle .lobby-start {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.75em;
+  padding: 0.85rem 1.2rem;
+  font-family: var(--font-display);
+  font-size: 14px;
+  letter-spacing: 0.06em;
+  line-height: 1;
+  text-transform: uppercase;
+  color: var(--ink);
+  background: var(--brass);
+  border: 2px solid var(--brass-lit);
+  border-radius: 2px;
+  box-shadow: 0 3px 0 0 var(--brass-dim);
+  cursor: pointer;
+}
+
+#battle .lobby-start .lobby-cursor {
+  line-height: 0;
+}
+
+#battle .lobby-start .lobby-cursor > svg {
+  width: 10px;
+  height: 18px;
+}
+
+#battle .lobby-start:disabled,
+#battle .lobby-add:disabled,
+#battle .lobby-leave:disabled {
+  color: var(--card-quiet);
+  background: var(--ink);
+  border-color: var(--brass-dim);
+  box-shadow: none;
+  cursor: progress;
+}
+
+#battle .lobby-start:focus-visible,
+#battle .lobby-add:focus-visible,
+#battle .lobby-leave:focus-visible {
+  outline: 3px solid var(--brass-lit);
+  outline-offset: 2px;
+}
+
+#battle .lobby-add:hover:not(:disabled),
+#battle .lobby-leave:hover:not(:disabled) {
+  border-color: var(--brass);
+}
+
+#battle .lobby-start:hover:not(:disabled) {
+  background: var(--brass-lit);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  #battle .lobby-start:active:not(:disabled) {
+    box-shadow: none;
+    transform: translateY(3px);
+  }
+}
+
+/* At 390×844 the lobby takes the screen beneath the bar, as the join screen
+   does (mobile.css hides the stage while this page isn't in the fight). */
+@media (width <= 46rem) {
+  #battle > .lobby {
+    position: relative;
+    inset: auto;
+    z-index: 1;
+    overflow: visible;
+  }
+
+  #battle .lobby-seat {
+    grid-template-columns: 3em minmax(0, 1fr);
+  }
+
+  #battle .lobby-role {
+    grid-column: 2;
+  }
+}

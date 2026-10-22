@@ -16,6 +16,7 @@ import {
   type RoleId,
   type RoomInfo,
   type RoomJoinResponse,
+  type StartResponse,
 } from "../shared/protocol.ts";
 import type { Door, JoinResult, SpriteManifest } from "./battle/api.ts";
 import { createConductor } from "./battle/conductor.ts";
@@ -26,13 +27,14 @@ import { countdownFraction, mountCommandWindow, type CommandWindow } from "./com
 import { door } from "./door.ts";
 import { mountJoin } from "./join/join.ts";
 import { getJSON, postJSON, watchBattle, watchRoom, type Link, type RoomGone, type Watch } from "./net.ts";
+import { createLobby } from "./lobby/lobby.ts";
+import { createScreen } from "./screen.ts";
 import { createSeats } from "./seats/seats.ts";
 import { createScene } from "./scene/scene.ts";
 import { prompts } from "./command/prompts.ts";
 import { createStrip } from "./strip/strip.ts";
 
 const manifest = manifestJson as unknown as SpriteManifest;
-const OVER = new Set(["won", "lost", "abandoned"]);
 
 function need<T extends Element>(selector: string): T {
   const el = document.querySelector<T>(selector);
@@ -53,6 +55,29 @@ const commandEl = need<HTMLElement>("[data-command]");
 const joinEl = need<HTMLElement>("[data-join-screen]");
 const join = mountJoin(joinEl, { manifest, onJoin });
 const seats = createSeats(need<HTMLElement>("[data-seats]"), { onEcho });
+const lobby = createLobby(need<HTMLElement>("[data-lobby]"), {
+  onStart: () => roomPost("start"),
+  onLeave: () => roomPost("leave"),
+  onEcho,
+  lastOutcome: () => screen.lastOutcome(),
+});
+/** Which screen is up (join, lobby, fight, ended), decided in one place: src/client/screen.ts. */
+const screen = createScreen({
+  root: battleEl,
+  banner: (text) => scene.banner(text),
+  join: {
+    show: () => join.show(app.me, { code: app.code, isPublic: app.state?.room?.isPublic ?? false }),
+    hide: () => join.hide(),
+    // In a room the link goes on to the room's next fight; on a bare battle, to the front door.
+    ended: (outcome) => {
+      join.ended(outcome, app.code ? { href: roomHref(app.code), go: goOn } : undefined);
+      // The record this fight added, for the welcome when the person sits down again.
+      void loadMe();
+    },
+    clear: () => join.clear(),
+  },
+  lobby: { show: () => app.state && lobby.show(app.state, app.myId, app.code), hide: () => lobby.hide() },
+});
 
 const app = {
   /** The room this page is in (rules 22-24), or null on a bare battle opened by ?battle= (the sensors'). */
@@ -64,12 +89,6 @@ const app = {
   state: null as BattleState | null,
   command: null as CommandWindow | null,
   commandRole: null as RoleId | null,
-  joinShown: false,
-  endedShown: false,
-  /** A room's fight ended and its next opened: the end panel stays until the person goes on (rule 24). */
-  afterEnding: false,
-  /** How the fight on the end panel ended: kept, so nothing that happens after it can retitle it (breaker Q2). */
-  shownOutcome: null as Outcome | null,
   /** The turn whose hold warning has already sounded (by its deadline). */
   warned: null as number | null,
   /** The socket this page is watching, so a change of room can let it go. */
@@ -85,8 +104,6 @@ function say(text: string): void {
   // a fresh node each time, so the same words twice are announced twice
   requestAnimationFrame(() => (announce.textContent = text));
 }
-
-type Outcome = "won" | "lost" | "abandoned";
 
 function standing(state: BattleState, id: string | null): boolean {
   return !!id && state.queue.some((t) => t.id === id);
@@ -155,62 +172,37 @@ function onState(state: BattleState): void {
   const mine = standing(state, app.myId);
   document.body.dataset.me = app.myId ?? "";
   seats.render(state, app.myId, app.code);
+  const was = screen.phase();
+  screen.state(state, app.myId);
 
-  if (OVER.has(state.status)) {
-    battleEl.dataset.phase = "ended";
+  if (screen.phase() !== "fight" || !mine) {
     app.command?.setEnabled(false);
     app.command?.setCountdown(null);
-    if (!app.endedShown) {
-      app.endedShown = true;
-      // The room's next fight closed with nobody in it while the last one's ending is up (the room expired):
-      // that panel stays, never retitled for a fight nobody played (breaker Q2).
-      if (app.afterEnding) return;
-      app.shownOutcome = state.status as Outcome;
-      // In a room the link goes on to the room's next fight; on a bare battle, to the front door.
-      join.ended(state.status as Outcome, app.code ? { href: roomHref(app.code), go: goOn } : undefined);
-      // The record this fight added, for the welcome when the person sits down again.
-      void loadMe();
-    }
+    app.command?.setReactionReady(null);
     return;
   }
 
-  if (mine) {
-    const sat = app.joinShown || app.afterEnding;
-    if (sat) {
-      app.joinShown = false;
-      app.afterEnding = false;
-      join.hide();
-    }
-    battleEl.dataset.phase = "fight";
-    const token = state.queue.find((t) => t.id === app.myId) ?? null;
-    const role = (token?.role ?? app.role) as RoleId;
-    mountCommand(role);
-    const myTurn = state.status === "fighting" && state.activeId === app.myId;
-    app.command?.setEnabled(myTurn);
-    // Off-turn, the Reaction is the one thing live, and only at the card the server names (rule 2).
-    app.command?.setReactionReady(state.status === "fighting" ? (token?.reactionCard ?? null) : null);
-    app.command?.setSeat({
-      token,
-      preview: myTurn && state.preview?.actorId === app.myId ? state.preview.actions : null,
-      prompts: prompts(state, token),
-    });
-    app.command?.setCountdown(myTurn ? countdownFraction(state, Date.now()) : null);
-    // Just sat down: the join screen hid with the focused field in it. Focus goes to the commands, not the
-    // page body (phase two's gate, P1), unless the person has already put it somewhere else.
-    if (sat && (!document.activeElement || document.activeElement === document.body || joinEl.contains(document.activeElement))) {
-      app.command?.focus();
-    }
-  } else if (app.afterEnding) {
-    // The room has moved on to its next fight; the last one's ending stays up until the person goes on.
-    battleEl.dataset.phase = "ended";
-    app.command?.setEnabled(false);
-  } else {
-    battleEl.dataset.phase = "join";
-    app.command?.setEnabled(false);
-    if (!app.joinShown) {
-      app.joinShown = true;
-      join.show(app.me, { code: app.code, isPublic: state.room?.isPublic ?? false });
-    }
+  const token = state.queue.find((t) => t.id === app.myId) ?? null;
+  const role = (token?.role ?? app.role) as RoleId;
+  mountCommand(role);
+  const myTurn = state.status === "fighting" && state.activeId === app.myId;
+  app.command?.setEnabled(myTurn);
+  // Off-turn, the Reaction is the one thing live, and only at the card the server names (rule 2).
+  app.command?.setReactionReady(state.status === "fighting" ? (token?.reactionCard ?? null) : null);
+  app.command?.setSeat({
+    token,
+    preview: myTurn && state.preview?.actorId === app.myId ? state.preview.actions : null,
+    prompts: prompts(state, token),
+  });
+  app.command?.setCountdown(myTurn ? countdownFraction(state, Date.now()) : null);
+  // Just came into the fight (from the join screen or the lobby): focus goes to the commands, not the page body
+  // (phase two's gate, P1), unless the person has already put it somewhere else.
+  const lobbyEl = document.querySelector("[data-lobby]");
+  if (
+    was !== "fight" &&
+    (!document.activeElement || document.activeElement === document.body || joinEl.contains(document.activeElement) || !!lobbyEl?.contains(document.activeElement))
+  ) {
+    app.command?.focus();
   }
 }
 
@@ -278,7 +270,8 @@ function enter(code: string): void {
   app.code = code;
   app.battleId = "";
   app.state = null;
-  app.endedShown = false;
+  // A new room is a clean screen: nothing of the last fight stays up (ADR-009).
+  screen.entered();
   battleEl.dataset.room = code;
   delete battleEl.dataset.closed;
   conductor.resync();
@@ -286,6 +279,18 @@ function enter(code: string): void {
   const search = code === app.publicCode ? "" : `?room=${encodeURIComponent(code)}`;
   if (location.search !== search) history.replaceState(null, "", `${location.pathname}${search}`);
   app.watch = watchRoom(code, (msg) => conductor.receive(msg), onRoom, onLinkChange, onGone);
+}
+
+/** The host's Start, or leaving the lobby (rule 27): the server's refusal, or null. */
+async function roomPost(what: "start" | "leave"): Promise<string | null> {
+  if (!app.code) return "There's no room to do that in.";
+  const res = await postJSON<StartResponse>(`/api/rooms/${encodeURIComponent(app.code)}/${what}`, {});
+  if (!res.ok) return res.error ?? "The table couldn't do that.";
+  if (what === "leave") {
+    // Left the lobby: off to the front door, as someone seated nowhere.
+    location.assign("/");
+  }
+  return null;
 }
 
 /** Seat an Echo in this room (rule 25): the server's refusal, or null. */
@@ -308,13 +313,13 @@ function onRoom(room: RoomInfo): void {
   const next = app.battleId !== "";
   app.battleId = room.battleId;
   battleEl.dataset.battle = room.battleId;
-  // A new fight is a new truth: the next state is drawn whole, and the ending is shown afresh. A fight
-  // that just ended in this room is still shown and written down first (conductor.next), and its end
-  // panel stays up until the person goes on.
+  // A new fight is a new truth: the next state is drawn whole. A fight that just ended in this room is
+  // still shown and written down first (conductor.next); then the screen is clean for the next fight:
+  // its lobby, with the last fight's outcome on it, or for someone not seated in it, the end panel
+  // until they go on (src/client/screen.ts).
   if (next) {
-    app.afterEnding = app.endedShown;
-    app.endedShown = false;
     app.state = null;
+    screen.entered();
     conductor.next();
   } else conductor.resync();
 }
@@ -330,10 +335,8 @@ function goOn(): void {
     location.assign("/");
     return;
   }
-  app.afterEnding = false;
-  app.joinShown = true;
-  battleEl.dataset.phase = "join";
-  join.show(app.me, { code: app.code, isPublic: app.state?.room?.isPublic ?? app.code === app.publicCode });
+  screen.goOn();
+  if (app.state) onState(app.state);
 }
 
 /** The room is gone for good (4410: it expired; 4404: there never was one). Said, never retried. */
@@ -349,8 +352,9 @@ function onGone(why: RoomGone): void {
   say(text);
   // The room's gone: an end panel up for its last fight goes on to the front door, not back into it, and
   // still says how that fight ended (breaker Q2).
-  if (app.endedShown || app.afterEnding) join.ended(app.shownOutcome ?? ((app.state?.status ?? "abandoned") as Outcome));
-  app.afterEnding = false;
+  const outcome = screen.lastOutcome();
+  if (screen.phase() === "ended" && outcome) join.ended(outcome);
+  lobby.hide();
 }
 
 async function boot(): Promise<void> {

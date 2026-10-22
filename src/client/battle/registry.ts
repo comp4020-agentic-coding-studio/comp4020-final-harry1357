@@ -23,8 +23,8 @@ export const OWNERS: Readonly<Record<"strip" | "command" | "feel", readonly Even
   command: ["hold", "echo"],
   // (c) the feel: ./effects/feel.ts (party.ts, orrery.ts, table.ts)
   feel: [
-    "join", "seat", "leave", "down", "end", "brace", "exposed", "bastion", "counterweight", "mend", "ward", "restore",
-    "cleave", "finisher", "feint", "scan", "pry", "mark", "shatter", "pull", "phase", "break", "revolution", "eclipse",
+    "join", "seat", "leave", "start", "host", "down", "end", "brace", "exposed", "bastion", "counterweight", "mend", "ward", "restore",
+    "cleave", "finisher", "feint", "scan", "pry", "mark", "shatter", "pull", "grow", "phase", "break", "revolution", "eclipse",
     "lunge", "gravity", "perihelion", "jab", "haste",
   ],
 };

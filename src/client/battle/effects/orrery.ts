@@ -220,20 +220,58 @@ export const pullReduced: Fx<"pull"> = async (raw) => {
   await ctx.wait(HOLD);
 };
 
-/** A phase line crossed: the Orrery's look changes (the Conjunction's pointers, the Alignment's line). */
+/** The title a phase lands with, its name as the server gives it: "Phase II: Conjunction" (ADR-010). */
+const phaseTitle = (phase: 2 | 3, name: string): string => `Phase ${phase === 3 ? "III" : "II"}: ${name}`;
+
+/**
+ * A phase line crossed is a moment on every screen (ADR-010, rule 28): the
+ * table stops for a beat (hit-stop), the rings flash and lock into the new
+ * phase's figure, its card lands on the strip, a title crosses the field in
+ * the pixel face, and its own sound plays.
+ */
 export const phase: Fx<"phase"> = async (raw, e) => {
   const ctx = stage(raw);
+  const name = e.name ?? "";
   await bounded(ctx, ctx.scene.windUp(BOSS_ID), 300);
+  ctx.audio.play("phase");
+  await bounded(ctx, ctx.scene.hitStop(), 200);
+  ctx.scene.hit(BOSS_ID);
   void ctx.scene.spinUp();
   void ctx.scene.pushIn();
   ctx.scene.phase(e.phase);
+  showRingMarks(ctx);
+  ctx.strip.phaseCard(e.phase, name);
+  ctx.scene.title(phaseTitle(e.phase, name));
   void ctx.scene.pulse();
-  await ctx.wait(600);
+  await ctx.wait(900);
 };
 
+/** Reduced: the same moment, still. The flash is its single frame; the title, the rings' figure and the card all show. */
 export const phaseReduced: Fx<"phase"> = async (raw, e) => {
   const ctx = stage(raw);
+  const name = e.name ?? "";
+  ctx.audio.play("phase");
+  ctx.scene.hit(BOSS_ID);
   ctx.scene.phase(e.phase);
+  showRingMarks(ctx);
+  ctx.strip.phaseCard(e.phase, name);
+  ctx.scene.title(phaseTitle(e.phase, name));
+  await ctx.wait(HOLD * 3);
+};
+
+/** The Orrery grows for a late joiner (rule 20, ADR-009): its bar redrawn at its new size, at the share it stood at. */
+export const grow: Fx<"grow"> = async (raw, e) => {
+  const ctx = stage(raw);
+  ctx.scene.hp(BOSS_ID, e.hp, e.maxHp);
+  ctx.scene.rings(e.hp, e.maxHp);
+  void ctx.scene.spinUp();
+  await ctx.wait(300);
+};
+
+export const growReduced: Fx<"grow"> = async (raw, e) => {
+  const ctx = stage(raw);
+  ctx.scene.hp(BOSS_ID, e.hp, e.maxHp);
+  ctx.scene.rings(e.hp, e.maxHp);
   await ctx.wait(HOLD);
 };
 

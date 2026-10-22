@@ -31,6 +31,8 @@ const LEAVE_MS = 650;
 const WINDUP_MS = 240;
 /** The hit-stop: a few frames' hold on impact. */
 const HITSTOP_MS = 90;
+/** How long a phase's title holds across the field (ADR-010), the same with motion or without. */
+const TITLE_MS = 2_200;
 
 function div(className: string, hook?: string): HTMLDivElement {
   const node = document.createElement("div");
@@ -65,7 +67,15 @@ export function createScene(root: HTMLElement, { manifest, orrerySvg }: PartsOpt
   bannerEl.dataset.banner = "";
   bannerEl.hidden = true;
 
-  root.replaceChildren(field, orrery.el, partyHost, layer, bannerEl);
+  // A phase's title (ADR-010): across the field in the display face, held for a beat, then gone.
+  const titleEl = document.createElement("p");
+  titleEl.className = "scene-title";
+  titleEl.dataset.title = "";
+  titleEl.setAttribute("role", "status");
+  titleEl.hidden = true;
+  let titleTimer: ReturnType<typeof setTimeout> | null = null;
+
+  root.replaceChildren(field, orrery.el, partyHost, layer, bannerEl, titleEl);
   delete root.dataset.stub;
 
   reducedQuery.addEventListener("change", () => party.motionChanged());
@@ -272,6 +282,22 @@ export function createScene(root: HTMLElement, { manifest, orrerySvg }: PartsOpt
       if (targeted) delete targeted.dataset.targeted;
       targeted = next;
       if (next) next.dataset.targeted = "";
+    },
+
+    title(text: string | null): void {
+      if (titleTimer) clearTimeout(titleTimer);
+      titleTimer = null;
+      if (text === null || text === "") {
+        titleEl.hidden = true;
+        titleEl.textContent = "";
+        return;
+      }
+      titleEl.textContent = text;
+      titleEl.hidden = false;
+      titleTimer = setTimeout(() => {
+        titleEl.hidden = true;
+        titleTimer = null;
+      }, TITLE_MS);
     },
 
     banner(text: string | null): void {

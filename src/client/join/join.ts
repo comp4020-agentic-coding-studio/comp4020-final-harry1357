@@ -541,6 +541,22 @@ export function mountJoin(root: HTMLElement, opts: JoinOptions): Join {
       if (parts) busy(false);
     },
 
+    clear() {
+      // A new room or fight is a clean screen (ADR-009): no ending from the last one left up.
+      onNext = null;
+      if (end) {
+        end.panel.hidden = true;
+        delete end.panel.dataset.outcome;
+      }
+      if (shell) delete shell.dataset.outcome;
+      root.setAttribute("aria-label", screenLabel);
+      if (!parts || parts.form.hidden) {
+        root.hidden = true;
+        cancelAnimationFrame(raf);
+        raf = 0;
+      }
+    },
+
     ended(outcome: Outcome, next?: Next) {
       const host = ensureShell();
       const e = ensureEnd();

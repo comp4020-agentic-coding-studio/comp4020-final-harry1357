@@ -774,6 +774,33 @@
   display: none;
 }
 
+/* A phase's title (ADR-010): the moment a phase line is crossed, across the
+   field in the display face, brass on an ink plate. A state, so it shows
+   under reduced motion too; only its arrival moves (below). */
+#battle .scene-title {
+  position: absolute;
+  z-index: 7;
+  left: 50%;
+  top: 40%;
+  translate: -50% -50%;
+  max-width: 94%;
+  margin: 0;
+  padding: 0.9rem 1.6rem;
+  text-align: center;
+  font-family: var(--font-display);
+  font-size: clamp(0.9rem, 2.4vw, 1.6rem);
+  line-height: 1.5;
+  letter-spacing: 0.06em;
+  color: var(--brass-lit);
+  background: var(--ink);
+  border-block: 4px solid var(--brass);
+  pointer-events: none;
+}
+
+#battle .scene-title[hidden] {
+  display: none;
+}
+
 /* ---- desktop placement -------------------------------------------------------- */
 
 @media (width > 46rem) {
@@ -1013,6 +1040,10 @@
 
   #battle .banner:not([hidden]) {
     animation: banner-in 260ms ease-out;
+  }
+
+  #battle .scene-title:not([hidden]) {
+    animation: title-in 420ms steps(6, end);
   }
 
   #battle .actor-ring {
@@ -1313,5 +1344,15 @@
 
   #battle .fx-number {
     font-size: calc(0.85rem + var(--size, 0.4) * 1rem);
+  }
+}
+
+@keyframes title-in {
+  from {
+    clip-path: inset(0 50% 0 50%);
+  }
+
+  to {
+    clip-path: inset(0 0 0 0);
   }
 }

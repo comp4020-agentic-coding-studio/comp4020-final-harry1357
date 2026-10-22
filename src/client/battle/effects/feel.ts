@@ -42,6 +42,9 @@ const expected: Expected = {
   leave: [["scene.depart", "me"]],
   down: [["scene.down", "me"], ["scene.ward", "me", false], ["scene.status", "me", "*"]],
   end: [["scene.banner", "*"]],
+  // the lobby (ADR-009): Start clears the last fight's banner and marks the strip; the host's change, the new host
+  start: [["scene.banner", null], ["strip.started"]],
+  host: [["strip.flag", "me", "host"]],
   // the economy
   brace: [["scene.frame", "me", "guard"], ["scene.guard", "me", true], ["scene.status", "me", "*"]],
   exposed: [RINGS],
@@ -63,7 +66,9 @@ const expected: Expected = {
   shatter: [["scene.frame", "me", "attack"], ACTED, ["scene.hit", "orrery"], RINGS],
   // the Orrery
   pull: [["scene.rings", "*", "*"], ["scene.hp", "orrery", "*", "*"], RINGS, ["scene.phase", "*"]],
-  phase: [["scene.phase", "*"]],
+  // ADR-010: a phase is a moment: its card, its title, the rings' new figure, and the flash
+  phase: [["strip.phaseCard", "*", "*"], ["scene.title", "*"], ["scene.phase", "*"], ["scene.hit", "orrery"], RINGS],
+  grow: [["scene.hp", "orrery", "*", "*"], ["scene.rings", "*", "*"]],
   break: [RINGS, ["scene.hit", "orrery"]],
   // each blow's card leaves the strip as it lands (the sample's isn't spent)
   revolution: [...RAID_WIDE, ["strip.card", "card", "resolved"]],
@@ -101,6 +106,9 @@ export const FEEL: AreaRenderers = {
     mark: { full: party.mark, reduced: party.markReduced },
     shatter: { full: party.shatter, reduced: party.shatterReduced },
     pull: { full: orrery.pull, reduced: orrery.pullReduced },
+    grow: { full: orrery.grow, reduced: orrery.growReduced },
+    start: { full: table.start, reduced: table.startReduced },
+    host: { full: table.host, reduced: table.hostReduced },
     phase: { full: orrery.phase, reduced: orrery.phaseReduced },
     break: { full: orrery.breakRing, reduced: orrery.breakRingReduced },
     revolution: { full: orrery.revolution, reduced: orrery.revolutionReduced },

@@ -561,8 +561,40 @@
 
 #battle .strip-cards[hidden],
 #battle .strip-align[hidden],
-#battle .strip-chain[hidden] {
+#battle .strip-chain[hidden],
+#battle .strip-phase[hidden] {
   display: none;
+}
+
+/* The phase card (ADR-010): the Orrery's phase in the boss cards' row, in the
+   display face. Brass, not ember: it is the fight's chapter, not a blow. */
+#battle .strip-phase {
+  display: flex;
+  flex: none;
+  align-items: baseline;
+  gap: 0.4rem;
+  margin: 0;
+  padding: 0.25rem 0.4rem;
+  background: var(--ink);
+  border: 2px solid var(--brass);
+  border-radius: 2px;
+}
+
+#battle .strip-phase-number {
+  font-family: var(--font-display);
+  font-size: 0.7rem;
+  color: var(--brass-lit);
+}
+
+#battle .strip-phase-name {
+  font-size: 1.05rem;
+  line-height: 1.1;
+  color: var(--card);
+}
+
+#battle .strip-phase[data-moment="landed"] {
+  outline: 2px solid var(--brass-lit);
+  outline-offset: 2px;
 }
 
 /* A boss card: an ink window tinted with the Orrery's ember, its intent's

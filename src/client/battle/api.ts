@@ -84,6 +84,8 @@ export interface SceneApi {
   ward(id: string, on: boolean): void;
   /** Phase two: the Orrery's look for its phase. */
   phase(phase: 1 | 2 | 3): void;
+  /** ADR-010: a title across the field in the pixel display face ("Phase II: Conjunction"), held for a beat; null clears it. State: shown under reduced motion too. */
+  title(text: string | null): void;
 
   // --- motion ---
   shake(strength: "light" | "heavy"): Promise<void>;
@@ -105,7 +107,7 @@ export interface SceneApi {
 export interface StripApi {
   // --- state ---
   /** A transient mark on a portrait: "held" when a turn was held, "plate" when it reached the plate, and phase two's moments. */
-  flag(id: string, flag: "held" | "plate" | "jump" | "quickened" | "reacted" | "relayed" | "reclaimed"): void;
+  flag(id: string, flag: "held" | "plate" | "jump" | "quickened" | "reacted" | "relayed" | "reclaimed" | "host"): void;
   /** Phase two: a boss card's moment (announced, landed, passed over, pushed back, frozen, retargeted, cancelled). */
   card(cardId: string, moment: CardMoment): void;
   /** Phase two: the Chain as it now stands: links lit between consecutive player portraits, or broken by a boss turn. */
@@ -116,11 +118,15 @@ export interface StripApi {
   retrograde(flipped: boolean, cancelledBy: string | null, slots?: readonly string[]): void;
   /** Phase two: the Grand Alignment's clock, a card that grows as it nears the wipe. */
   alignment(countdown: number, wipe: boolean): void;
+  /** ADR-010: the phase card in the boss cards' row, its number and name, marked as it lands. The card itself is drawn from state.phase. */
+  phaseCard(phase: 2 | 3, name: string): void;
+  /** ADR-009: the host's Start, marked on the strip as the fight begins. */
+  started(): void;
   // --- motion ---
   afterimage(id: string): Promise<void>;
 }
 
-export type Cue = "strike" | "hit" | "revolution" | "plate" | "hold";
+export type Cue = "strike" | "hit" | "revolution" | "plate" | "hold" | "phase";
 
 export interface AudioApi {
   play(cue: Cue): void;
@@ -234,6 +240,16 @@ export interface SeatInfo {
   prompts?: Partial<Record<ActionId, string>>;
 }
 
+/**
+ * src/client/lobby/lobby.ts: a private room's lobby before its host's Start
+ * (rule 27): the seats, the code, the Echo buttons and Start for the host,
+ * "waiting for the host" for everyone else. Drawn from state; decides nothing.
+ */
+export interface Lobby {
+  show(state: BattleState, myId: string | null, code: string | null): void;
+  hide(): void;
+}
+
 /** src/client/join/join.ts: the character select. */
 export type JoinResult = { ok: true } | { ok: false; error: string };
 /**
@@ -258,6 +274,8 @@ export interface Join {
   hide(): void;
   /** The battle is over: say how, and offer the next raid: in a room, its next fight (next); otherwise the front door. */
   ended(outcome: "won" | "lost" | "abandoned", next?: Next): void;
+  /** Clear the end panel: a new room or a new fight is a clean screen (ADR-009). */
+  clear(): void;
 }
 /** Where the end panel's link goes on to: its address, and what the page does instead of a reload. */
 export interface Next {

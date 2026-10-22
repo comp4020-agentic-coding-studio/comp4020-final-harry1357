@@ -1,4 +1,4 @@
-// The five cues the battle screen asks for (api.ts, Cue). Each is a few
+// The six cues the battle screen asks for (api.ts, Cue). Each is a few
 // oscillators and some filtered noise, made fresh at the moment it's played
 // and gone in under a second and a half.
 import type { Cue } from "../battle/api.ts";
@@ -92,6 +92,29 @@ const CUES: Record<Cue, Voice> = {
       const level = amp(kit, out);
       partial.connect(level);
       play(partial, t, pluck(level.gain, t, peak, 0.002, decay));
+    }
+  },
+
+  /** A phase line crossed (ADR-010): the rings lock into a new figure. Three struck bells falling a fifth
+   *  then a fourth, C5, F4, C4, each the plate's bell an octave or more down, over a low noise
+   *  knock as the gears catch. Heavier than the plate's ding, so the two are never mistaken. */
+  phase(kit, out, t) {
+    const knock = noise(kit);
+    const thump = filter(kit, "lowpass", 220, 1.2);
+    const knockLevel = amp(kit, out);
+    knock.connect(thump).connect(knockLevel);
+    play(knock, t, pluck(knockLevel.gain, t, 0.6, 0.003, 0.18));
+    for (const [hz, at] of [
+      [523.25, 0],
+      [349.23, 0.22],
+      [261.63, 0.44],
+    ] as const) {
+      for (const [ratio, peak, decay] of BELL) {
+        const partial = osc(kit, "sine", hz * ratio, t + at);
+        const level = amp(kit, out);
+        partial.connect(level);
+        play(partial, t + at, pluck(level.gain, t + at, peak * 0.9, 0.002, decay * 1.1));
+      }
     }
   },
 

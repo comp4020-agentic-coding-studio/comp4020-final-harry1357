@@ -48,9 +48,11 @@ const BEAT_MS = 100;
 /** Retrograde flips "the next five slots" (the server's RETROGRADE_SLOTS): the portraits its event is about. */
 /** The Chain's potency is capped at +50% (rule 15): five pips, one per +10% the server reports. */
 const CHAIN_PIPS = 5;
+/** The Orrery's phases by name, as the server's phase event names them (orrery.ts). */
+const PHASE_NAMES: Readonly<Record<number, string>> = { 2: "Conjunction", 3: "the Grand Alignment" };
 
 type Out = "down" | "away";
-type Flag = "held" | "plate" | "jump" | "quickened" | "reacted" | "relayed" | "reclaimed";
+type Flag = "held" | "plate" | "jump" | "quickened" | "reacted" | "relayed" | "reclaimed" | "host";
 
 /** The word a flag stamps across a portrait's face. */
 const FLAG_WORD: Readonly<Record<Flag, string>> = {
@@ -62,6 +64,8 @@ const FLAG_WORD: Readonly<Record<Flag, string>> = {
   relayed: "Relay",
   // a person taking their seat back from their Echo (not the Mender's Restore)
   reclaimed: "Back!",
+  // the host passed to them (rule 27): theirs is Start now
+  host: "Host",
 };
 
 interface Entry {
@@ -189,8 +193,16 @@ export function createStrip(root: HTMLElement, opts: PartsOptions): Strip {
   const chainBonus = el("span", "strip-chain-bonus");
   for (const part of [chainLink, chainWord, chainCount, chainPips, chainBonus]) part.setAttribute("aria-hidden", "true");
   chainEl.append(chainSay, chainLink, chainWord, chainCount, chainPips, chainBonus);
+  // ADR-010: the phase card, the Orrery's phase in the boss cards' row once it's past the first, drawn from
+  // state.phase so a page that joins late sees it; phaseCard() marks the moment it lands.
+  const phaseEl = el("p", "strip-phase");
+  phaseEl.dataset.phaseCard = "";
+  phaseEl.hidden = true;
+  const phaseNumber = el("span", "strip-phase-number");
+  const phaseName = el("span", "strip-phase-name");
+  phaseEl.append(phaseNumber, phaseName);
   const head = el("div", "strip-head");
-  head.append(cards.list, cards.clock, chainEl);
+  head.append(phaseEl, cards.list, cards.clock, chainEl);
   root.replaceChildren(title, head, lanes);
 
   let shownIds: string[] = [];
@@ -539,6 +551,11 @@ export function createStrip(root: HTMLElement, opts: PartsOptions): Strip {
 
   function drawHead(state: BattleState, myId: string | null): void {
     cards.render(state, myId);
+    const phase = state.status === "fighting" || state.status === "won" || state.status === "lost" ? (state.phase ?? 1) : 1;
+    phaseEl.hidden = phase < 2;
+    put(phaseEl, "phase", String(phase));
+    text(phaseNumber, phase === 3 ? "III" : phase === 2 ? "II" : "I");
+    text(phaseName, PHASE_NAMES[phase] ?? "");
     const links = state.chain?.links ?? 0;
     const potency = state.chain?.potency ?? 1;
     // The server's potency, as words and pips: +10% a pip, five at the cap.
@@ -713,6 +730,20 @@ export function createStrip(root: HTMLElement, opts: PartsOptions): Strip {
     if (by) stampOn(by, "holds", "Holds");
   }
 
+  /** A phase line crossed (ADR-010): the phase card shows its number and name, and is marked as it lands. */
+  function phaseCard(phase: 2 | 3, name: string): void {
+    phaseEl.hidden = false;
+    put(phaseEl, "phase", String(phase));
+    text(phaseNumber, phase === 3 ? "III" : "II");
+    text(phaseName, name);
+    momentOn(phaseEl, "phase", "landed");
+  }
+
+  /** The host's Start (ADR-009): the strip marks the fight's first moment. */
+  function started(): void {
+    momentOn(root, "started", "started", "started");
+  }
+
   function alignment(countdown: number, wipe: boolean): void {
     cards.alignment(countdown, wipe);
     const gone = cards.departedOf("alignment");
@@ -729,5 +760,5 @@ export function createStrip(root: HTMLElement, opts: PartsOptions): Strip {
     if (node) node.dataset.aimed = "";
   }
 
-  return { render, flag, afterimage, preview, card, chain, jump, retrograde, alignment, aim };
+  return { render, flag, afterimage, preview, card, chain, jump, retrograde, alignment, phaseCard, started, aim };
 }

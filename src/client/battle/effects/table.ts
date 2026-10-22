@@ -128,3 +128,31 @@ export const endReduced: Fx<"end"> = async (raw, e) => {
   ctx.scene.banner(outcomeLine(e.outcome));
   await ctx.wait(HOLD);
 };
+
+// --- the lobby (docs/adr/009, rule 27) ------------------------------------------------
+
+/** The host's Start: the strip marks the fight's first moment, and the last fight's banner is gone. The pull follows it. */
+export const start: Fx<"start"> = async (raw) => {
+  const ctx = stage(raw);
+  ctx.scene.banner(null);
+  ctx.strip.started();
+  ctx.audio.play("plate");
+  await ctx.wait(300);
+};
+
+export const startReduced: Fx<"start"> = async (raw) => {
+  const ctx = stage(raw);
+  ctx.scene.banner(null);
+  ctx.strip.started();
+  ctx.audio.play("plate");
+  await ctx.wait(HOLD);
+};
+
+/** The host passed on (rule 27): the new host's portrait is marked. The lobby draws who is host from state. */
+export const host: Fx<"host"> = async (raw, e) => {
+  const ctx = stage(raw);
+  ctx.strip.flag(e.actorId, "host");
+  await ctx.wait(HOLD);
+};
+
+export const hostReduced: Fx<"host"> = host;
