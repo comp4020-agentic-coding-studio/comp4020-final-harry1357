@@ -66,11 +66,12 @@ for three seats.
 
 **The host is the first person seated, and passes on.** If the host leaves
 the lobby before Start, the next-seated person becomes host. Leaving is one
-of three things the server can see: the host asks to
-(`POST /api/rooms/:code/leave`), sits down at another table (rule 24: a seat
-acts only in its own room), or has had no socket open on the room for
+of two things the server can see: the host asks to
+(`POST /api/rooms/:code/leave`), or has had no socket open on the room for
 `LOBBY_GRACE_MS` (ours: ten seconds, so a reload or a dropped connection
-isn't a leave). A host who leaves is unseated from the lobby, since a lobby
+isn't a leave). Sitting down at another table isn't leaving: one character
+may hold seats in two rooms (rule 24), and a host who opens a second room in
+another tab still has this one's socket. A host who leaves is unseated from the lobby, since a lobby
 seat holds no fight state to keep, and the same rule unseats anyone else
 who leaves a lobby. An Echo is never host: it has no person to press
 anything. If no person is left, the Echoes go too, and the room is empty
