@@ -159,6 +159,79 @@ describe("the public raid grows with its room", () => {
   });
 });
 
+describe("the lobby gate's breaker findings, on the engine", () => {
+  type Next = (ended: Battle, fresh: Battle, c: Clock) => Step;
+  const nextFightOf = (e: LobbyEngine): Next => {
+    const fn = (e as unknown as Record<string, unknown>).nextFight;
+    if (typeof fn !== "function") throw new Error("the battle engine doesn't export nextFight yet (src/server/rules.ts)");
+    return fn as Next;
+  };
+  const freshOf = (e: LobbyEngine, isPublic: boolean): Battle => {
+    const b = e.createBattle("next", isPublic, T0);
+    (b as Battle & { room: string | null }).room = isPublic ? "RAID" : "QZ7MK";
+    return b;
+  };
+
+  it("B2: the Echoes come back to the next lobby though the host who seated them left it", async () => {
+    // Rule 27: the room returns to its lobby "with everyone still seated"; ADR-009: the Echoes "belong to the
+    // table, not to one fight". They were carried only if the person who seated them was carried too.
+    const e = await lobbyEngine();
+    let b = lobby(e, ["warden", "striker"]);
+    for (const [i, role] of ["mender", "breaker"].entries()) b = e.seatEcho(b, { id: `echo-${i}`, role, seatedBy: "warden-1" }, clock(T0)).battle;
+    b = e.leave(b, "warden-1", clock(T0))!.battle;
+    expect(hostOf(e, b), "the Striker is host now").toBe("striker-2");
+    b = e.start(b, "striker-2", clock(T0)).battle;
+    const ended = structuredClone(b);
+    ended.status = "won";
+    const next = nextFightOf(e)(ended, freshOf(e, false), clock(T0)).battle;
+    const seated = next.standing.filter((f) => f.kind === "character").map((f) => f.id).sort();
+    expect(seated, "the host and both Echoes are in the next lobby").toEqual(["echo-0", "echo-1", "striker-2"]);
+    expect(hostOf(e, next), "the host is the same").toBe("striker-2");
+    expect(e.checkSeatEcho(next, "striker-2", "mender"), "and their Echoes count against the table's: one Mender Echo").toMatchObject({ status: 409 });
+  });
+
+  it("B3: the public raid carries the people still standing, never a seat its person left to an Echo", async () => {
+    // ADR-009: the public raid's next fight seats "everyone still standing"; rule 8: an Echo plays "until the
+    // person acts again". A seat that timed out into an Echo isn't a person standing at the table, and carried
+    // as a person it was counted whole at the next pull (rule 20: an Echo is half).
+    const e = await lobbyEngine();
+    let b = e.createBattle("raid", true, T0);
+    (b as Battle & { room: string | null }).room = "RAID";
+    for (const [i, role] of ["warden", "mender", "striker"].entries()) b = e.join(b, { id: `p${i}`, name: `p ${i}`, role }, clock(T0)).battle;
+    const ended = structuredClone(b);
+    ended.status = "won";
+    (ended.standing.find((f) => f.id === "p1") as Battle["standing"][number]).echo = true; // timed out into an Echo
+    const fallen = ended.standing.find((f) => f.id === "p2") as Battle["standing"][number];
+    ended.standing = ended.standing.filter((f) => f.id !== "p2");
+    ended.fallen.push({ ...fallen, hp: 0 }); // downed
+    const next = nextFightOf(e)(ended, freshOf(e, true), clock(T0)).battle;
+    const seated = next.standing.filter((f) => f.kind === "character").map((f) => f.id);
+    expect(seated, "only the person still standing as themselves").toEqual(["p0"]);
+  });
+
+  it("B5: a late joiner in a private room takes a seat at the back of the strip", async () => {
+    // ADR-009: "A late joiner in a private room … takes a seat at the back of the strip".
+    const e = await lobbyEngine();
+    let b = lobby(e, ["warden", "mender", "breaker"]);
+    b = e.start(b, "warden-1", clock(T0)).battle;
+    b = e.join(b, { id: "chronist-9", name: "late 9", role: "chronist" }, clock(T0)).battle;
+    const party = b.standing.filter((f) => f.kind === "character");
+    expect(party.at(-1)?.id, `the late joiner is last on the strip: ${party.map((f) => `${f.id}:${f.counter}`).join(", ")}`).toBe("chronist-9");
+  });
+
+  it("B6: a name a lobby guest took stays theirs in that battle after they leave it", async () => {
+    // Rule 4: no two people in one battle share a name. Leaving the lobby forgot the name, so a stranger took it
+    // and the guest was refused their own.
+    const e = await lobbyEngine();
+    let b = lobby(e, ["warden"]);
+    b = e.join(b, { id: "guest", name: "Gale", role: "striker" }, clock(T0)).battle;
+    b = e.leave(b, "guest", clock(T0))!.battle;
+    const check = (e as unknown as { checkJoin(b: Battle, id: string | null, name: string): unknown }).checkJoin;
+    expect(check(b, null, "GALE"), "a stranger can't take it").toMatchObject({ status: 409 });
+    expect(check(b, "guest", "Gale"), "the guest sits down under it again").toBeNull();
+  });
+});
+
 // --- over the wire -----------------------------------------------------------
 
 let server: Booted | null = null;
@@ -267,6 +340,26 @@ describe("the lobby, over the wire", () => {
     expect([lobbyState.status, lobbyState.lobby, lobbyState.hostId], "a lobby again, the same host").toEqual(["waiting", true, host.characterId]);
     expect(next.queue.filter((t) => t.kind === "character").length, "the host and the four Echoes, still seated").toBe(5);
   }, 140_000);
+});
+
+describe("the lobby gate's breaker findings, over the wire", () => {
+  it("B4: a seated player who asks for a room with no body is seated in it as its host", async () => {
+    // Rule 27: "Creating a room seats its creator as host in a lobby"; rule 22 lets a seated player ask for one.
+    server = await boot(scratchDatabase(), { TICK_MS: "20" });
+    const door = await raid(server.base);
+    const seat = await joinRoom(server.base, door.code as string, `asker-${suffix()}`, "warden");
+    expect(seat.status).toBe(200);
+    const res = await fetch(new URL("/api/rooms", server.base), { method: "POST", headers: { cookie: seat.cookie } });
+    expect(res.status, "a seated player makes a room").toBe(201);
+    const made = (await res.json()) as { code: string };
+    const w = watchRoom(server.base, made.code);
+    open.push(w);
+    const st = (await w.waitFor(() => true, "the room's state", 3_000)) as BattleState & { hostId?: string };
+    expect(st.queue.some((t) => t.id === seat.characterId), "the asker is seated in it").toBe(true);
+    expect(st.hostId, "as its host").toBe(seat.characterId);
+    const started = await post(server.base, `/api/rooms/${made.code}/start`, seat.cookie);
+    expect(started.status, "and may Start it").toBe(200);
+  }, 15_000);
 });
 
 describe("the public raid, over the wire", () => {
