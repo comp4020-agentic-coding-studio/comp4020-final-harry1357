@@ -474,3 +474,52 @@ green, 2 red.
 - R7 (the README) is the owner's, carried red.
 - L1 is red by intent, until the owner rules.
 
+## Confirm pass on L1
+
+The reviewer, on a fresh context, read the L1 fix alone (`git diff efb89c0 e7453b7`) and the files it leans on, and ran the roster through its hook as `APP_URL=http://localhost:8090 pnpm check`, which the hook now accepts. Its report, summarised; its verdicts are kept as it gave them.
+
+- **Roster:** 278 of 285 passed on the full run. Seven failed, each a load timeout or a boot that ran out, while this session's own image roster ran at the same time. Rerun alone against `:8090`, only R7 is red. None of the failures is in `pace.test.ts`, and every L1 test was green in both runs.
+- **What the ruling asked for, as built:**
+  - the enrage past 40, whatever the phase (`orrery.ts:290`);
+  - every fourth card an Alignment, the third the wipe;
+  - the log line;
+  - 40 marked ours;
+  - ADR-010 with its cost, and rule 28's line in a commit of its own;
+  - red first; no new event kind.
+- **F1 (kind 1: rule 28, a narrow case).** The reason was read from the phase each Alignment resolved in (`orrery.ts:544`), and the Alignment count isn't reset at phase III. So a table that crossed 35% after turn 40, before the first enraged Alignment landed (the slow, winning table of the Cost paragraph), met a wipe the clock began, and no line said so. Phase III's entry line also said the Grand Alignment "begins" when it had already begun.
+- **F2 (kind 2).** "No fight that ends on its own meets it" was held for ADR-010's eight rooms only, not the thirty L1 lives in, and as written it reads as a guarantee that conflicts with ADR-010's own Cost.
+- **F3 (kind 3).** The enrage test passed:
+  - a wipe on the first or second Alignment;
+  - every card after the clock being an Alignment;
+  - an enrage starting at 39.
+  It also didn't say which phase its table was in.
+- **F4 (kind 3).** The strip's clock during the enrage was untested: `alignmentLeft` put back to phase III alone passed the roster. `protocol.ts:282` still said "null before phase III".
+- **F5 (kind 3).** A server putting the clock's reason on every Alignment line, phase III's own included, would pass.
+- **F6 (kind 1, low).** The enrage didn't reset the card count, so its first Alignment could be the first card after the clock, up to three cards less warning than "as in phase III".
+- **Kind 4:** none. No new event kind; `alignment` keeps its fields and renderer, and nothing reaches the log before the screen when the enrage starts.
+
+### Disposition of the confirm pass
+
+| finding | what was done | red | fix |
+| --- | --- | --- | --- |
+| F1 | The script remembers that the clock began the Grand Alignment (`enraged`), so every Alignment it brings names the clock, the wipe's included, whatever phase it lands in. Phase III's entry line says the Grand Alignment "already begun by the clock, goes on". | `f15b4fe` | `cb99e4d` |
+| F6 | The rotation's count starts afresh when the clock begins it, so its first Alignment is the fourth card, as phase III's is. ADR-010 now says wipes land at about 52 to 56. | `f15b4fe` | `cb99e4d`, `3428684` |
+| F3 | The enrage test holds the exact start (the strip's clock null at 39, three at 40), the every-fourth spacing over the rotation (a Perihelion, the Orrery's other cadence, isn't counted, in either case, `2e1940f`), exactly three Alignments with the wipe on the third, and its table's phases, `[2]`. | `f15b4fe` | (held) |
+| F4 | `cards.test.ts` holds the clock in phase II: null at the thirty-ninth Orrery turn, three at the fortieth. `protocol.ts` says the clock begins at the enrage too. | `82741c7` | `3428684` |
+| F5 | A table enters phase III by a real blow before the clock and Braces through phase III's three Alignments; none of their lines claims the clock. Its first form ran over no lines at all (`6f715ab`). | `f15b4fe`, `6f715ab` | (held) |
+| F2 | Held in its honest form: of the thirty rooms of one to three seats, every one that ends before turn 40 meets no clock, and the seven that run past it are named. One of the seven, a Mender, Breaker and Chronist, ended on its own before this pass (lost at 75 Orrery turns) and now meets the clock and is wiped at 48. The owner's clause, "no fight that ends on its own ever meets it", is stronger than that, and is the owner's to word; it is left as ruled, with this fact before them. ADR-010 states the room. | `f15b4fe` | `3428684` |
+
+**Every wrong implementation the confirm pass named now fails a test**, checked by planting each one in `orrery.ts` and running `pace.test.ts` and `cards.test.ts`:
+- an enrage at 39: 2 red;
+- a wipe on the first Alignment: 3 red;
+- the reason read from the phase: 1 red;
+- no fresh count: 1 red;
+- the reason on every line: 1 red;
+- `alignmentLeft` back to phase III only: 2 red.
+
+The file was restored after each.
+
+**After the round:**
+- The 30 scripted rooms: 0 endless.
+- ADR-010's table: unchanged.
+- The roster on a fresh instance of HEAD (`6f715ab`), `APP_URL=http://localhost:8090 pnpm check`: 287 green, R7 red.
