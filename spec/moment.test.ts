@@ -124,6 +124,8 @@ interface Screen {
   state(state: unknown, myId: string | null): void;
   /** The page is now watching another room, or the room's next fight. */
   entered(): void;
+  /** The person went on from the end panel. */
+  goOn(): void;
   /** What is up now. */
   phase(): string;
 }
@@ -192,5 +194,57 @@ describe("a new fight is a clean screen", () => {
     expect(other.calls.at(-1), "the join screen hid").toBe("join.hide");
     other.s.state(state("C", "fighting"), "me");
     expect(other.calls.filter((c) => c === "join.show").length, "and was shown once, before the seat").toBe(1);
+  });
+});
+
+describe("the lobby gate's breaker findings, on the screen", () => {
+  it("P1: a seat downed in a running fight is still at the table: no join screen over it", async () => {
+    // A downed seat is in state.fallen with 0 HP, still seated (Restore brings it back; the server refuses it a
+    // new seat). The screen counted only the queue, so the join form covered the fight it was still in.
+    const { s, calls } = rig(await screen());
+    s.state(state("A", "fighting"), "me");
+    calls.length = 0;
+    s.state(state("A", "fighting", { queue: [{ id: "orrery", kind: "boss" }], fallen: [{ id: "me", kind: "character", hp: 0 }] }), "me");
+    expect(s.phase(), "downed, still in the fight").toBe("fight");
+    expect(calls, "and the join screen never shown over it").not.toContain("join.show");
+  });
+
+  it("P2: a viewer never seated in a room keeps the end panel when the room's next fight comes", async () => {
+    // screen.ts: "The end panel stays up only while this page has nowhere to be … it isn't seated in the room's
+    // next one." The clean screen owed to a new fight cleared it for a page not seated in that fight, and left it
+    // with nothing: no panel, no form.
+    const { s, calls } = rig(await screen());
+    s.state(state("A", "fighting", { queue: [{ id: "orrery", kind: "boss" }] }), "me");
+    s.state(state("A", "won", { queue: [{ id: "orrery", kind: "boss" }] }), "me");
+    expect(s.phase(), "the fight it watched ended: the end panel").toBe("ended");
+    calls.length = 0;
+    s.entered();
+    s.state(state("B", "waiting", { queue: [{ id: "host", kind: "character" }, { id: "orrery", kind: "boss" }] }), "me");
+    expect(s.phase(), "not seated in the next one: the end panel stays").toBe("ended");
+    expect(calls, "nothing cleared it").not.toContain("join.clear");
+    s.goOn();
+    s.state(state("B", "waiting", { queue: [{ id: "host", kind: "character" }, { id: "orrery", kind: "boss" }] }), "me");
+    expect(s.phase(), "once they go on, the join screen").toBe("join");
+    expect(calls, "shown").toContain("join.show");
+  });
+});
+
+describe("the table's panel draws what only the host may do for the host only (R1)", () => {
+  it("the seats panel offers no Echo to a guest, only to the host", async () => {
+    const { createSeats } = (await import(resolve("src/client/seats/seats.ts"))) as {
+      createSeats: (root: HTMLElement, o: { onEcho(role: string): Promise<string | null> }) => { render(st: unknown, me: string | null, code: string | null): void };
+    };
+    const root = document.createElement("section");
+    const seats = createSeats(root, { onEcho: async () => null });
+    const st = {
+      ...state("A", "waiting"),
+      hostId: "host",
+      queue: [{ id: "host", kind: "character", name: "Hal", role: "warden", seatedBy: null, echo: false, hp: 170 }, { id: "me", kind: "character", name: "Me", role: "striker", seatedBy: null, echo: false, hp: 110 }, { id: "orrery", kind: "boss", name: "The Orrery", role: "orrery", hp: 160 }],
+      echoRoles: ["mender", "breaker"],
+    };
+    seats.render(st, "me", "QZ7MK");
+    expect(root.querySelectorAll("[data-add-echo]").length, "a guest is offered no Echo").toBe(0);
+    seats.render(st, "host", "QZ7MK");
+    expect(root.querySelectorAll("[data-add-echo]").length, "the host is offered each open role").toBe(2);
   });
 });
