@@ -168,7 +168,9 @@ export function onWound(ctx: Ctx): void {
       BOSS_ID,
       phase === 2
         ? `The Orrery falls below ${pct(below)}. Its rings lock into ${PHASE_NAME[2]}, and the strip begins to turn.`
-        : `The Orrery falls below ${pct(below)}. ${cap(PHASE_NAME[3])} begins: every ${nth(ALIGNMENT_EVERY)} card brings it closer.`,
+        : script(ctx.b).enraged
+          ? `The Orrery falls below ${pct(below)}. ${cap(PHASE_NAME[3])}, already begun by the clock, goes on.`
+          : `The Orrery falls below ${pct(below)}. ${cap(PHASE_NAME[3])} begins: every ${nth(ALIGNMENT_EVERY)} card brings it closer.`,
       { kind: "phase", actorId: BOSS_ID, phase, name: PHASE_NAME[phase] },
     );
   }
@@ -331,6 +333,8 @@ interface Script {
   lastPerihelion: number;
   /** Alignments resolved. */
   aligned: number;
+  /** The clock began the Grand Alignment (the enrage, ADR-010), not phase III: every Alignment it brings says so. */
+  enraged: boolean;
   /** Card id → who it was aimed at when announced, so a retarget reads as an Anchor. */
   aimedAt: Record<string, string | null>;
   /** Card id → the Chronist who Delayed or froze it. */
@@ -339,7 +343,7 @@ interface Script {
 
 /** The script's memory, on the battle's declared `orreryScript` (rules.ts), so it survives each step's clone. */
 function script(b: Battle): Script {
-  b.orreryScript ??= { played: 0, phase: 1, periheliaFor: 0, lastPerihelion: 0, aligned: 0, aimedAt: {}, touchedBy: {} };
+  b.orreryScript ??= { played: 0, phase: 1, periheliaFor: 0, lastPerihelion: 0, aligned: 0, enraged: false, aimedAt: {}, touchedBy: {} };
   return b.orreryScript as Script;
 }
 
@@ -355,6 +359,13 @@ function plan(ctx: Ctx): void {
   const s = script(b);
   if (s.phase !== b.phase) {
     s.phase = b.phase;
+    s.played = 0;
+  }
+  // The clock begins the Grand Alignment, before phase III does (ADR-010, "The enrage"): its count starts
+  // afresh, so its first Alignment is the fourth card, as phase III's is (the confirm pass's F6), and every
+  // Alignment it brings says the clock began it, whatever phase it resolves in (F1).
+  if (!s.enraged && b.phase !== 3 && b.bossTurns >= ENRAGE_AFTER) {
+    s.enraged = true;
     s.played = 0;
   }
   const owed = s.periheliaFor < b.phase || b.bossTurns - s.lastPerihelion >= PERIHELION_AGAIN;
@@ -539,10 +550,9 @@ function alignment(ctx: Ctx, card: BossCard): void {
   const countdown = Math.max(0, ALIGNMENT_STEPS - s.aligned);
   const wipe = countdown === 0;
   if (wipe) for (const f of ctx.party()) f.hp = 0;
-  // Begun by the clock, not by phase III (the enrage, ADR-010): the log says so, so a table wiped while it was
-  // winning slowly knows why (the owner's ruling on L1).
-  const enraged = ctx.b.phase !== 3;
-  const why = enraged ? ` The Orrery has turned ${ENRAGE_AFTER} times and will be outlasted no longer.` : "";
+  // Begun by the clock, not by phase III (the enrage, ADR-010): every line says so, whatever phase it resolves
+  // in, so a table wiped while it was winning slowly knows why (the owner's ruling on L1; the confirm pass's F1).
+  const why = s.enraged ? ` The Orrery has turned ${ENRAGE_AFTER} times and will be outlasted no longer.` : "";
   ctx.say(
     "boss",
     BOSS_ID,
