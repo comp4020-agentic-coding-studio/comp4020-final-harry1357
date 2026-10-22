@@ -92,9 +92,14 @@ const BAND: [number, number] = [2.5, 4.5];
 describe("the Orrery keeps the room's pace", () => {
   it("its turns per player turn stay within one band across one, three and five seats", async () => {
     const { e, policy } = await parts();
+    // One, three and five seats, as the brief names them: one person (with the
+    // four Echoes a solo visitor brings), three people, five people; and one
+    // person with two Echoes between. A lone seat with no Echoes isn't held: its
+    // ratio is its one player's rank choices (a Striker who only Jabs, rank 1,
+    // takes three Quick turns for one Standard), not the room's size.
     const rooms: [string, string[], string[]][] = [
       ["one person, four Echoes", ["mender"], ["warden", "striker", "breaker", "chronist"]],
-      ["one person, one Echo", ["warden"], ["mender"]],
+      ["one person, two Echoes", ["striker"], ["warden", "mender"]],
       ["three people", ["warden", "mender", "striker"], []],
       ["five people", ROLES, []],
     ];
