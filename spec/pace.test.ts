@@ -43,7 +43,7 @@ const ACTION_KINDS = new Set([
 ]);
 
 /** A private room's fight, played from Start to its ending: `people` as persons, `echoes` seated by the first. */
-function play(e: PaceEngine, policy: Policy, people: string[], echoes: string[] = []): Fight {
+function play(e: PaceEngine, policy: Policy, people: string[], echoes: string[] = [], maxBossTurns = Infinity): Fight {
   let now = 9_000_000;
   const c = () => ({ ...clock(now), beatMs: 3_000 });
   let b = e.createBattle("pace", false, now);
@@ -63,7 +63,7 @@ function play(e: PaceEngine, policy: Policy, people: string[], echoes: string[] 
       }
     }
   };
-  for (let i = 0; i < 200_000 && b.status === "fighting"; i++) {
+  for (let i = 0; i < 200_000 && b.status === "fighting" && bossTurns(b) < maxBossTurns; i++) {
     now += 150;
     const up = b.standing.find((f) => f.id === b.activeId);
     if (up && up.kind === "character" && !up.echo && up.counter === 0) {
@@ -130,5 +130,36 @@ describe("the fight is long enough to see its phases", () => {
     expect(f.bossTurns, `five people: the Orrery took ${f.bossTurns} turns`).toBeGreaterThanOrEqual(12);
     expect(f.bossTurns, "but not an endless fight").toBeLessThanOrEqual(40);
     expect(f.phases.length, `five people saw phase lines at Orrery turns ${JSON.stringify(f.phases)}`).toBe(2);
+  });
+});
+
+describe("every fight ends (L1)", () => {
+  // The lobby gate's L1: after ADR-010's retune, a heal-heavy room's damage
+  // dealers fell and a lone Mender, Bracing and Warding, outlasted cards at
+  // half the script's damage, with the Orrery above 35%, where the Grand
+  // Alignment (which ends any fight that reaches phase III) never begins. An
+  // Echo is the policy (rule 25) and a seat that times out becomes one (rule
+  // 8), so a table whose people have walked away is this room, and a room with
+  // a person seated in it never expires (rule 26). Every room of one to three
+  // seats, played out by its roles' policies, reaches an ending within
+  // MAX_TURNS Orrery turns, won or lost.
+  const MAX_TURNS = 200;
+
+  it("every room of one, two or three seats reaches an ending", async () => {
+    const { e, policy } = await parts();
+    const rooms: string[][] = [];
+    for (let i = 0; i < ROLES.length; i++) {
+      rooms.push([ROLES[i]]);
+      for (let j = i; j < ROLES.length; j++) {
+        rooms.push([ROLES[i], ROLES[j]]);
+        for (let k = j + 1; k < ROLES.length; k++) if (i !== j) rooms.push([ROLES[i], ROLES[j], ROLES[k]]);
+      }
+    }
+    const endless: string[] = [];
+    for (const people of rooms) {
+      const f = play(e, policy, people, [], MAX_TURNS);
+      if (!["won", "lost"].includes(f.outcome)) endless.push(`${people.join("/")} (${f.bossTurns} Orrery turns, still ${f.outcome})`);
+    }
+    expect(endless, `rooms with no ending within ${MAX_TURNS} Orrery turns`).toEqual([]);
   });
 });
