@@ -1,15 +1,18 @@
 // Who did what, on stdout (docs/adr/008, CLAUDE.md rule 32). One line per
 // thing that happened, as key=value pairs a terminal tail reads left to right
-// and a parser splits on spaces: ts room tick sid name role seat action target
-// [actor] outcome, then whatever the line is about. A value with a space, a
+// and a parser splits on spaces: ts room tick sid name role seat echo action
+// target [actor] outcome, then whatever the line is about. `room` is the
+// fight's battle id and `code` the room it is in (rule 22), so a line reads by
+// either; `echo` is whether an Echo did it (rule 25), true or false, never
+// absent on a line about a seat. A value with a space, a
 // quote or an equals sign in it is a JSON string, and nothing a terminal would
 // act on (a control or bidi character) reaches it unescaped. "-" is no value.
 //
 // The only writer to stdout. Two places call it, so a change to the rules or
 // the events touches this file and no other: the table's emitter (every step
 // that changed a fight, a line per event) and the routes' refusal path (a line
-// per refused request). The boot line comes from main.ts. A crash's trace goes
-// to stderr.
+// per refused request, on every route: spec/refusals.test.ts). The boot line
+// comes from main.ts. A crash's trace goes to stderr.
 //
 // A person is a session (rule 3), and a line names one by `sid`: the first six
 // hex characters of the session's hash, the hash the database keys characters
@@ -31,6 +34,8 @@ type Field = readonly [key: string, value: Value];
 
 interface Line {
   room: string | null;
+  /** The room's code, when the fight is a room's (rule 22). */
+  code?: string | null;
   tick: number | null;
   /** sid, name, role and seat. */
   who: Field[];
@@ -65,6 +70,7 @@ function write(l: Line): void {
   const fields: Field[] = [
     ["ts", new Date().toISOString()],
     ["room", l.room],
+    ...(l.code !== undefined ? [["code", l.code] as const] : []),
     ["tick", l.tick],
     ...l.who,
     ["action", l.action],
@@ -86,7 +92,11 @@ function write(l: Line): void {
 const fighterIn = (b: Battle | undefined, id: unknown): Fighter | undefined =>
   b && typeof id === "string" ? (b.standing.find((f) => f.id === id) ?? b.fallen.find((f) => f.id === id)) : undefined;
 
-/** The seat a line is about: "-" for each field when it's about nobody. */
+/**
+ * The seat a line is about: "-" for each field when it's about nobody. `echo`
+ * says whether an Echo is that seat now (rule 25: seated on purpose, or a seat
+ * left to one, rule 8), so a line is told apart by what did it, not by name.
+ */
 function who(b: Battle | undefined, id: string | null, sid: string | null = id === null ? null : (seats.get(id)?.sid ?? null)): Field[] {
   const f = fighterIn(b, id);
   const known = id === null ? undefined : seats.get(id);
@@ -95,6 +105,7 @@ function who(b: Battle | undefined, id: string | null, sid: string | null = id =
     ["name", f?.name ?? known?.name ?? null],
     ["role", f?.role ?? known?.role ?? null],
     ["seat", id],
+    ["echo", f && f.kind === "character" ? f.echo : id === null || id === BOSS_ID ? null : false],
   ];
 }
 
@@ -132,6 +143,7 @@ function event(b: Battle, e: BattleEvent, by: string | null, bossTurn: boolean):
   if (e.kind === "end") extra.push(["seated", Object.keys(b.joined).length]);
   write({
     room: b.id,
+    code: b.room,
     tick: e.tick,
     who: who(b, subject),
     action: e.kind,
@@ -174,12 +186,17 @@ export function emitted(b: Battle, fx: Effects, by: string | null, seated: Chara
   }
 }
 
+/** The routes a request can be refused on (spec/refusals.test.ts walks them all). */
+export type Route = "join" | "action" | "room" | "start" | "leave" | "echo" | "read";
+
 export interface Refused {
-  route: "join" | "action";
+  route: Route;
   /** The fight, if this process holds it live. */
   battle: Battle | undefined;
   /** The fight's id if the server knows it, live or over; null otherwise, so an unknown id is never echoed. */
   room: string | null;
+  /** The room's code, if the server knows the room; null otherwise, so an unknown code is never echoed. */
+  code?: string | null;
   /** The hashed session, if the request carried a cookie. Never the cookie. */
   session: string | null;
   /** The session's own seat, if it has one. */
@@ -206,13 +223,15 @@ export function refused(r: Refused): void {
   if (r.as !== undefined) extra.push(...aimed(r.battle, r.as, "as_seat", "as_name"));
   const asked = r.route === "join" ? cleanName(r.name) : null;
   if (asked) extra.push(["asked_name", asked]);
+  // The line's action: what was asked, once recognised. A turn action by its name; every other route by its own.
   const action =
-    r.route === "join" ? "join" : typeof r.action === "string" && Object.hasOwn(ACTIONS, r.action) ? r.action : "unknown";
+    r.route === "action" ? (typeof r.action === "string" && Object.hasOwn(ACTIONS, r.action) ? r.action : "unknown") : r.route;
   const person = who(r.battle, r.seat, r.session === null ? null : sidOf(r.session)).map(([k, v]): Field =>
     v === null && r.person && (k === "name" || k === "role") ? [k, r.person[k]] : [k, v],
   );
   write({
     room: r.room,
+    code: r.code ?? null,
     tick: r.battle?.tick ?? null,
     who: person,
     action,
