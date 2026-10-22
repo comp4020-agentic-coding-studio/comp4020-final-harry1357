@@ -37,6 +37,10 @@ interface Fight {
   phases: number[];
   /** The phase each of those events named, in order: [2, 3] for a fight that saw both. */
   phaseNumbers: number[];
+  /** The Orrery turn on which each Alignment resolved. */
+  alignments: number[];
+  /** The Orrery turn of the Alignment's wipe, if one came. */
+  wipedAt: number | null;
 }
 
 const ACTION_KINDS = new Set([
@@ -54,13 +58,17 @@ function play(e: PaceEngine, policy: Policy, people: string[], echoes: string[] 
   echoes.forEach((role, i) => (b = e.seatEcho(b, { id: `e${i}`, role, seatedBy: "p0" }, c()).battle));
   b = e.start(b, "p0", c()).battle;
 
-  const fight: Fight = { outcome: "", bossTurns: 0, playerTurns: 0, phases: [], phaseNumbers: [] };
+  const fight: Fight = { outcome: "", bossTurns: 0, playerTurns: 0, phases: [], phaseNumbers: [], alignments: [], wipedAt: null };
   const bossTurns = (x: Battle) => (x as Battle & { bossTurns: number }).bossTurns;
   const note = (step: Step) => {
     for (const ev of step.effects.events) {
       if (ev.kind === "phase") {
         fight.phases.push(bossTurns(step.battle));
         fight.phaseNumbers.push(Number(ev.phase));
+      }
+      if (ev.kind === "alignment") {
+        fight.alignments.push(bossTurns(step.battle));
+        if (ev.wipe) fight.wipedAt = bossTurns(step.battle);
       }
       if (ACTION_KINDS.has(ev.kind) && typeof ev.actorId === "string" && ev.actorId !== "orrery" && ev.seq !== undefined) {
         const line = step.battle.log.find((l) => (l as { seq?: number }).seq === ev.seq);
@@ -158,6 +166,8 @@ describe("every fight ends (L1)", () => {
   // seats, played out by its roles' policies, reaches an ending within
   // MAX_TURNS Orrery turns, won or lost.
   const MAX_TURNS = 200;
+  /** ADR-010's enrage clock, a tuning value marked ours: past the 12-30 target, so no fight that ends on its own meets it. */
+  const ENRAGE_AFTER = 40;
 
   it("every room of one, two or three seats reaches an ending", async () => {
     const { e, policy } = await parts();
@@ -175,6 +185,34 @@ describe("every fight ends (L1)", () => {
       if (!["won", "lost"].includes(f.outcome)) endless.push(`${people.join("/")} (${f.bossTurns} Orrery turns, still ${f.outcome})`);
     }
     expect(endless, `rooms with no ending within ${MAX_TURNS} Orrery turns`).toEqual([]);
+  }, WHOLE_FIGHTS_MS);
+
+  it("past forty Orrery turns the Orrery enrages whatever the phase: every fourth card an Alignment, the third the wipe", async () => {
+    // The owner's ruling on L1 (ADR-010, "The enrage"): the enrage clock is the Orrery's answer to a table that
+    // only defends, and no fight may be endless. A Warden, Mender and Breaker stall in phase II under the
+    // policies; past the clock they meet the Alignment, and the third to resolve ends the fight.
+    const { e, policy } = await parts();
+    const f = play(e, policy, ["warden", "mender", "breaker"], [], MAX_TURNS);
+    expect(f.phaseNumbers.includes(3), "a table that never brought it to phase III").toBe(false);
+    expect(f.alignments.length, "met the Alignment anyway").toBeGreaterThan(0);
+    expect(f.alignments[0], `its first Alignment past the clock (at Orrery turn ${f.alignments[0]})`).toBeGreaterThan(ENRAGE_AFTER);
+    expect(f.outcome, "and the third ended it: a wipe").toBe("lost");
+    expect(f.wipedAt, "about twelve Orrery turns past the clock").toBeLessThanOrEqual(ENRAGE_AFTER + 4 * 3 + 2);
+  }, WHOLE_FIGHTS_MS);
+
+  it("no fight that ends on its own meets the enrage: every room in ADR-010's table ends before turn forty", async () => {
+    const { e, policy } = await parts();
+    const rooms: [string[], string[]][] = [
+      ...ROLES.map((r) => [[r], ROLES.filter((x) => x !== r).slice(0, 4)] as [string[], string[]]),
+      [["warden", "mender", "striker"], []],
+      [["striker", "breaker", "chronist"], []],
+      [ROLES, []],
+    ];
+    for (const [people, echoes] of rooms) {
+      const f = play(e, policy, people, echoes);
+      expect(f.bossTurns, `${people.join("/")}${echoes.length ? " + four Echoes" : ""} ended at Orrery turn ${f.bossTurns}`).toBeLessThan(ENRAGE_AFTER);
+      expect(f.alignments.every((t) => f.phaseNumbers.includes(3) && t >= f.phases[1]), "any Alignment it met was phase III's own").toBe(true);
+    }
   }, WHOLE_FIGHTS_MS);
 });
 
