@@ -240,6 +240,56 @@ describe("the lobby gate's breaker findings, on the engine", () => {
     expect(seated, "only the person still standing as themselves").toEqual(["p0"]);
   });
 
+  it("1b: a private room's next lobby keeps a seat its person left to an Echo as an Echo, half a seat at Start", async () => {
+    // The lobby gate's reviewer, 1b: carried through join(), a timed-out seat came back a person with its count
+    // reset. Rule 8: the Echo plays "until the person acts again, which ends the Echo at once"; rule 20: an Echo
+    // is half a seat at the pull. Carried, it is still the Echo of its person until they act.
+    const e = await lobbyEngine();
+    let b = lobby(e, ["warden", "striker"]);
+    b = e.start(b, "warden-1", clock(T0)).battle;
+    const ended = structuredClone(b);
+    ended.status = "won";
+    const away = ended.standing.find((f) => f.id === "striker-2") as Battle["standing"][number];
+    away.echo = true;
+    away.timeouts = 3;
+    const next = nextFightOf(e)(ended, freshOf(e, false), clock(T0)).battle;
+    const carried = next.standing.find((f) => f.id === "striker-2");
+    expect([carried?.echo, carried?.timeouts], "still the Echo of its person, its count kept").toEqual([true, 3]);
+    const started = e.start(next, "warden-1", clock(T0)).battle;
+    expect(started.pullSeats, "one person and one Echo at Start: one and a half seats").toBe(1.5);
+  });
+
+  it("1e: a room's next lobby seats the table in its seat order, Echoes among the people", async () => {
+    // ADR-009: "seated again … in their seat order". Every Echo went after every person.
+    const e = await lobbyEngine();
+    let b = lobby(e, ["warden"]);
+    b = e.seatEcho(b, { id: "echo-m", role: "mender", seatedBy: "warden-1" }, clock(T0)).battle;
+    b = e.join(b, { id: "striker-3", name: "striker 3", role: "striker" }, clock(T0)).battle;
+    b = e.start(b, "warden-1", clock(T0)).battle;
+    const ended = structuredClone(b);
+    ended.status = "won";
+    const next = nextFightOf(e)(ended, freshOf(e, false), clock(T0)).battle;
+    const order = next.standing.filter((f) => f.kind === "character").sort((x, y) => (x as unknown as { seat: number }).seat - (y as unknown as { seat: number }).seat);
+    expect(order.map((f) => f.id), "the Warden, the Mender Echo, the Striker, as they sat").toEqual(["warden-1", "echo-m", "striker-3"]);
+  });
+
+  it("1f: the next lobby writes no line its screen won't show (rule 11)", async () => {
+    // The lobby gate's reviewer, 1f: the next fight's seats were narrated as join and seat lines whose events
+    // never reach a screen (the room's next fight arrives as a whole state, with no events). The seats are drawn
+    // from that state; a line with no event shown is a line rule 11 forbids.
+    const e = await lobbyEngine();
+    let b = lobby(e, ["warden", "striker"]);
+    b = e.seatEcho(b, { id: "echo-m", role: "mender", seatedBy: "warden-1" }, clock(T0)).battle;
+    b = e.start(b, "warden-1", clock(T0)).battle;
+    const ended = structuredClone(b);
+    ended.status = "won";
+    const step = nextFightOf(e)(ended, freshOf(e, false), clock(T0));
+    const fx = step.effects as unknown as { log: unknown[]; events: unknown[]; members: { characterId: string }[] };
+    expect(fx.log, "no lines").toEqual([]);
+    expect(fx.events, "and no events nobody will be sent").toEqual([]);
+    expect(fx.members.map((m) => m.characterId).sort(), "but every person carried has their member row written").toEqual(["striker-2", "warden-1"]);
+  });
+
   it("B5: a late joiner in a private room takes a seat at the back of the strip", async () => {
     // ADR-009: "A late joiner in a private room … takes a seat at the back of the strip".
     const e = await lobbyEngine();
