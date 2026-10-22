@@ -9,8 +9,9 @@
   speed is now the room's pace and not a band of `ctb.ts`; and the starting
   values ADR-006 called "for playtesting": base HP, Echo output and the
   cards' damage.
-- **Rules:** 28 is new, with `spec/pace.test.ts`; 13 says the Orrery's tick
-  speed is the room's pace. The tuning values are in `src/server/tuning.ts`,
+- **Rules:** 28 is new, with `spec/pace.test.ts`, and holds the enrage (the
+  owner's ruling on the lobby gate's L1); 13 says the Orrery's tick speed is
+  the room's pace. The tuning values are in `src/server/tuning.ts`,
   each marked ours.
 
 ## Context
@@ -132,6 +133,39 @@ A scripted room isn't a real one: a policy never reads ahead and never
 coordinates, so people should do better than these. The rooms that lose
 under policy (three damage roles and nobody to heal) are meant to be hard
 (ADR-006's Cost: "roles start to matter").
+
+### The enrage: no fight may be endless
+
+**Past forty Orrery turns, whatever the phase, the Orrery enrages.** Every
+fourth card is an Alignment, as in phase III, and the third to resolve is the
+wipe. The enrage clock is the Orrery's answer to a table that only defends.
+A Mender who Braces and Wards can outlast cards at the room's pace
+indefinitely, and a table of Echoes playing their policies (rule 25), or of
+seats that timed out into them (rule 8), will. A room with a person seated
+in it never expires (rule 26), so without the clock that table plays forever.
+The owner's ruling on the lobby gate's L1.
+
+- `ENRAGE_AFTER` (ours): **40** Orrery turns. It is past the target (twelve
+  to thirty) so that no fight that ends on its own ever meets it: every room
+  in the table above ends before turn 40, and `spec/pace.test.ts` holds that.
+- It adds no card, event or renderer. It uses the Grand Alignment's own card,
+  its `alignment` event and the strip's clock (drawn from the state's
+  `alignmentLeft`), so a table sees the enrage coming exactly as it sees
+  phase III's. Only the trigger is new.
+- Played by the policies, rooms of one to three seats that never ended went
+  from 6 of 30 (3 before this pass) to 0. Those six are wiped at Orrery turn
+  54 or 55.
+- **The fight log says so.** An Alignment begun by the clock, not by phase
+  III, says the Orrery "has turned 40 times and will be outlasted no longer",
+  so a table wiped while it was winning slowly is told why.
+
+**The cost.** A slow table that is winning can still be wiped: a table that
+hasn't brought the Orrery below 35% by turn 40 meets the wipe about twelve
+Orrery turns later, around turn 52 (four cards to an Alignment, three
+Alignments), however close it was. The clock is visible from the first
+Alignment card on, and so is the strip's countdown to the wipe, so the
+table can see it coming and race it. But a fight that runs long now ends in
+a loss, not a win. That is the trade for no fight being endless.
 
 ### A phase change is a moment
 
