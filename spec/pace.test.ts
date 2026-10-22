@@ -98,17 +98,20 @@ const WHOLE_FIGHTS_MS = 30_000;
 const BAND: [number, number] = [2.5, 4.5];
 
 describe("the Orrery keeps the room's pace", () => {
-  it("its turns per player turn stay within one band across one, three and five seats", async () => {
+  it("its turns per player turn stay within one band for a solo person with four Echoes, three people and five", async () => {
     const { e, policy } = await parts();
-    // One, three and five seats, as the brief names them: one person (with the
-    // four Echoes a solo visitor brings), three people, five people; and one
-    // person with two Echoes between. A lone seat with no Echoes isn't held: its
-    // ratio is its one player's rank choices (a Striker who only Jabs, rank 1,
-    // takes three Quick turns for one Standard), not the room's size.
+    // Rule 28's band, for the rooms ADR-010 claims it for: a solo person with the
+    // four Echoes a solo visitor brings (three seats at the pull), three people,
+    // and five. A room of one or two seats isn't held: its ratio is its players'
+    // rank choices (a Striker who only Jabs, rank 1, takes three Quick turns to
+    // one Standard), not the room's size. Measured, they ran from 2.1 to 7.7 by
+    // role. (93304d1 had swapped one person with one Echo, which measured 2.42,
+    // for one with two Echoes: a narrowing toward what passed, the lobby gate's
+    // reviewer found. The rule now says which rooms it holds, and these are they.)
     const rooms: [string, string[], string[]][] = [
       ["one person, four Echoes", ["mender"], ["warden", "striker", "breaker", "chronist"]],
-      ["one person, two Echoes", ["striker"], ["warden", "mender"]],
-      ["three people", ["warden", "mender", "striker"], []],
+      ["three people, a Warden, Mender and Striker", ["warden", "mender", "striker"], []],
+      ["three people, a Striker, Breaker and Chronist", ["striker", "breaker", "chronist"], []],
       ["five people", ROLES, []],
     ];
     for (const [what, people, echoes] of rooms) {
