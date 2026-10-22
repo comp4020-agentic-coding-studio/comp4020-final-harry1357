@@ -3,15 +3,30 @@
 // the WebSocket on the same port. Run with `node src/server/main.ts`.
 
 import { serve } from "@hono/node-server";
+import { execFileSync } from "node:child_process";
 import { join, resolve } from "node:path";
 import { WebSocketServer } from "ws";
 import { createApp } from "./app.ts";
 import { openStore } from "./db.ts";
+import { started } from "./log.ts";
 import { createTable, DROP_AFTER_MS } from "./table.ts";
 import { LOBBY_GRACE_MS, ROOM_EMPTY_MS } from "./tuning.ts";
 
 /** The repo root (/app in the image), whatever directory the process was started from. */
 const ROOT = resolve(import.meta.dirname, "../..");
+
+/** The commit this process runs: GIT_SHA in the image (a build arg), else the checkout's HEAD. */
+function gitSha(): string {
+  const baked = process.env.GIT_SHA;
+  if (baked && baked !== "unknown") return baked.slice(0, 7);
+  try {
+    return execFileSync("git", ["rev-parse", "--short=7", "HEAD"], { cwd: ROOT, stdio: ["ignore", "pipe", "ignore"] })
+      .toString()
+      .trim();
+  } catch {
+    return "unknown";
+  }
+}
 
 function intEnv(name: string, fallback: number): number {
   const raw = process.env[name];
@@ -43,10 +58,7 @@ const app = createApp(ROOT, store, table);
 const server = serve(
   { fetch: app.fetch, port, hostname: "0.0.0.0", websocket: { server: new WebSocketServer({ noServer: true }) } },
   (info) =>
-    console.log(
-      `The Orrery is listening on 0.0.0.0:${info.port} (database ${databasePath}, tick ${tickMs}ms, ` +
-        `turn ${turnMs}ms); closed ${closed} fight(s) left open by the last process.`,
-    ),
+    started({ sha: gitSha(), listen: `0.0.0.0:${info.port}`, database: databasePath, tickMs, turnMs, closed }),
 );
 const clock = table.start();
 

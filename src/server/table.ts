@@ -1,14 +1,16 @@
 // The live table: every battle in progress, held in this one process, and the
 // one clock that moves them. Every change goes the same way through apply():
 // write its durable consequences to SQLite, then commit the new state to
-// memory, bump the version, and broadcast through the hub (hub.ts), which
-// holds the sockets. A failed write throws before anything is committed or
-// seen. Area (a) owns this file in phase one-b: rooms (docs/adr/007).
+// memory, bump the version, broadcast through the hub (hub.ts), which holds
+// the sockets, then log what happened (src/server/log.ts). A failed write
+// throws before anything is committed, seen or logged. Area (a) owns this file
+// in phase one-b: rooms (docs/adr/007).
 
 import type { WSContext } from "hono/ws";
 import type { ActionId, BattleState, RoleId, RoomInfo } from "../shared/protocol.ts";
 import { newId, type CharacterWrite, type Store } from "./db.ts";
 import { createHub } from "./hub.ts";
+import { emitted } from "./log.ts";
 import { createRooms, hasPerson, PUBLIC_CODE } from "./rooms.ts";
 import {
   act,
@@ -67,15 +69,16 @@ export function createTable(
     room: (code) => rooms.get(code),
   });
 
-  function apply(step: Step, character: CharacterWrite | null = null): Battle {
+  /** `by` is the seat whose request made this step, or null when the clock did. */
+  function apply(step: Step, by: string | null, character: CharacterWrite | null = null): Battle {
     const next = step.battle;
     if (step.durable || character) store.writeStep(next.id, step.effects, Date.now(), character);
     next.version += 1;
     battles.set(next.id, next);
     hub.broadcast(next, step.effects.events);
+    // Who did what, one line per event (src/server/log.ts; ADR-008), the fight's end among them.
+    emitted(next, step.effects, by, character);
     if (step.effects.status && isEnded(next)) {
-      const seated = Object.keys(next.joined).length;
-      console.log(`battle ${next.id} ended ${next.status} at tick ${next.tick} (${seated} seated)`);
       // A room's fight ends and its next one opens, for the same watchers (rule
       // 24), with everyone still standing seated in it again: a private room's
       // lobby, its host the same, or the public raid's next pull (rule 27). Not
@@ -120,7 +123,7 @@ export function createTable(
       for (const [id, code] of droppedBehind) if (code === room.code) droppedBehind.delete(id);
       const b = battles.get(room.battleId);
       try {
-        if (b && !isEnded(b)) apply(close(b, "The room closed: nobody had been seated at the table for too long.", clock()));
+        if (b && !isEnded(b)) apply(close(b, "The room closed: nobody had been seated at the table for too long.", clock()), null);
       } catch (err) {
         console.error(`room ${room.code}: closing its fight failed`, err);
       }
@@ -145,7 +148,7 @@ export function createTable(
       if (now - since < roomEmptyMs) continue;
       bareEmptySince.delete(b.id);
       try {
-        apply(close(b, "The fight closed: nobody had been seated at the table for too long.", clock()));
+        apply(close(b, "The fight closed: nobody had been seated at the table for too long.", clock()), null);
       } catch (err) {
         console.error(`battle ${b.id}: closing it failed`, err);
       }
@@ -179,7 +182,7 @@ export function createTable(
         marks.delete(f.id);
         const current = battles.get(room.battleId);
         const step = current ? leave(current, f.id, clock()) : null;
-        if (step) apply(step);
+        if (step) apply(step, null);
       }
     }
   }
@@ -201,7 +204,7 @@ export function createTable(
           continue;
         }
         const step = advance(b, c);
-        if (step) apply(step);
+        if (step) apply(step, null);
       } catch (err) {
         console.error(`battle ${b.id}: the clock failed to move it`, err);
       }
@@ -268,7 +271,7 @@ export function createTable(
     seat(battleId: string, who: CharacterWrite): void {
       const b = battles.get(battleId);
       if (!b) throw new Error(`no live battle ${battleId}`);
-      apply(join(b, { id: who.id, name: who.name, role: who.role }, clock()), who);
+      apply(join(b, { id: who.id, name: who.name, role: who.role }, clock()), who.id, who);
       sessions.set(who.sessionId, who.id);
     },
 
@@ -276,7 +279,7 @@ export function createTable(
     startFight(battleId: string, by: string): void {
       const b = battles.get(battleId);
       if (!b) throw new Error(`no live battle ${battleId}`);
-      apply(startFight(b, by, clock()));
+      apply(startFight(b, by, clock()), by);
     },
 
     /** A person leaves a lobby (rule 27); false if they weren't seated in one there. */
@@ -284,7 +287,7 @@ export function createTable(
       const b = battles.get(battleId);
       const step = b ? leave(b, id, clock()) : null;
       if (!step) return false;
-      apply(step);
+      apply(step, id);
       return true;
     },
 
@@ -307,7 +310,7 @@ export function createTable(
       const b = battles.get(battleId);
       if (!b) throw new Error(`no live battle ${battleId}`);
       const id = newId();
-      apply(seatEcho(b, { id, role, seatedBy }, clock()));
+      apply(seatEcho(b, { id, role, seatedBy }, clock()), seatedBy);
       return id;
     },
 
@@ -315,7 +318,7 @@ export function createTable(
     act(battleId: string, actorId: string, action: ActionId, targetId: string | null): number {
       const b = battles.get(battleId);
       if (!b) throw new Error(`no live battle ${battleId}`);
-      return apply(act(b, actorId, action, targetId, clock())).tick;
+      return apply(act(b, actorId, action, targetId, clock()), actorId).tick;
     },
 
     state,

@@ -435,6 +435,37 @@ the rules.
     it as a moment (a title, the rings' change, a flash), under reduced
     motion too. *Spec: `spec/pace.test.ts`, `spec/effects.test.ts`.*
 
+### Your seat, your actions, everyone's strip (ADR-008)
+
+29. **A session acts only for the seat it created.** The seat is always the
+    cookie's. A request whose body names any other seat (`seatId`,
+    `characterId` or `actorId`) is refused (403) before the turn is looked
+    at, whoever's turn it is, and the refusal is logged with the session's
+    `sid` and the seat it named. Naming your own seat changes nothing. Nobody
+    can rename, remove or act for another seat: no route does it, and none is
+    ever added. *Spec: `spec/told-apart.test.ts`. Why: `docs/adr/008`.*
+30. **A seat's actions are its role's catalogue, and they reach another
+    character only as the role defines.** Anything outside
+    `ROLES[role].actions` is refused. A target must be standing in the same
+    fight. Only the actions a role aims at an ally reach another character;
+    the rest reach only the Orrery, a boss card, or the actor. *Spec:
+    `spec/told-apart.test.ts`, for the catalogue. Why: `docs/adr/008`.*
+31. **Everyone in a fight sees everything, and a session with no seat watches
+    but never acts.** The state, the strip, the log and the socket are never
+    filtered per viewer, because the strip being public is the point. No
+    cookie, a cookie the server never minted, or a seat in another fight is
+    refused (403) at the action route, and logged. *Spec:
+    `spec/told-apart.test.ts`. Why: `docs/adr/008`.*
+32. **Every applied action and every refusal is exactly one log line, and no
+    log line ever carries a cookie.** All of stdout goes through
+    `src/server/log.ts`: one line per event, key=value pairs with at least
+    `ts room sid name action outcome`. A session is named by `sid`, a stable
+    six-character hash of its session. Nothing taken from the cookie reaches
+    a log but that hash, and no value a request sent is echoed unless the
+    server recognises it (a seat, a fight, an action, a valid name). Nothing
+    else writes to stdout; a crash's trace goes to stderr. *Spec:
+    `spec/told-apart.test.ts`. Why: `docs/adr/008`.*
+
 ## How to work in here
 
 - **No phase merges without the review gate: reviewer and breaker run on a

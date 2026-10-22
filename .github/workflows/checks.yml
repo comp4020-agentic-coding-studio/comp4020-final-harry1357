@@ -34,7 +34,7 @@ jobs:
         # the same image Fly deploys, with a throwaway /data in place of the
         # volume; the spec runs against it
         run: |
-          docker build -t app .
+          docker build --build-arg GIT_SHA=${{ github.sha }} -t app .
           docker run -d --init --name app -p 8080:8080 -e PORT=8080 --tmpfs /data app
       - name: Run the spec
         run: pnpm check
@@ -89,7 +89,9 @@ jobs:
       - name: Deploy
         # --remote-only builds the Dockerfile on Fly's builders; --ha=false
         # keeps the app at one machine and one volume.
-        run: flyctl deploy --remote-only --ha=false -a ${{ github.event.repository.name }}
+        # GIT_SHA: the image has no .git, so the process-start log line is told
+        # which commit it runs (src/server/log.ts)
+        run: flyctl deploy --remote-only --ha=false --build-arg GIT_SHA=${{ github.sha }} -a ${{ github.event.repository.name }}
       - name: Verify the deployed site is online
         run: |
           for i in 1 2 3 4 5; do

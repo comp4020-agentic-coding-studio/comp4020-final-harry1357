@@ -62,7 +62,8 @@ export function openStore(path: string, migrationsFolder: string) {
     },
 
     /** Rule 6: every fight the last process left open is over, and its log says why. */
-    closeLiveBattles(now: number): number {
+    /** Close every fight the last process left open (rule 6); the ids of those closed. */
+    closeLiveBattles(now: number): string[] {
       return db.transaction((tx) => {
         const live = tx
           .select({ id: battles.id })
@@ -89,7 +90,7 @@ export function openStore(path: string, migrationsFolder: string) {
             .run();
           tx.update(battles).set({ status: "abandoned", endedAt: now }).where(eq(battles.id, id)).run();
         }
-        return live.length;
+        return live.map(({ id }) => id);
       });
     },
 

@@ -1,7 +1,9 @@
 // The routes: HTTP for joining and acting, a WebSocket for watching. Identity
 // is always the raid_sid cookie the server minted (CLAUDE.md rule 3), never a
-// name or id in a request body. The battle rules decide; this file only turns
-// their answers into status codes.
+// name or id in a request body, and a body that names another seat is refused
+// (docs/adr/008). The battle rules decide; this file only turns their answers
+// into status codes. Every refusal on the two routes that change a fight goes
+// out through refuse(), which logs it (src/server/log.ts) before answering.
 
 import { upgradeWebSocket } from "@hono/node-server";
 import { Hono, type Context } from "hono";
@@ -23,6 +25,7 @@ import type {
   StartResponse,
 } from "../shared/protocol.ts";
 import { newId, type Store } from "./db.ts";
+import { refused, type Refused } from "./log.ts";
 import { mountPages } from "./pages.ts";
 import { ROLE_IDS, ROLES } from "../shared/protocol.ts";
 import { checkAction, checkJoin, checkSeatEcho, checkStart, cleanName, createBattle, isRole, nameKey, type Battle } from "./rules.ts";
@@ -46,6 +49,24 @@ async function readJson(c: Context): Promise<Record<string, unknown> | null> {
   } catch {
     return null;
   }
+}
+
+/** The refusal path: one log line for the refused request, then the answer. */
+function refuse(c: Context, r: Refused & { status: 400 | 403 | 404 | 409 }) {
+  refused(r);
+  return fail(c, r.status, r.reason);
+}
+
+/** The names a request body might give a seat by (docs/adr/008). */
+const SEAT_FIELDS = ["seatId", "characterId", "actorId"] as const;
+
+/** A seat the body names that isn't the session's own, or undefined if it names none or only its own. */
+function otherSeat(body: Record<string, unknown>, own: string | null): unknown {
+  for (const field of SEAT_FIELDS) {
+    const named = body[field];
+    if (named !== undefined && named !== null && named !== own) return named;
+  }
+  return undefined;
 }
 
 export function createApp(root: string, store: Store, table: Table): Hono {
@@ -120,12 +141,12 @@ export function createApp(root: string, store: Store, table: Table): Hono {
     const seatName = known ? known.name : name;
 
     // A cookie the database doesn't know is never adopted: mint a fresh one.
-    const session = known && sid ? sid : randomBytes(32).toString("base64url");
+    const cookie = known && sid ? sid : randomBytes(32).toString("base64url");
     const characterId = known?.id ?? newId();
-    table.seat(id, { id: characterId, sessionId: sessionKey(session), name: seatName, role: body.role });
+    table.seat(id, { id: characterId, sessionId: sessionKey(cookie), name: seatName, role: body.role });
 
-    if (session !== sid) {
-      setCookie(c, COOKIE, session, {
+    if (cookie !== sid) {
+      setCookie(c, COOKIE, cookie, {
         httpOnly: true,
         sameSite: "Lax",
         path: "/",
@@ -250,10 +271,13 @@ export function createApp(root: string, store: Store, table: Table): Hono {
     return state ? c.json(state) : fail(c, 404, "No such battle.");
   });
 
+  // The one place an action enters, and so the one place ADR-008 is checked:
+  // the seat is the cookie's, a body naming any other is refused before the
+  // turn is looked at, and checkAction holds the role's catalogue and the
+  // target. Rejected here means dropped: nothing is stored, deferred or
+  // replayed (rule 2).
   app.post("/api/battles/:id/actions", async (c) => {
     const body = await readJson(c);
-    if (!body) return fail(c, 400, "Send a JSON object with an action.");
-
     // No awaits from here on: the check and the turn see the same battle.
     const id = c.req.param("id");
     const battle = table.get(id);
@@ -264,10 +288,12 @@ export function createApp(root: string, store: Store, table: Table): Hono {
     if (table.behindCode(id) && !(battle && actorId && [...battle.standing, ...battle.fallen].some((f) => f.id === actorId))) {
       return fail(c, 404, "No such battle.");
     }
+    if (!body) return fail(c, 400, "Send a JSON object with an action.");
+    // Your own seat only: a body naming another seat is refused before the turn is looked at (rule 29; ADR-008).
+    if (otherSeat(body, actorId ?? null) !== undefined) return fail(c, 403, "You can only act for your own seat.");
     if (!battle) return store.battle(id) ? fail(c, 409, "This fight is over.") : fail(c, 404, "No such battle.");
     if (!actorId) return fail(c, 403, "You aren't standing in this fight.");
 
-    // Rejected here means dropped: nothing is stored, deferred or replayed (rule 2).
     const checked = checkAction(battle, actorId, body.action, body.targetId);
     if ("status" in checked) return fail(c, checked.status, checked.error);
 
