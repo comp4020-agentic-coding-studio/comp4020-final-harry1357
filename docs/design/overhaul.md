@@ -1,3 +1,9 @@
+> **Note, 2026-10-22.** The "cyan = shield" damage-number colour below is
+> superseded. The design gate's six-token palette (CLAUDE.md, "Design: the
+> battle screen") allows no seventh colour, and the owner's ruling on phase
+> two's gate (R6) made a shield a shape: the shield glyph drawn in `--card`.
+> The record's body is left as it was written.
+
 # Designing "The Orrery" Raid: Combat, Roles, Boss Mechanics and Legibility Principles from FFXIV, WoW, FFX and Turn-Based Classics
 
 The overhaul should make the turn-order strip the main place where the fight happens, not just a display: every role gets one action that changes the strip (moves someone up, pushes the boss back, links turns together, or reveals the boss's next move), and every boss mechanic shows up on the strip before it resolves. The research below supports this. The best-documented systems in the reference games (FFX's action Rank, Persona/SMT's extra-turn economies, Octopath's Break, Slay the Spire and Into the Breach's telegraphed intents, WoW and FFXIV's role-gated raid checks) all work because players can see something coming and spend their turn answering it.
