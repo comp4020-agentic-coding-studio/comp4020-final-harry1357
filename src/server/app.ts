@@ -166,9 +166,16 @@ export function createApp(root: string, store: Store, table: Table): Hono {
       return c.json({ ...seat, code: room.code } satisfies RoomJoinResponse, 201);
     }
     const sid = getCookie(c, COOKIE);
-    if (!sid || !store.characterBySession(sessionKey(sid))) return fail(c, 403, "Sit down at a table before you make a room.");
-    const { code, battleId } = table.createRoom();
-    return c.json({ code, battleId } satisfies NewRoomResponse, 201);
+    const known = sid ? store.characterBySession(sessionKey(sid)) : null;
+    if (!known) return fail(c, 403, "Sit down at a table before you make a room.");
+    // A seated player's room seats them in it as its host (rule 27; breaker B4), under their name and role
+    // (rule 24), vetted against an empty fight before anything is minted, as a founder's is.
+    const refused = vetSeat(c, known, known.name, known.role, createBattle("unminted", false, Date.now()));
+    if (refused instanceof Response) return refused;
+    const room = table.createRoom();
+    const seat = await seatIn(c, () => table.room(room.code)?.battleId ?? null, { name: known.name, role: known.role });
+    if (seat instanceof Response) return seat;
+    return c.json({ code: room.code, battleId: seat.battleId } satisfies NewRoomResponse, 201);
   });
 
   app.get("/api/rooms/:code", (c) => {

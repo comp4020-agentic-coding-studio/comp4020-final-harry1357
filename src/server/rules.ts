@@ -400,8 +400,12 @@ export function join(b: Battle, who: { id: string; name: string; role: RoleId },
     name: who.name,
     role: who.role,
     agility: stats.agility,
-    // A late joiner enters at the back of the strip, at a rank-3 delay.
-    counter: counterReset(stats.agility, "normal", ATTACK_RANK),
+    // A late joiner enters at the back of the strip (ADR-009; breaker B5): a rank-3 delay, or behind
+    // the last seat standing if that is further. Everyone's counter still drops by 1 a tick.
+    counter: Math.max(
+      counterReset(stats.agility, "normal", ATTACK_RANK),
+      next.status === "fighting" ? Math.max(0, ...next.standing.filter((f) => f.kind === "character").map((f) => f.counter)) + 1 : 0,
+    ),
     // Someone who stepped away comes back as hurt as they left.
     hp: before ? Math.min(before.hp, stats.hp) : stats.hp,
     maxHp: stats.hp,
@@ -570,7 +574,8 @@ export function leave(b: Battle, id: string, clock: Clock): Step | null {
   const name = next.joined[id] ?? "Someone";
   ctx.say("leave", id, `${name} leaves the table.`, { kind: "leave", actorId: id });
   next.standing = next.standing.filter((f) => f.id !== id);
-  delete next.joined[id];
+  // Their name stays in `joined`: no one else takes it in this battle, and they may sit down under it again
+  // (rule 4; breaker B6).
   if (!next.standing.some(isPerson)) next.standing = next.standing.filter((f) => f.kind !== "character");
   if (next.hostId === id) {
     const heir = next.standing.filter(isPerson).sort((x, y) => x.seat - y.seat)[0];
@@ -582,19 +587,23 @@ export function leave(b: Battle, id: string, clock: Clock): Step | null {
 }
 
 /**
- * A room's next fight, after `ended` (rule 27): everyone still at the table at
- * the end, people and Echoes, seated again in their seat order and as their roles,
- * the same host if they are among them. A private room's is a lobby again; the
- * public raid's pulls after its ready window. `fresh` is the empty fight the
- * table opened.
+ * A room's next fight, after `ended` (rule 27). A private room's is a lobby
+ * again with everyone at the table at the end, people and Echoes, in their seat
+ * order and as their roles, the same host if they are among them; anyone gone,
+ * the lobby's presence sweep unseats (rule 27). The public raid's has no sweep,
+ * so it carries only the people still standing as themselves (ADR-009): not a
+ * seat its person left to an Echo, which would come back as the person and be
+ * counted whole at the pull (rules 8 and 20; breaker B3). `fresh` is the empty
+ * fight the table opened.
  */
 export function nextFight(ended: Battle, fresh: Battle, clock: Clock): Step {
   let b = fresh;
-  // Everyone at the table at the end: standing, or downed on the way (they're still seated; someone who
-  // left isn't). A seat that timed out into an Echo is its person's, and comes back as the person.
-  const carried = [...ended.standing, ...ended.fallen.filter((f) => f.out === "downed")]
-    .filter((f) => f.kind === "character")
-    .sort((x, y) => x.seat - y.seat);
+  const carried = (
+    ended.isPublic
+      ? ended.standing.filter((f) => f.kind === "character" && f.seatedBy === null && !f.echo)
+      : // Everyone at the table: standing, or downed on the way (still seated; someone who left isn't).
+        [...ended.standing, ...ended.fallen.filter((f) => f.out === "downed")].filter((f) => f.kind === "character")
+  ).sort((x, y) => x.seat - y.seat);
   const effects: Effects = noEffects();
   const merge = (step: Step): void => {
     b = step.battle;
@@ -603,12 +612,14 @@ export function nextFight(ended: Battle, fresh: Battle, clock: Clock): Step {
     for (const [id, d] of Object.entries(step.effects.stats)) Object.assign(stat(effects, id), d);
     effects.members.push(...step.effects.members);
   };
-  // People first, in seat order, so the host is the same person; their Echoes after them.
+  // People first, in seat order, so the host is the same person; the table's Echoes after them, seated by the
+  // host now. They belong to the table, not to whoever seated them (ADR-009; breaker B2).
   for (const f of carried.filter(isPerson)) merge(join(b, { id: f.id, name: f.name, role: f.role as RoleId }, clock));
-  for (const f of carried.filter((x) => x.seatedBy !== null)) {
-    if (b.standing.some((s) => s.id === f.seatedBy)) merge(seatEcho(b, { id: f.id, role: f.role as RoleId, seatedBy: f.seatedBy as string }, clock));
-  }
   if (isLobby(b) && ended.hostId !== null && b.standing.some((f) => f.id === ended.hostId)) b.hostId = ended.hostId;
+  const host = b.hostId;
+  if (host !== null) {
+    for (const f of carried.filter((x) => x.seatedBy !== null)) merge(seatEcho(b, { id: f.id, role: f.role as RoleId, seatedBy: host }, clock));
+  }
   return { battle: b, effects, durable: true };
 }
 
