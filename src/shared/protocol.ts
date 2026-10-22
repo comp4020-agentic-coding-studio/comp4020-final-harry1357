@@ -279,7 +279,8 @@ export interface BattleState {
    *  them (rule 1: the client draws this ghost and never computes it). Null while
    *  the clock runs, or when the Orrery is on the plate. */
   preview: { actorId: string; actions: Partial<Record<ActionId, ActionPreview>> } | null;
-  /** How many Alignments are still to resolve before the Grand Alignment's wipe; null before phase III. */
+  /** How many Alignments are still to resolve before the Grand Alignment's wipe; null until it begins, in phase
+   *  III or past the Orrery's fortieth turn, whatever the phase (the enrage, ADR-010). */
   alignmentLeft: number | null;
   /** Whether a Warden's Bastion stands against the next blow on everyone. The
    *  Warden's prompt to raise one, and the room's mark on the blow it meets,

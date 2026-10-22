@@ -152,17 +152,25 @@ The owner's ruling on the lobby gate's L1.
   its `alignment` event and the strip's clock (drawn from the state's
   `alignmentLeft`), so a table sees the enrage coming exactly as it sees
   phase III's. Only the trigger is new.
+- Its count starts afresh when the clock begins it, so its first Alignment
+  is the fourth card of the rotation, as phase III's is (a Perihelion, the
+  Orrery's other cadence, isn't counted, in either).
 - Played by the policies, rooms of one to three seats that never ended went
   from 6 of 30 (3 before this pass) to 0. Those six are wiped at Orrery turn
-  54 or 55.
-- **The fight log says so.** An Alignment begun by the clock, not by phase
-  III, says the Orrery "has turned 40 times and will be outlasted no longer",
-  so a table wiped while it was winning slowly is told why.
+  55 or 56. A seventh room runs past the clock: a Mender, Breaker and
+  Chronist, which ended on its own before this pass, lost at 75 Orrery
+  turns, and now meets the clock and is wiped at 48. That is the cost below,
+  in one measured room. Every room that ends before turn 40 is unchanged.
+- **The fight log says so.** Every Alignment the clock began says the Orrery
+  "has turned 40 times and will be outlasted no longer", whatever phase it
+  lands in, so a table that crosses into phase III after the clock is still
+  told why it was wiped (the confirm pass's F1). Phase III's own entry line
+  says the Grand Alignment, "already begun by the clock, goes on".
 
 **The cost.** A slow table that is winning can still be wiped: a table that
 hasn't brought the Orrery below 35% by turn 40 meets the wipe about twelve
-Orrery turns later, around turn 52 (four cards to an Alignment, three
-Alignments), however close it was. The clock is visible from the first
+Orrery turns later, around turn 52 to 56 (four cards to an Alignment,
+three Alignments), however close it was. The clock is visible from the first
 Alignment card on, and so is the strip's countdown to the wipe, so the
 table can see it coming and race it. But a fight that runs long now ends in
 a loss, not a win. That is the trade for no fight being endless.
