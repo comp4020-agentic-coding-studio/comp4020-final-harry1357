@@ -304,7 +304,8 @@ export function createCardLane(): CardLane {
       departed.clear();
       for (const node of [...list.querySelectorAll<HTMLElement>("[data-leaving]")]) node.remove();
     }
-    // The clock, from the state: how many Alignments are left, or none before phase III.
+    // The clock, from the state: how many Alignments are left, or none before the Grand Alignment begins (phase III,
+    // or the enrage past the Orrery's fortieth turn: ADR-010).
     const left = state.alignmentLeft ?? null;
     if (left !== alignClock && !(alignWipe && left === 0)) {
       alignClock = left;

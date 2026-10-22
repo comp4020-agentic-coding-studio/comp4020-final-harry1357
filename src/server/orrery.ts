@@ -359,7 +359,9 @@ function plan(ctx: Ctx): void {
   const s = script(b);
   if (s.phase !== b.phase) {
     s.phase = b.phase;
-    s.played = 0;
+    // A new phase starts its rotation afresh, except once the clock has begun the Grand Alignment: it goes on
+    // across the line, four cards apart still (ADR-010; the second confirm pass's 5).
+    if (!s.enraged) s.played = 0;
   }
   // The clock begins the Grand Alignment, before phase III does (ADR-010, "The enrage"): its count starts
   // afresh, so its first Alignment is the fourth card, as phase III's is (the confirm pass's F6), and every

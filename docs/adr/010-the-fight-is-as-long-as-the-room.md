@@ -159,8 +159,13 @@ The owner's ruling on the lobby gate's L1.
   from 6 of 30 (3 before this pass) to 0. Those six are wiped at Orrery turn
   55 or 56. A seventh room runs past the clock: a Mender, Breaker and
   Chronist, which ended on its own before this pass, lost at 75 Orrery
-  turns, and now meets the clock and is wiped at 48. That is the cost below,
-  in one measured room. Every room that ends before turn 40 is unchanged.
+  turns, and now meets the clock's first Alignment at 45, survives it, and
+  falls to the Orrery's ordinary blows at 48. Every room that ends before
+  turn 40 is unchanged.
+- Once the clock has begun it, the Grand Alignment goes on across a phase
+  line, four cards apart still: crossing into phase III doesn't restart its
+  count. A table already in phase III at turn 40 keeps phase III's own
+  Grand Alignment, its count and its lines.
 - **The fight log says so.** Every Alignment the clock began says the Orrery
   "has turned 40 times and will be outlasted no longer", whatever phase it
   lands in, so a table that crosses into phase III after the clock is still
