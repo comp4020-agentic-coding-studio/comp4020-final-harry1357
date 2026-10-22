@@ -480,7 +480,9 @@ describe("rooms expire; logs don't", () => {
     // started against ("already over"), not the room as it then was. The
     // re-review showed the window can be held open: stream the body, and let
     // the room expire before the last byte. A room gone mid-join is gone.
-    server = await boot(scratchDatabase(), { TICK_MS: "20", ROOM_EMPTY_MS: "800" });
+    // A seated player's room seats them in it (rule 27; the lobby gate's B4). With no socket of theirs on it they
+    // have left the lobby after LOBBY_GRACE_MS, short here, and then it is empty.
+    server = await boot(scratchDatabase(), { TICK_MS: "20", ROOM_EMPTY_MS: "800", LOBBY_GRACE_MS: "200" });
     const host = await seatedPlayer(server.base);
     const made = await madeRoom(server.base, host.cookie);
     const encode = (text: string) => new TextEncoder().encode(text);
@@ -515,7 +517,8 @@ describe("rooms expire; logs don't", () => {
     // never dropped, and "lost to a restart" on the next boot (rule 6). After
     // the rooms go, the only fights still live are the ones someone can reach.
     const db = scratchDatabase();
-    server = await boot(db, { TICK_MS: "20", ROOM_EMPTY_MS: "800" });
+    // Each room seats the player who asked for it (B4); gone from it after LOBBY_GRACE_MS, it is empty.
+    server = await boot(db, { TICK_MS: "20", ROOM_EMPTY_MS: "800", LOBBY_GRACE_MS: "200" });
     const door = await raid(server.base);
     const host = await seatedPlayer(server.base);
     const gone = [await madeRoom(server.base, host.cookie), await madeRoom(server.base, host.cookie)];
