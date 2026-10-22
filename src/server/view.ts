@@ -12,7 +12,7 @@ import { counterReset } from "./ctb.ts";
 import { reactionCardOf } from "./economy.ts";
 import { alignmentLeft, bastionCard } from "./orrery.ts";
 import { previewRank } from "./roles.ts";
-import { act, checkAction, echoRolesOpen, plateMs, type Battle, type Fighter } from "./rules.ts";
+import { act, checkAction, echoRolesOpen, isLobby, plateMs, type Battle, type Fighter } from "./rules.ts";
 
 export interface Timing {
   tickMs: number;
@@ -142,6 +142,9 @@ export function view(b: Battle, timing: Timing): BattleState {
     spentExposed: b.spentExposed.map((x) => ({ ...x })),
     room: b.room ? { code: b.room, isPublic: b.isPublic } : null,
     echoRoles: echoRolesOpen(b),
+    hostId: b.hostId,
+    lobby: isLobby(b),
+    pullAt: b.status === "waiting" ? b.pullAt : null,
     preview: preview(b, timing.turnMs),
     alignmentLeft: alignmentLeft(b),
     bastion: b.bastion,
@@ -172,6 +175,9 @@ export function archived(id: string, row: { status: BattleStatus }, log: LogEntr
     spentExposed: [],
     room: null,
     echoRoles: [],
+    hostId: null,
+    lobby: false,
+    pullAt: null,
     preview: null,
     alignmentLeft: null,
     bastion: false,

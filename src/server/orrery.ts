@@ -77,6 +77,7 @@ import { downTheFallen, harm, listNames, type Battle, type Ctx, type Fighter, ty
 import {
   ALIGNMENT_EVERY,
   BASTION_CUT,
+  CARD_DAMAGE,
   GRAVITY_LETHAL,
   HP_EXPONENT,
   ORRERY_BASE_HP,
@@ -98,7 +99,7 @@ export const AGILITY = 40;
 type Phase = 1 | 2 | 3;
 type Dealt = "revolution" | "eclipse" | "lunge" | "perihelion";
 
-/** What each card deals before mitigation, in phases I, II and III. */
+/** What each card deals before mitigation, in phases I, II and III, before CARD_DAMAGE (tuning.ts) scales it. */
 const AMOUNT: Readonly<Record<Dealt, readonly [number, number, number]>> = {
   revolution: [8, 10, 12],
   eclipse: [20, 24, 28],
@@ -163,7 +164,7 @@ export function onWound(ctx: Ctx): void {
       phase === 2
         ? `The Orrery falls below ${pct(below)}. Its rings lock into ${PHASE_NAME[2]}, and the strip begins to turn.`
         : `The Orrery falls below ${pct(below)}. ${cap(PHASE_NAME[3])} begins: every ${nth(ALIGNMENT_EVERY)} card brings it closer.`,
-      { kind: "phase", actorId: BOSS_ID, phase },
+      { kind: "phase", actorId: BOSS_ID, phase, name: PHASE_NAME[phase] },
     );
   }
 }
@@ -556,8 +557,9 @@ function raidWide(ctx: Ctx, base: number): { amount: number; hits: { targetId: s
 
 // --- internals ---------------------------------------------------------------
 
+/** What a card deals: the script's amount × CARD_DAMAGE (ADR-010), at least 1. */
 function amount(intent: Dealt, phase: Phase): number {
-  return AMOUNT[intent][phase - 1];
+  return Math.max(1, Math.round(AMOUNT[intent][phase - 1] * CARD_DAMAGE));
 }
 
 function standing(ctx: Ctx, id: string | null): Fighter | undefined {

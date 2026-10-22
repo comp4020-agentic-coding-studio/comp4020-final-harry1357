@@ -10,8 +10,23 @@ import type { ActionId, BattleState, RoleId, RoomInfo } from "../shared/protocol
 import { newId, type CharacterWrite, type Store } from "./db.ts";
 import { createHub } from "./hub.ts";
 import { createRooms, hasPerson, PUBLIC_CODE } from "./rooms.ts";
-import { act, advance, close, createBattle, isEnded, join, seatEcho, type Battle, type Clock, type Step } from "./rules.ts";
-import { ROOM_EMPTY_MS } from "./tuning.ts";
+import {
+  act,
+  advance,
+  close,
+  createBattle,
+  isEnded,
+  isLobby,
+  join,
+  leave,
+  nextFight,
+  seatEcho,
+  start as startFight,
+  type Battle,
+  type Clock,
+  type Step,
+} from "./rules.ts";
+import { LOBBY_GRACE_MS, ROOM_EMPTY_MS } from "./tuning.ts";
 import { archived, view } from "./view.ts";
 
 /** How long an ended battle stays in memory before only the database has it. DROP_AFTER_MS overrides it. */
@@ -26,6 +41,7 @@ export function createTable(
   beatMs?: number,
   roomEmptyMs: number = ROOM_EMPTY_MS,
   dropAfterMs: number = DROP_AFTER_MS,
+  lobbyGraceMs: number = LOBBY_GRACE_MS,
 ) {
   const battles = new Map<string, Battle>();
   /** A private room's ended fights that have left memory, and the room each is behind, while the room is open (breaker B3). */
@@ -35,6 +51,12 @@ export function createTable(
   const rooms = createRooms();
   /** Bare battle → since when it has had no person seated (breaker B1). Rooms keep their own. */
   const bareEmptySince = new Map<string, number>();
+  /**
+   * A lobby's presence (ADR-009): room code → character → since when they have
+   * had no socket open on the room. A person seated in a lobby who has been
+   * away for lobbyGraceMs has left it, and the host passes on (rule 27).
+   */
+  const away = new Map<string, Map<string, number>>();
 
   const clock = (): Clock => ({ now: Date.now(), turnMs, beatMs });
   const timing = { tickMs, turnMs, beatMs };
@@ -55,11 +77,18 @@ export function createTable(
       const seated = Object.keys(next.joined).length;
       console.log(`battle ${next.id} ended ${next.status} at tick ${next.tick} (${seated} seated)`);
       // A room's fight ends and its next one opens, for the same watchers (rule
-      // 24). Not for a room that has just expired: its fight was closed because
-      // the room is gone, and a successor would be a fight nobody can reach
-      // (review R3, breaker Q8).
+      // 24), with everyone still standing seated in it again: a private room's
+      // lobby, its host the same, or the public raid's next pull (rule 27). Not
+      // for a room that has just expired: its fight was closed because the room
+      // is gone, and a successor would be a fight nobody can reach (review R3,
+      // breaker Q8).
       if (next.room !== null && rooms.get(next.room)) {
-        const room = rooms.move(next.room, open(next.room), Date.now());
+        const fresh = battles.get(open(next.room)) as Battle;
+        const seated = nextFight(next, fresh, clock());
+        store.writeStep(fresh.id, seated.effects, Date.now());
+        seated.battle.version += 1;
+        battles.set(fresh.id, seated.battle);
+        const room = rooms.move(next.room, fresh.id, Date.now());
         if (room) hub.moved(room);
       }
     }
@@ -123,10 +152,43 @@ export function createTable(
     }
   }
 
+  /**
+   * A lobby seat whose person has had no socket on the room for the grace
+   * window has left (rule 27): unseated, and the host passes on. Only lobbies:
+   * a running fight keeps its seats (rule 8 covers an absent player there).
+   */
+  function sweepLobbies(now: number): void {
+    for (const room of rooms.all()) {
+      const b = battles.get(room.battleId);
+      if (!b || !isLobby(b)) {
+        away.delete(room.code);
+        continue;
+      }
+      const marks = away.get(room.code) ?? new Map<string, number>();
+      away.set(room.code, marks);
+      for (const f of b.standing) {
+        if (f.kind !== "character" || f.seatedBy !== null) continue;
+        const session = [...sessions].find(([, id]) => id === f.id)?.[0];
+        if (session !== undefined && hub.watching(room.code, session)) {
+          marks.delete(f.id);
+          continue;
+        }
+        const since = marks.get(f.id) ?? now;
+        marks.set(f.id, since);
+        if (now - since < lobbyGraceMs) continue;
+        marks.delete(f.id);
+        const current = battles.get(room.battleId);
+        const step = current ? leave(current, f.id, clock()) : null;
+        if (step) apply(step);
+      }
+    }
+  }
+
   /** One iteration of the process's one clock, across every battle. */
   function tick(): void {
     const c = clock();
     expire(c.now);
+    sweepLobbies(c.now);
     for (const b of [...battles.values()]) {
       try {
         if (isEnded(b)) {
@@ -210,6 +272,22 @@ export function createTable(
       sessions.set(who.sessionId, who.id);
     },
 
+    /** The host's Start (already checked with checkStart): the pull, from the seats present (rule 27). */
+    startFight(battleId: string, by: string): void {
+      const b = battles.get(battleId);
+      if (!b) throw new Error(`no live battle ${battleId}`);
+      apply(startFight(b, by, clock()));
+    },
+
+    /** A person leaves a lobby (rule 27); false if they weren't seated in one there. */
+    leave(battleId: string, id: string): boolean {
+      const b = battles.get(battleId);
+      const step = b ? leave(b, id, clock()) : null;
+      if (!step) return false;
+      apply(step);
+      return true;
+    },
+
     /** Whether this character holds a seat (standing or fallen) in a live fight other than this one (rule 24). */
     seatedElsewhere(characterId: string, battleId: string): boolean {
       for (const b of battles.values()) {
@@ -242,10 +320,10 @@ export function createTable(
 
     state,
 
-    /** A socket on /ws?battle=<id> or /ws?room=<code>: send the current state and subscribe; false if there's no such thing. */
-    watch(query: { battle?: string; room?: string }, ws: WSContext): boolean {
+    /** A socket on /ws?battle=<id> or /ws?room=<code>: send the current state and subscribe; false if there's no such thing. `session` is the cookie's hashed session, for a lobby's presence. */
+    watch(query: { battle?: string; room?: string }, ws: WSContext, session: string | null = null): boolean {
       if (query.room === undefined && query.battle !== undefined && behindCode(query.battle)) return false;
-      return hub.open(query, ws);
+      return hub.open(query, ws, session);
     },
 
     behindCode,

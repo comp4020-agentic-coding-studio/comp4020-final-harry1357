@@ -114,8 +114,7 @@ export function openStore(path: string, migrationsFolder: string) {
             })
             .run();
         }
-        if (fx.member) {
-          const { characterId, name, role } = fx.member;
+        for (const { characterId, name, role } of fx.members) {
           tx.insert(battleMembers)
             .values({ battleId, characterId, name, role, joinedAt: now })
             .onConflictDoUpdate({ target: [battleMembers.battleId, battleMembers.characterId], set: { name, role } })

@@ -35,8 +35,8 @@ import {
   type RingId,
   type RoleId,
 } from "../shared/protocol.ts";
-import { ATTACK_RANK, counterReset } from "./ctb.ts";
-import { ECHO_BEAT_MS, ECHO_MAX } from "./tuning.ts";
+import { ATTACK_RANK, counterReset, tickSpeed } from "./ctb.ts";
+import { ECHO_BEAT_MS, ECHO_MAX, READY_MS, TEMPO, TEMPO_MIN } from "./tuning.ts";
 import * as echoes from "./echoes.ts";
 import * as economy from "./economy.ts";
 import * as orrery from "./orrery.ts";
@@ -46,13 +46,11 @@ import { sameKept } from "./confusables.ts";
 
 /** How many log lines the live state carries; the full log is in SQLite. */
 const LOG_TAIL = 50;
-// The pull (docs/adr/006): the Orrery's HP is set once, from the seats present,
-// so a room gets a moment to sit down first. The countdown is wall-clock time,
-// not ticks (a tick is 150 ms live and 5 ms in a fast spec). It starts at the
-// first seat, restarts to PULL_RESTART_MS whenever a new seat joins, and never
-// runs past PULL_CAP_MS from the first seat.
-export const PULL_RESTART_MS = 10_000;
-export const PULL_CAP_MS = 30_000;
+// The pull (docs/adr/006, amended by docs/adr/009): the Orrery's HP is set
+// from the seats present when the fight starts. A private room's fight starts
+// on its host's Start (rule 27), and nothing runs before it. The public raid's,
+// and a bare battle's, pulls READY_MS after its first seat, wall-clock time on
+// the clock the caller supplies (a tick is 150 ms live and 5 ms in a fast spec).
 
 export interface Fighter {
   id: string;
@@ -122,10 +120,10 @@ export interface Battle {
   endedAt: number | null;
 
   // --- the overhaul's state (docs/adr/006) ---
-  /** When the pull will happen if nobody else sits down (epoch ms); null before the first seat and once pulled. */
+  /** When a public or bare fight pulls (epoch ms): READY_MS after its first seat; null in a lobby and once pulled (ADR-009). */
   pullAt: number | null;
-  /** The latest the pull can happen: thirty seconds from the first seat (epoch ms). */
-  pullCap: number | null;
+  /** A private room's host (rule 27): its first person seated, passed on if they leave the lobby. Null without a room's lobby. */
+  hostId: string | null;
   /** Seats counted at the pull (an Echo ½); 0 before it (rule 20). */
   pullSeats: number;
   phase: 1 | 2 | 3;
@@ -161,8 +159,8 @@ export interface Effects {
   stats: Record<string, StatDelta>;
   /** The battle's new status, when this step changed it. */
   status: BattleStatus | null;
-  /** A character took (or retook) a seat. */
-  member: { characterId: string; name: string; role: RoleId } | null;
+  /** Characters who took (or retook) a seat: one for a join, everyone carried for a room's next fight. */
+  members: { characterId: string; name: string; role: RoleId }[];
 }
 
 export interface Step {
@@ -368,7 +366,7 @@ export function createBattle(id: string, isPublic: boolean, now: number): Battle
     createdAt: now,
     endedAt: null,
     pullAt: null,
-    pullCap: null,
+    hostId: null,
     pullSeats: 0,
     phase: 1,
     rings: orrery.rings(),
@@ -382,7 +380,12 @@ export function createBattle(id: string, isPublic: boolean, now: number): Battle
   };
 }
 
-/** Seat a character (already checked with checkJoin). The first seat starts the pull's countdown. */
+/**
+ * Seat a character (already checked with checkJoin). In a private room's lobby
+ * the first person becomes host (rule 27); a public or bare fight's first seat
+ * starts its ready window (ADR-009); a seat in a running fight grows the
+ * Orrery, its percentage kept (rule 20).
+ */
 export function join(b: Battle, who: { id: string; name: string; role: RoleId }, clock: Clock): Step {
   const ctx = context(structuredClone(b), clock);
   const { b: next, fx } = ctx;
@@ -405,13 +408,11 @@ export function join(b: Battle, who: { id: string; name: string; role: RoleId },
     seat: next.nextSeat++,
   });
   next.joined[who.id] = who.name;
-  // The pull's countdown starts on the first seat and restarts on each new one,
-  // never past the cap; the HP is set when it ends (rule 20).
   if (next.status === "waiting") {
-    next.pullCap ??= clock.now + PULL_CAP_MS;
-    next.pullAt = Math.min(clock.now + PULL_RESTART_MS, next.pullCap);
+    if (isLobby(next)) next.hostId ??= who.id;
+    else next.pullAt ??= clock.now + READY_MS;
   }
-  fx.member = { characterId: who.id, name: who.name, role: who.role };
+  fx.members.push({ characterId: who.id, name: who.name, role: who.role });
   ctx.say(
     "join",
     who.id,
@@ -420,6 +421,7 @@ export function join(b: Battle, who: { id: string; name: string; role: RoleId },
       : `${who.name} returns to the table.`,
     { kind: "join", actorId: who.id, returning: !first },
   );
+  if (next.status === "fighting") grow(ctx);
   return finish(ctx);
 }
 
@@ -449,7 +451,8 @@ export function act(b: Battle, actorId: string, action: ActionId, targetId: stri
  */
 export function advance(b: Battle, clock: Clock): Step | null {
   if (b.status === "waiting") {
-    if (b.pullAt === null || clock.now < b.pullAt) return null;
+    // A lobby waits on its host (rule 27): no counter, no countdown.
+    if (isLobby(b) || b.pullAt === null || clock.now < b.pullAt) return null;
     const ctx = context(structuredClone(b), clock);
     pull(ctx);
     return finish(ctx);
@@ -471,7 +474,7 @@ export function advance(b: Battle, clock: Clock): Step | null {
     if (f.kind === "boss") {
       orrery.takeTurn(ctx);
       economy.afterBossTurn(ctx);
-      reset(ctx.b, ctx.orrery(), ATTACK_RANK);
+      ctx.orrery().counter = orreryReset(ctx.b);
       return finish(ctx);
     }
     // An Echo waits out its beat for its person (rule 8); then the server plays it.
@@ -499,11 +502,12 @@ export function advance(b: Battle, clock: Clock): Step | null {
 function pull(ctx: Ctx): void {
   const { b } = ctx;
   b.pullAt = null;
-  b.pullCap = null;
   b.pullSeats = seatsOf(b);
   const boss = ctx.orrery();
   boss.maxHp = orrery.orreryHp(b.pullSeats);
   boss.hp = boss.maxHp;
+  // Its first turn comes at the room's pace too (rule 28).
+  boss.counter = orreryReset(b);
   b.status = "fighting";
   ctx.fx.status = "fighting";
   orrery.onPull(ctx);
@@ -517,6 +521,128 @@ function pull(ctx: Ctx): void {
 
 /** What every client is sent: view.ts builds it, and only view.ts. */
 export { view } from "./view.ts";
+
+// --- the lobby (docs/adr/009, rule 27) ---------------------------------------
+
+/** A private room's fight waiting on its host's Start: no counter runs, no card is announced. */
+export const isLobby = (b: Battle): boolean => b.status === "waiting" && !b.isPublic && b.room !== null;
+
+/** A person's seat: a character with no seater (an Echo seated on purpose has one). */
+const isPerson = (f: Fighter): boolean => f.kind === "character" && f.seatedBy === null;
+
+/** Why `by` can't Start this fight, or null to go ahead (rule 27). */
+export function checkStart(b: Battle, by: string): Refusal | null {
+  if (!isLobby(b)) {
+    if (b.status === "waiting") return { status: 403, error: "This fight has no host: it starts on its own." };
+    return { status: 409, error: isEnded(b) ? "This fight is already over." : "This fight has already started." };
+  }
+  if (b.hostId !== by) {
+    const host = b.hostId === null ? null : b.joined[b.hostId];
+    return { status: 403, error: host ? `Only the host, ${host}, can start this fight.` : "Only the host can start this fight." };
+  }
+  return null;
+}
+
+/** The host's Start (already checked with checkStart): the pull, from the seats present (rules 20, 27). */
+export function start(b: Battle, by: string, clock: Clock): Step {
+  const ctx = context(structuredClone(b), clock);
+  const seats = seatsOf(ctx.b);
+  ctx.say("system", by, `${ctx.b.joined[by] ?? "The host"} starts the fight.`, {
+    kind: "start",
+    actorId: by,
+    seats,
+    maxHp: orrery.orreryHp(seats),
+  });
+  pull(ctx);
+  return finish(ctx);
+}
+
+/**
+ * A person leaves a fight that hasn't started (rule 27): unseated, since a
+ * lobby seat holds no fight state, and if they were host the next person
+ * seated is host. With no person left, the Echoes they seated go too. Null
+ * if they aren't seated in a waiting fight.
+ */
+export function leave(b: Battle, id: string, clock: Clock): Step | null {
+  if (b.status !== "waiting" || !b.standing.some((f) => f.id === id && isPerson(f))) return null;
+  const ctx = context(structuredClone(b), clock);
+  const { b: next } = ctx;
+  const name = next.joined[id] ?? "Someone";
+  ctx.say("leave", id, `${name} leaves the table.`, { kind: "leave", actorId: id });
+  next.standing = next.standing.filter((f) => f.id !== id);
+  delete next.joined[id];
+  if (!next.standing.some(isPerson)) next.standing = next.standing.filter((f) => f.kind !== "character");
+  if (next.hostId === id) {
+    const heir = next.standing.filter(isPerson).sort((x, y) => x.seat - y.seat)[0];
+    next.hostId = heir?.id ?? null;
+    if (heir) ctx.say("system", heir.id, `${heir.name} is the host now.`, { kind: "host", actorId: heir.id, from: id });
+  }
+  if (!next.standing.some(isPerson)) next.pullAt = null;
+  return finish(ctx);
+}
+
+/**
+ * A room's next fight, after `ended` (rule 27): everyone still at the table at
+ * the end, people and Echoes, seated again in their seat order and as their roles,
+ * the same host if they are among them. A private room's is a lobby again; the
+ * public raid's pulls after its ready window. `fresh` is the empty fight the
+ * table opened.
+ */
+export function nextFight(ended: Battle, fresh: Battle, clock: Clock): Step {
+  let b = fresh;
+  // Everyone at the table at the end: standing, or downed on the way (they're still seated; someone who
+  // left isn't). A seat that timed out into an Echo is its person's, and comes back as the person.
+  const carried = [...ended.standing, ...ended.fallen.filter((f) => f.out === "downed")]
+    .filter((f) => f.kind === "character")
+    .sort((x, y) => x.seat - y.seat);
+  const effects: Effects = noEffects();
+  const merge = (step: Step): void => {
+    b = step.battle;
+    effects.log.push(...step.effects.log);
+    effects.events.push(...step.effects.events);
+    for (const [id, d] of Object.entries(step.effects.stats)) Object.assign(stat(effects, id), d);
+    effects.members.push(...step.effects.members);
+  };
+  // People first, in seat order, so the host is the same person; their Echoes after them.
+  for (const f of carried.filter(isPerson)) merge(join(b, { id: f.id, name: f.name, role: f.role as RoleId }, clock));
+  for (const f of carried.filter((x) => x.seatedBy !== null)) {
+    if (b.standing.some((s) => s.id === f.seatedBy)) merge(seatEcho(b, { id: f.id, role: f.role as RoleId, seatedBy: f.seatedBy as string }, clock));
+  }
+  if (isLobby(b) && ended.hostId !== null && b.standing.some((f) => f.id === ended.hostId)) b.hostId = ended.hostId;
+  return { battle: b, effects, durable: true };
+}
+
+// --- the pace (docs/adr/010, rule 28) ----------------------------------------
+
+/**
+ * The Orrery's reset: its own tickSpeed × Standard rank, its tick speed the
+ * room's pace, TEMPO ÷ Σ(1/tickSpeed) over the seats standing, never below
+ * TEMPO_MIN ticks. So it comes round about once per three player turns at any
+ * size, and a room of fast seats meets a faster Orrery. Nothing hastes it.
+ */
+export function orreryReset(b: Battle): number {
+  const rate = b.standing.filter((f) => f.kind === "character").reduce((n, f) => n + 1 / tickSpeed(f.agility), 0);
+  if (rate <= 0) return counterReset(orrery.AGILITY, "normal", ATTACK_RANK);
+  return Math.max(TEMPO_MIN, Math.round((ATTACK_RANK * TEMPO) / rate));
+}
+
+/**
+ * A seat joined a running fight: the Orrery's max HP rises to the curve for
+ * the seats now present, and its HP with it, so the share it stands at is
+ * kept and the bar doesn't jump (rule 20, ADR-009). Never shrinks.
+ */
+function grow(ctx: Ctx): void {
+  const { b } = ctx;
+  const boss = ctx.orrery();
+  const seats = seatsOf(b);
+  const maxHp = orrery.orreryHp(seats);
+  if (maxHp <= boss.maxHp) return;
+  const share = boss.hp / boss.maxHp;
+  boss.maxHp = maxHp;
+  boss.hp = Math.max(1, Math.round(maxHp * share));
+  b.pullSeats = seats;
+  ctx.say("system", BOSS_ID, `The Orrery grows for ${seats} at the table.`, { kind: "grow", actorId: BOSS_ID, seats, maxHp, hp: boss.hp });
+}
 
 // --- the engine contract (spec/engine.ts) -----------------------------------
 
@@ -571,7 +697,7 @@ const isEchoSeat = (f: Fighter): boolean => f.kind === "character" && f.seatedBy
 
 /** The roles an Echo can still be seated as in this fight: one per role, ECHO_MAX at most, none once it's over. */
 export function echoRolesOpen(b: Battle): RoleId[] {
-  if (isEnded(b)) return [];
+  if (b.isPublic || b.status !== "waiting") return [];
   const seated = [...b.standing, ...b.fallen].filter(isEchoSeat);
   if (seated.length >= ECHO_MAX) return [];
   return ROLE_IDS.filter((role) => !seated.some((f) => f.role === role));
@@ -583,9 +709,13 @@ export const echoName = (role: RoleId): string => `${ROLES[role].label} Echo`;
 /** Why `seatedBy` can't seat an Echo of `role` in this fight, or null to go ahead (rule 25). */
 export function checkSeatEcho(b: Battle, seatedBy: string, role: unknown): Refusal | null {
   if (!isRole(role)) return { status: 400, error: "Choose a role for the Echo: warden, mender, striker, breaker or chronist." };
+  // Never in the public raid: strangers shouldn't fill a public fight with bots (ADR-009).
+  if (b.isPublic) return { status: 403, error: "Echoes can't be seated in the public raid; make a room of your own for them." };
   const seater = b.standing.find((f) => f.id === seatedBy && f.kind === "character");
   if (!seater || seater.seatedBy !== null) return { status: 403, error: "Only someone seated at this table can seat an Echo here." };
   if (isEnded(b)) return { status: 409, error: "This fight is already over." };
+  if (b.status !== "waiting") return { status: 409, error: "Echoes are seated in the lobby, before the fight starts." };
+  if (isLobby(b) && b.hostId !== seatedBy) return { status: 403, error: `Only the host, ${b.joined[b.hostId ?? ""] ?? "who made the room"}, seats Echoes.` };
   const seated = [...b.standing, ...b.fallen].filter(isEchoSeat);
   // One per role first: a second Warden Echo is refused for being a second
   // Warden Echo, whether or not the table is full (breaker Q4).
@@ -598,7 +728,7 @@ export function checkSeatEcho(b: Battle, seatedBy: string, role: unknown): Refus
   return null;
 }
 
-/** Seat an Echo (already checked with checkSeatEcho). It enters as a late joiner does, and a seat during the pull's countdown restarts it. */
+/** Seat an Echo (already checked with checkSeatEcho), in a lobby: it enters as a late joiner does (rule 25, ADR-009). */
 export function seatEcho(b: Battle, who: { id: string; role: RoleId; seatedBy: string }, clock: Clock): Step {
   const ctx = context(structuredClone(b), clock);
   const { b: next } = ctx;
@@ -619,10 +749,7 @@ export function seatEcho(b: Battle, who: { id: string; role: RoleId; seatedBy: s
     seatedBy: who.seatedBy,
   });
   next.joined[who.id] = name;
-  if (next.status === "waiting") {
-    next.pullCap ??= clock.now + PULL_CAP_MS;
-    next.pullAt = Math.min(clock.now + PULL_RESTART_MS, next.pullCap);
-  }
+  if (next.status === "waiting" && !isLobby(next)) next.pullAt ??= clock.now + READY_MS;
   // No battle_members row: an Echo has no character behind it, and no record.
   ctx.say("join", who.id, `${next.joined[who.seatedBy] ?? "Someone"} seats a ${name} at the table.`, {
     kind: "seat",
@@ -681,7 +808,6 @@ export function close(b: Battle, text: string, clock: Clock): Step {
     ctx.b.activeId = null;
     ctx.b.turnDeadline = null;
     ctx.b.pullAt = null;
-    ctx.b.pullCap = null;
   }
   return finish(ctx);
 }
@@ -797,7 +923,7 @@ function finish(ctx: Ctx): Step {
     if (outcome) end(b, fx, outcome, clock.now);
     else settle(b, fx, clock);
   }
-  return { battle: b, effects: fx, durable: fx.log.length > 0 || fx.status !== null || fx.member !== null };
+  return { battle: b, effects: fx, durable: fx.log.length > 0 || fx.status !== null || fx.members.length > 0 };
 }
 
 function settle(b: Battle, fx: Effects, clock: Clock): void {
@@ -853,7 +979,7 @@ function say(b: Battle, fx: Effects, kind: LogEntry["kind"], actorId: string | n
 }
 
 function noEffects(): Effects {
-  return { log: [], events: [], stats: {}, status: null, member: null };
+  return { log: [], events: [], stats: {}, status: null, members: [] };
 }
 
 function stat(fx: Effects, id: string): StatDelta {

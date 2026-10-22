@@ -8,7 +8,7 @@ import { WebSocketServer } from "ws";
 import { createApp } from "./app.ts";
 import { openStore } from "./db.ts";
 import { createTable, DROP_AFTER_MS } from "./table.ts";
-import { ROOM_EMPTY_MS } from "./tuning.ts";
+import { LOBBY_GRACE_MS, ROOM_EMPTY_MS } from "./tuning.ts";
 
 /** The repo root (/app in the image), whatever directory the process was started from. */
 const ROOT = resolve(import.meta.dirname, "../..");
@@ -35,7 +35,9 @@ const closed = store.closeLiveBattles(Date.now());
 const roomEmptyMs = intEnv("ROOM_EMPTY_MS", ROOM_EMPTY_MS);
 // How long an ended fight stays in memory; short in a spec that needs it gone (breaker B3).
 const dropAfterMs = intEnv("DROP_AFTER_MS", DROP_AFTER_MS);
-const table = createTable(store, turnMs, tickMs, beatMs, roomEmptyMs, dropAfterMs);
+// How long a lobby seat may have no socket on its room before it has left (rule 27).
+const lobbyGraceMs = intEnv("LOBBY_GRACE_MS", LOBBY_GRACE_MS);
+const table = createTable(store, turnMs, tickMs, beatMs, roomEmptyMs, dropAfterMs, lobbyGraceMs);
 const app = createApp(ROOT, store, table);
 
 const server = serve(

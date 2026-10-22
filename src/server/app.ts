@@ -20,11 +20,12 @@ import type {
   RoleId,
   RoomJoinResponse,
   RoomResponse,
+  StartResponse,
 } from "../shared/protocol.ts";
 import { newId, type Store } from "./db.ts";
 import { mountPages } from "./pages.ts";
 import { ROLE_IDS, ROLES } from "../shared/protocol.ts";
-import { checkAction, checkJoin, checkSeatEcho, cleanName, createBattle, isRole, nameKey, type Battle } from "./rules.ts";
+import { checkAction, checkJoin, checkSeatEcho, checkStart, cleanName, createBattle, isRole, nameKey, type Battle } from "./rules.ts";
 import type { Table } from "./table.ts";
 
 const COOKIE = "raid_sid";
@@ -183,6 +184,37 @@ export function createApp(root: string, store: Store, table: Table): Hono {
     return seat instanceof Response ? seat : c.json({ ...seat, code: room.code } satisfies RoomJoinResponse);
   });
 
+  /** The room's fight now and the caller's character, for the lobby's routes; or the refusal to send. */
+  function lobbyCall(c: Context): { battle: Battle; callerId: string; code: string } | Response {
+    const room = table.room(c.req.param("code") ?? "");
+    if (!room) return fail(c, 404, "No such room.");
+    const battle = table.get(room.battleId);
+    if (!battle) return fail(c, 409, "This fight is already over.");
+    const sid = getCookie(c, COOKIE);
+    const callerId = sid ? table.characterFor(sessionKey(sid)) : undefined;
+    if (!callerId) return fail(c, 403, "Only someone seated at this table can do that.");
+    return { battle, callerId, code: room.code };
+  }
+
+  // The host's Start (rule 27). Synchronous from the lookup to the step, so the
+  // one process orders it against a join landing at the same moment (rule 10).
+  app.post("/api/rooms/:code/start", (c) => {
+    const call = lobbyCall(c);
+    if (call instanceof Response) return call;
+    const refused = checkStart(call.battle, call.callerId);
+    if (refused) return fail(c, refused.status, refused.error);
+    table.startFight(call.battle.id, call.callerId);
+    return c.json({ ok: true, battleId: call.battle.id } satisfies StartResponse);
+  });
+
+  // Leaving a lobby (rule 27): unseated, and the host passes on.
+  app.post("/api/rooms/:code/leave", (c) => {
+    const call = lobbyCall(c);
+    if (call instanceof Response) return call;
+    if (!table.leave(call.battle.id, call.callerId)) return fail(c, 409, "You aren't seated in this room's lobby.");
+    return c.json({ ok: true, battleId: call.battle.id } satisfies StartResponse);
+  });
+
   app.post("/api/rooms/:code/echoes", async (c) => {
     const code = c.req.param("code");
     if (!table.room(code)) return fail(c, 404, "No such room.");
@@ -257,9 +289,12 @@ export function createApp(root: string, store: Store, table: Table): Hono {
     "/ws",
     upgradeWebSocket((c) => {
       const query = { battle: c.req.query("battle"), room: c.req.query("room") };
+      // Whose socket it is, for a lobby's presence only (rule 27); still nothing a client sends is read.
+      const sid = getCookie(c, COOKIE);
+      const session = sid ? sessionKey(sid) : null;
       return {
         onOpen(_event, ws) {
-          if (!table.watch(query, ws)) ws.close(4404, query.room !== undefined ? "No such room." : "No such battle.");
+          if (!table.watch(query, ws, session)) ws.close(4404, query.room !== undefined ? "No such room." : "No such battle.");
         },
         onClose(_event, ws) {
           table.unwatch(ws);

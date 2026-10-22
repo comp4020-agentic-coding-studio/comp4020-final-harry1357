@@ -27,6 +27,8 @@ export type Hub = ReturnType<typeof createHub>;
 export function createHub(source: HubSource) {
   const battleWatchers = new Map<string, Set<WSContext>>();
   const roomWatchers = new Map<string, Set<WSContext>>();
+  /** Which hashed session opened each room socket, for a lobby's presence. Never sent anywhere. */
+  const sessionOf = new WeakMap<WSContext, string>();
 
   function send(ws: WSContext, message: string): void {
     if (ws.readyState !== 1) return;
@@ -54,11 +56,12 @@ export function createHub(source: HubSource) {
      * now and subscribe. False if there's no such battle or room, and the
      * caller closes the socket.
      */
-    open(query: { battle?: string; room?: string }, ws: WSContext): boolean {
+    open(query: { battle?: string; room?: string }, ws: WSContext, session: string | null = null): boolean {
       if (query.room !== undefined) {
         // A room's socket: the room, then its fight now, then every fight after.
         const room = source.room(query.room);
         if (!room) return false;
+        if (session !== null) sessionOf.set(ws, session);
         send(ws, roomMessage(room));
         const fight = source.state(room.battleId);
         if (fight) send(ws, stateMessage(fight, []));
@@ -73,6 +76,12 @@ export function createHub(source: HubSource) {
       }
       send(ws, stateMessage(current, []));
       return true;
+    },
+
+    /** Whether this hashed session has a socket open on this room now. */
+    watching(code: string, session: string): boolean {
+      for (const ws of roomWatchers.get(code) ?? []) if (ws.readyState === 1 && sessionOf.get(ws) === session) return true;
+      return false;
     },
 
     /** A socket closed: let it go, wherever it was watching. */

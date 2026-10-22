@@ -12,8 +12,8 @@ export const RANK_MAX = 5;
 export const TURN_MS = 12_000;
 /** Rule 8: three timeouts in a row make an Echo. */
 export const TIMEOUTS_TO_ECHO = 3;
-/** Rule 8: an Echo's output, as a share of a person's. Ours. */
-export const ECHO_POTENCY = 0.5;
+/** Rule 8: an Echo's output, as a share of a person's. Ours (ADR-010: 0.5 couldn't hold a seat at the room's pace). */
+export const ECHO_POTENCY = 0.75;
 /** Rule 8 (ADR-006, "The Echo"): an Echo on the plate waits this long for its
  *  person to reclaim the seat before the server plays it. */
 export const ECHO_BEAT_MS = 3_000;
@@ -55,10 +55,26 @@ export const INSIGHT_MAX = 5;
 /** Stillpoint needs full Flux. Ours: full is 5. */
 export const FLUX_MAX = 5;
 
-/** Rule 20: HP = base × seats^0.75, an Echo half a seat. Base is ours. */
-export const ORRERY_BASE_HP = 240;
+/** Rule 20: HP = base × seats^0.75, an Echo half a seat. Base is ours (ADR-010: the Orrery acts three times as often). */
+export const ORRERY_BASE_HP = 160;
 export const HP_EXPONENT = 0.75;
 export const ECHO_SEAT = 0.5;
+
+/** ADR-010: every boss card's amount is the script's × this. Ours. */
+export const CARD_DAMAGE = 0.55;
+
+/**
+ * ADR-010, rule 28: the Orrery keeps the room's pace. It resets to its own
+ * tickSpeed × Standard rank, its tick speed TEMPO ÷ the room's combined rate
+ * (Σ 1/tickSpeed over the seats standing), never below TEMPO_MIN ticks. Ours.
+ */
+export const TEMPO = 2.2;
+export const TEMPO_MIN = 2;
+
+/** ADR-009: the public raid's (and a bare battle's) next fight pulls this long after its first seat. Ours. */
+export const READY_MS = 8_000;
+/** ADR-009: a lobby seat with no socket open on its room for this long has left. Ours. */
+export const LOBBY_GRACE_MS = 10_000;
 
 /** Phases: II below 70%, III below 35%. */
 export const PHASE_TWO_BELOW = 0.7;

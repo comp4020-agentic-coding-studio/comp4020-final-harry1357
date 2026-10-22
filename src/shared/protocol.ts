@@ -291,9 +291,22 @@ export interface BattleState {
    *  server's to say, as the Reaction's card is (rule 2). */
   bastionCard: string | null;
   /** The roles an Echo can still be seated as in this fight (rule 25): one per
-   *  role, four at most, none once the fight is over. The server decides it;
-   *  the client offers exactly these. */
+   *  role, four at most, and only in a private room's lobby (ADR-009); none in
+   *  the public raid or once the fight has started. The server decides it;
+   *  the client offers exactly these, and only to the host. */
   echoRoles: RoleId[];
+  /** Who may press Start (rule 27): a private room's host, the first person
+   *  seated and passed on to the next if they leave the lobby. Null in the
+   *  public raid and a bare battle, which have no host. The server's to say;
+   *  the client draws Start live only for the person it names. */
+  hostId: string | null;
+  /** This fight is a private room's lobby: waiting on its host's Start, with
+   *  no counter running and no card announced (rule 27). */
+  lobby: boolean;
+  /** Epoch ms when a public raid's (or a bare battle's) waiting fight pulls
+   *  (ADR-009's ready window); null otherwise. Drawn as a countdown, decided
+   *  by nobody but the server. */
+  pullAt: number | null;
   /** The most recent log lines, oldest first. */
   log: LogEntry[];
 }
@@ -306,13 +319,16 @@ export interface BattleState {
 // the strike plate) writes no line. Every kind here must have a renderer in
 // src/client/battle/registry.ts; spec/shown.test.ts holds both sides. Phase one-b
 // added "seat" (an Echo seated on purpose, rule 25): the client needs a renderer
-// for it, as for every other kind below.
+// for it, as for every other kind below. The lobby (ADR-009) adds "start",
+// "host" and "grow".
 
 export const EVENT_KINDS = [
   // the table
   "join",
   "seat", // an Echo is seated on purpose by someone in the room (rule 25)
   "leave",
+  "start", // a private room's host pressed Start (rule 27); the pull follows it
+  "host", // a private room's host passed to the next seat (rule 27)
   "down",
   "plate",
   "end",
@@ -348,7 +364,8 @@ export const EVENT_KINDS = [
   // the Orrery (rule 19-20)
   "card", // a boss card is announced on the strip, with intent, target and countdown
   "pull", // the fight begins and the Orrery's HP is set from the seats present
-  "phase", // the Orrery crosses 70% or 35%
+  "grow", // a late joiner raised the Orrery's max HP, its percentage kept (rule 20)
+  "phase", // the Orrery crosses 70% or 35%: a moment on every screen (rule 28)
   "break", // a ring's shield pips reach 0
   "revolution",
   "eclipse",
@@ -380,6 +397,10 @@ export type BattleEvent =
   // actorId is the Echo; seatedBy the person who seated it.
   | Act<"seat", { role: RoleId; seatedBy: string }>
   | Act<"leave">
+  // actorId is the host who pressed it; seats and maxHp are the pull's, for the card.
+  | Act<"start", { seats: number; maxHp: number }>
+  // actorId is the new host; from, the one who left.
+  | Act<"host", { from: string | null }>
   | Act<"down">
   | Act<"plate">
   | (EventBase & { kind: "end"; outcome: "won" | "lost" | "abandoned" })
@@ -412,7 +433,9 @@ export type BattleEvent =
   | Act<"stillpoint", { cardId: string }>
   | Boss<"card", { card: BossCard }>
   | Boss<"pull", { seats: number; maxHp: number }>
-  | Boss<"phase", { phase: 2 | 3 }>
+  | Boss<"grow", { seats: number; maxHp: number; hp: number }>
+  // name: the phase's, for its card on the strip and its title (rule 28).
+  | Boss<"phase", { phase: 2 | 3; name: string }>
   | Boss<"break", { ringId: RingId; by: string }>
   // cardId: the strip card that resolved into this event (phase two).
   | Boss<"revolution", { hits: Hit[]; cardId: string }>
@@ -543,6 +566,12 @@ export type RoomResponse = RoomInfo;
 /** POST /api/rooms/:code/join, with a JoinRequest: as a battle's join, plus the room. */
 export interface RoomJoinResponse extends JoinResponse {
   code: string;
+}
+
+/** POST /api/rooms/:code/start → 200: the host's Start (rule 27). POST /api/rooms/:code/leave → 200. */
+export interface StartResponse {
+  ok: true;
+  battleId: string;
 }
 
 /** POST /api/rooms/:code/echoes → 201 (rule 25). */
