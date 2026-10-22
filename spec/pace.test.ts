@@ -299,11 +299,32 @@ describe("every fight ends (L1)", () => {
   }, WHOLE_FIGHTS_MS);
 
   it("phase III's own Grand Alignment says nothing of the clock (F5)", async () => {
-    const { e, policy } = await parts();
-    const f = play(e, policy, ["warden", "mender", "striker"], []);
-    expect(f.phaseNumbers, "a table that reaches phase III on its own").toEqual([2, 3]);
-    expect(f.bossTurns, "before the clock").toBeLessThan(ENRAGE_AFTER);
-    expect(f.alignmentLines.some((l) => /40 times/.test(l)), "its Alignment lines don't claim the clock").toBe(false);
+    // A table that reaches phase III well before the clock and then only Braces: phase III's own Alignments
+    // resolve, three of them, the third the wipe, and none of their lines claims the clock. (A table that wins
+    // in phase III meets no Alignment at all, which would hold nothing: the confirm pass's F5, held for real.)
+    const { e } = await parts();
+    let b = e.createBattle("f5", false, 9_000_000);
+    (b as Battle & { room: string | null }).room = "F5";
+    for (const [i, role] of ["warden", "mender", "striker"].entries()) b = e.join(b, { id: `p${i}`, name: `P${i}`, role }, clock()).battle;
+    b = e.start(b, "p0", clock()).battle;
+    const ready = e.plate(structuredClone(b), "p2", clock());
+    const boss = ready.standing.find((f) => f.id === "orrery")!;
+    boss.hp = Math.ceil(boss.maxHp * 0.35) + 1;
+    const entered = e.act(ready, "p2", "cleave", "outer", clock());
+    expect(entered.effects.events.filter((ev) => ev.kind === "phase").map((ev) => ev.phase), "a blow carries it through II into phase III").toContain(3);
+    b = entered.battle;
+    const turns = (x: Battle) => (x as Battle & { bossTurns: number }).bossTurns;
+    const lines: string[] = [];
+    for (let i = 0; i < 200_000 && b.status === "fighting" && turns(b) < ENRAGE_AFTER; i++) {
+      const up = b.standing.find((f) => f.id === b.activeId);
+      const step = up && up.kind === "character" && up.counter === 0 ? e.act(b, up.id, "brace", null, clock()) : e.advance(b, clock());
+      if (!step) continue;
+      for (const ev of step.effects.events) if (ev.kind === "alignment") lines.push(step.battle.log.find((l) => (l as { seq?: number }).seq === ev.seq)?.text ?? "");
+      b = step.battle;
+    }
+    expect(turns(b), "it all happened before the clock").toBeLessThan(ENRAGE_AFTER);
+    expect(lines.length, "phase III's own Alignments resolved, to the wipe").toBe(3);
+    expect(lines.filter((l) => /40 times/.test(l)), "and none of them claims the clock").toEqual([]);
   }, WHOLE_FIGHTS_MS);
 
   it("no fight that ends on its own meets the enrage: every room in ADR-010's table ends before turn forty", async () => {
