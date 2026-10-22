@@ -41,6 +41,8 @@ interface Fight {
   alignments: number[];
   /** The Orrery turn of the Alignment's wipe, if one came. */
   wipedAt: number | null;
+  /** The log line the wipe wrote. */
+  wipeLine: string | null;
 }
 
 const ACTION_KINDS = new Set([
@@ -58,7 +60,7 @@ function play(e: PaceEngine, policy: Policy, people: string[], echoes: string[] 
   echoes.forEach((role, i) => (b = e.seatEcho(b, { id: `e${i}`, role, seatedBy: "p0" }, c()).battle));
   b = e.start(b, "p0", c()).battle;
 
-  const fight: Fight = { outcome: "", bossTurns: 0, playerTurns: 0, phases: [], phaseNumbers: [], alignments: [], wipedAt: null };
+  const fight: Fight = { outcome: "", bossTurns: 0, playerTurns: 0, phases: [], phaseNumbers: [], alignments: [], wipedAt: null, wipeLine: null };
   const bossTurns = (x: Battle) => (x as Battle & { bossTurns: number }).bossTurns;
   const note = (step: Step) => {
     for (const ev of step.effects.events) {
@@ -68,7 +70,10 @@ function play(e: PaceEngine, policy: Policy, people: string[], echoes: string[] 
       }
       if (ev.kind === "alignment") {
         fight.alignments.push(bossTurns(step.battle));
-        if (ev.wipe) fight.wipedAt = bossTurns(step.battle);
+        if (ev.wipe) {
+          fight.wipedAt = bossTurns(step.battle);
+          fight.wipeLine = step.battle.log.find((l) => (l as { seq?: number }).seq === ev.seq)?.text ?? null;
+        }
       }
       if (ACTION_KINDS.has(ev.kind) && typeof ev.actorId === "string" && ev.actorId !== "orrery" && ev.seq !== undefined) {
         const line = step.battle.log.find((l) => (l as { seq?: number }).seq === ev.seq);
@@ -198,6 +203,8 @@ describe("every fight ends (L1)", () => {
     expect(f.alignments[0], `its first Alignment past the clock (at Orrery turn ${f.alignments[0]})`).toBeGreaterThan(ENRAGE_AFTER);
     expect(f.outcome, "and the third ended it: a wipe").toBe("lost");
     expect(f.wipedAt, "about twelve Orrery turns past the clock").toBeLessThanOrEqual(ENRAGE_AFTER + 4 * 3 + 2);
+    // The fight log says so (the owner's ruling): the wipe is told as the enrage, not as phase III's Alignment.
+    expect(f.wipeLine, "the wipe's line names the clock").toMatch(/forty|40/);
   }, WHOLE_FIGHTS_MS);
 
   it("no fight that ends on its own meets the enrage: every room in ADR-010's table ends before turn forty", async () => {
