@@ -69,6 +69,14 @@ describe("Retrograde and the Alignment, for the strip", () => {
     expect(left(three), "in phase III, all three Alignments to come").toBe(3);
     const turned = bossTurn(e, only(e, three, { intent: "alignment", targetId: null, amount: null })).battle;
     expect(left(turned), "one resolved: two left").toBe(2);
+    // The enrage (ADR-010; the confirm pass's F4): the clock begins at the Orrery's fortieth turn whatever the
+    // phase, so the strip draws it then, in phase II as in phase III.
+    const late = structuredClone(b);
+    late.phase = 2;
+    (late as Battle & { bossTurns: number }).bossTurns = 39;
+    expect(left(late), "phase II, the Orrery's thirty-ninth turn: no clock").toBeNull();
+    (late as Battle & { bossTurns: number }).bossTurns = 40;
+    expect(left(late), "its fortieth: all three to come, in phase II").toBe(3);
   });
 
   it("the state says whether a Bastion stands, until the blow on everyone it meets", async () => {
