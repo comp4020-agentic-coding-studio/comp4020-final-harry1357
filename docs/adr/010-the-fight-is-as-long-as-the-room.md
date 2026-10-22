@@ -98,7 +98,7 @@ The numbers rebalanced to that target, all ours and all in `tuning.ts`:
 | --- | --- | --- |
 | `ORRERY_BASE_HP` | 240 | 160 |
 | `ECHO_POTENCY` | 0.5 | 0.75 |
-| `CARD_DAMAGE` (scales every card's amount) | 1 | 0.55 |
+| `CARD_DAMAGE` (scales every card's amount) | 1 | 0.5 |
 
 Base HP falls because the Orrery now acts three times as often, so the
 fight gets longer in Orrery turns while lasting about the same wall-clock
@@ -107,18 +107,23 @@ three times the punishment. Echo output rises because at the old tempo the
 Orrery barely touched the Echoes. At the new one they have to hold their
 seats, and at half a person they couldn't.
 
-Measured with these values (each seat its role's policy, a person taking
-four seconds to decide):
+Measured with these values on the committed engine (each seat its role's
+policy, a person taking four seconds to decide). The first table this ADR
+carried was measured on a scratch copy of the server, before the Orrery's
+first counter was set at the room's pace too; on the committed engine five
+people lost at 34 Orrery turns at the then card damage of 0.55, past the
+target, so the cards were cut to 0.5 and the table re-measured:
 
 | room | outcome | Orrery turns | phase II, III at Orrery turn | player turns per Orrery turn | wall-clock |
 | --- | --- | --- | --- | --- | --- |
-| Warden + four Echoes | won | 19 | 8, 12 | 3.4 | 1 min 21 s |
-| Mender + four Echoes | won | 24 | 9, 15 | 3.4 | 1 min 34 s |
-| Striker + four Echoes | won | 17 | 8, 12 | 3.4 | 2 min 14 s |
-| Breaker + four Echoes | won | 21 | 8, 15 | 3.4 | 1 min 38 s |
-| Chronist + four Echoes | won | 24 | 9, 15 | 3.3 | 1 min 50 s |
-| Warden, Mender, Striker | won | 16 | 4, 10 | 3.8 | 4 min 54 s |
-| five people | won | 24 | 10, 17 | 3.4 | 6 min 20 s |
+| Warden + four Echoes | won | 19 | 10, 14 | 3.1 | 1 min 4 s |
+| Mender + four Echoes | won | 21 | 11, 17 | 3.0 | 1 min 8 s |
+| Striker + four Echoes | won | 19 | 10, 12 | 3.0 | 2 min 4 s |
+| Breaker + four Echoes | won | 21 | 10, 17 | 3.0 | 1 min 20 s |
+| Chronist + four Echoes | won | 21 | 11, 17 | 3.0 | 1 min 24 s |
+| Warden, Mender, Striker | won | 16 | 5, 11 | 3.7 | 4 min 39 s |
+| Striker, Breaker, Chronist | lost | 25 | 10, 13 | 3.0 | 6 min 13 s |
+| five people | won | 26 | 12, 18 | 3.1 | 6 min 6 s |
 
 A scripted room isn't a real one: a policy never reads ahead and never
 coordinates, so people should do better than these. The rooms that lose

@@ -61,7 +61,7 @@ export const HP_EXPONENT = 0.75;
 export const ECHO_SEAT = 0.5;
 
 /** ADR-010: every boss card's amount is the script's × this. Ours. */
-export const CARD_DAMAGE = 0.55;
+export const CARD_DAMAGE = 0.5;
 
 /**
  * ADR-010, rule 28: the Orrery keeps the room's pace. It resets to its own
