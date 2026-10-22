@@ -409,7 +409,7 @@ describe("rooms expire; logs don't", () => {
       TURN_TIMEOUT_MS: "150",
       ECHO_BEAT_MS: "10",
       ROOM_EMPTY_MS: String(WINDOW_MS),
-      LOBBY_GRACE_MS: "300",
+      LOBBY_GRACE_MS: "1500",
     });
     const at = server.base;
     const host = await seatedPlayer(at);
@@ -429,8 +429,10 @@ describe("rooms expire; logs don't", () => {
     );
     expect(ended.status, "the fight finished: won or lost, not abandoned by the room going away").toMatch(/^(won|lost)$/);
 
-    // The room's next fight has nobody in it. Inside the window, the room is still there.
-    await sleep(WINDOW_MS / 3);
+    // The room's next fight is a lobby with the host carried into it (rule 27); with no socket of theirs on
+    // the room they have left it once the grace is up, and then it has nobody in it. Inside the window, the
+    // room is still there.
+    await sleep(1_500 + WINDOW_MS / 3);
     expect((await room(at, made.code)).status, "a room isn't gone before its window is up").toBe(200);
     // Re-review N1: the finished fight, read by its id, carried the code of the
     // room, still open. While the room is open, its fights stay behind the code.

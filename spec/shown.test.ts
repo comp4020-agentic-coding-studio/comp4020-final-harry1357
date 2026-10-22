@@ -105,7 +105,7 @@ describe("the fight is shown", () => {
       }
       expect((await join(server.base, battleId, `idler-${s}`, "chronist")).status).toBe(200);
 
-      // The pull comes ten seconds after the last seat (docs/adr/006); until
+      // A bare battle pulls READY_MS after its first seat (docs/adr/009); until
       // then the fight is "waiting", which isn't over.
       for (const pull = Date.now() + 20_000; (await battle(server.base, battleId)).status === "waiting"; await sleep(50)) {
         if (Date.now() > pull) throw new Error("the fight never pulled in 20s");
@@ -117,7 +117,9 @@ describe("the fight is shown", () => {
         const seat = seats.find((x) => x.characterId === st.activeId);
         if (seat) {
           const action = seat.actions[seat.turn++ % seat.actions.length];
-          expect((await act(server.base, battleId, seat.cookie, action)).status, `${action} on my turn`).toBe(200);
+          // The state was read a moment ago: on a 250 ms turn the plate can pass before the POST lands, and the
+          // server refuses the late action with 409 (rule 10). That is the server's clock deciding, not a fault.
+          expect([200, 409], `${action} on my turn, or refused as late`).toContain((await act(server.base, battleId, seat.cookie, action)).status);
         } else {
           await sleep(5);
         }

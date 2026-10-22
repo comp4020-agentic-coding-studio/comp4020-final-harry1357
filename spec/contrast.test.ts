@@ -141,6 +141,19 @@ const QUIET_GROUNDS: Readonly<Record<string, string>> = {
   "#battle .seats-none": "ink",
   "#battle .seats-said": "ink",
   "#battle .seats-add:disabled": "ink",
+  // The lobby (ADR-009) is one window (ink), except the code line, a --void well
+  // (lobby.css). The disabled buttons paint their own --ink.
+  "#battle .lobby-kicker": "ink",
+  "#battle .lobby-label": "ink",
+  "#battle .lobby-code-label": "void",
+  "#battle .lobby-seat[data-echo=true] .lobby-name": "ink",
+  "#battle .lobby-role": "ink",
+  "#battle .lobby-none": "ink",
+  "#battle .lobby-said": "ink",
+  "#battle .lobby-waiting": "ink",
+  "#battle .lobby-start:disabled": "ink",
+  "#battle .lobby-add:disabled": "ink",
+  "#battle .lobby-leave:disabled": "ink",
 };
 
 describe(`--${QUIET} on its grounds`, () => {

@@ -32,13 +32,34 @@ async function page(tamper = ""): Promise<Tab> {
   return tab;
 }
 
-/** Sit down through the form: a door, a role, a name. */
+/**
+ * Sit down through the form: a door, a role, a name. A room made at the
+ * "create" door is a lobby (rule 27; docs/adr/009), so this waits for the
+ * lobby there and for the fight anywhere else.
+ */
 async function sit(tab: Tab, door: string, role: string, name: string): Promise<void> {
   await tab.evaluate(`(() => { const f = document.querySelector("form[data-join]");
     f.querySelector('input[name="door"][value="${door}"]')?.click();
     const n = f.querySelector('input[name="name"]'); n.value = ${JSON.stringify(name)}; n.dispatchEvent(new Event("input", { bubbles: true }));
     f.querySelector('input[name="role"][value="${role}"]').click(); f.requestSubmit(); })()`);
-  await tab.until(`document.querySelector("#battle").dataset.phase === "fight"`, `${name} seated`, 15_000);
+  const where = door === "create" ? "lobby" : "fight";
+  await tab.until(`document.querySelector("#battle").dataset.phase === "${where}"`, `${name} seated`, 15_000);
+}
+
+/** The host seats an Echo of each role from the lobby's buttons (rule 25: only there). */
+async function echoes(tab: Tab, roles: string[]): Promise<void> {
+  for (const role of roles) {
+    await tab.until(`!!document.querySelector('[data-lobby] [data-add-echo="${role}"]:not([disabled])')`, `the ${role} Echo button`, 10_000);
+    await tab.evaluate(`document.querySelector('[data-lobby] [data-add-echo="${role}"]').click()`);
+    await tab.until(`!document.querySelector('[data-lobby] [data-add-echo="${role}"]')`, `the ${role} Echo seated`, 10_000);
+  }
+}
+
+/** The host presses Start (rule 27), and the page comes into the fight. */
+async function start(tab: Tab): Promise<void> {
+  await tab.until(`!!document.querySelector('[data-lobby] [data-start]:not([hidden]):not([disabled])')`, "the Start button", 10_000);
+  await tab.evaluate(`document.querySelector('[data-lobby] [data-start]').click()`);
+  await tab.until(`document.querySelector("#battle").dataset.phase === "fight"`, "the fight started", 15_000);
 }
 
 const LIVE = `[...document.querySelectorAll("button[data-action]:not([data-reaction])")].filter((b) => !b.disabled).length`;
@@ -58,6 +79,7 @@ it("R1: a refused command gives the turn back, as the server still has it", asyn
     };
   })();`);
   await sit(tab, "create", "striker", "Refused Once");
+  await start(tab);
   await tab.until(`${LIVE} > 0`, "my turn", 30_000);
   await tab.evaluate(`window.__refuseNext = true; document.querySelector('button[data-action="jab"]').click(); document.querySelector("[data-confirm]").click()`);
   // Refused: the server never took the turn, so it's still yours, and the window says so.
@@ -103,16 +125,30 @@ it("U2 (rule 2): the Reaction offered off-turn is at the card the server names, 
   // names none, and the Reaction goes dark.
   const tab = await page(SOCKET_TAMPER);
   await sit(tab, "create", "warden", "Named Card");
-  await tab.until(`!!document.querySelector('[data-add-echo="mender"]:not([disabled])')`, "the Echo button", 10_000);
-  await tab.evaluate(`document.querySelector('[data-add-echo="mender"]').click()`);
-  await tab.evaluate(`window.__react = "first"`);
-  await tab.until(`!!document.querySelector('button[data-action="intercept"]:not([disabled])') && ${LIVE} === 0`, "the Reaction live off-turn", 30_000);
-  const first = await tab.evaluate<string>(`document.querySelector("[data-rail] [data-card-id]").dataset.intent`);
-  // The test tells the server's word from the page's own pick only if the named card is one no Intercept
-  // could answer (the re-review's note on U2): a card aimed at everyone.
-  expect(await tab.evaluate<string>(`document.querySelector("[data-rail] [data-card-id]").dataset.target`), "the card named is aimed at everyone").toBe("party");
-  await tab.evaluate(`document.querySelector('button[data-action="intercept"]').click()`);
-  const aimed = await tab.evaluate<string>(`document.querySelector("[data-aim-name]").textContent`);
+  await echoes(tab, ["mender"]);
+  await start(tab);
+  // From the next state on, the server names the strip's first card. A state that came before still carries
+  // its own name (the card Intercept can really answer), so the test waits for a newer one.
+  const named = await tab.evaluate<string>(`(window.__react = "first", document.querySelector("[data-rail]").dataset.version)`);
+  // The strip's first card is the one named; the Orrery keeps the room's pace (docs/adr/010), so a state
+  // can land between two reads. The named card, the click and the aim are read in one turn of the page,
+  // with nothing able to arrive between them. Waited for a raid-wide card first: the test tells the
+  // server's word from the page's own pick only if the named card is one no Intercept could answer (the
+  // re-review's note on U2).
+  await tab.until(
+    `document.querySelector("[data-rail]").dataset.version !== ${JSON.stringify(named)} && !!document.querySelector('button[data-action="intercept"]:not([disabled])') && ${LIVE} === 0 && document.querySelector("[data-rail] [data-card-id]")?.dataset.target === "party"`,
+    "the Reaction live off-turn, a raid-wide card named",
+    30_000,
+  );
+  const read = await tab.evaluate<{ first: string; target: string; aimed: string }>(`(() => {
+    const card = document.querySelector("[data-rail] [data-card-id]");
+    const first = card.dataset.intent, target = card.dataset.target;
+    document.querySelector('button[data-action="intercept"]').click();
+    return { first, target, aimed: document.querySelector("[data-aim-name]").textContent };
+  })()`);
+  const { first } = read;
+  expect(read.target, "the card named is aimed at everyone").toBe("party");
+  const aimed = read.aimed;
   expect(aimed.toLowerCase(), "Intercept is aimed at the card the server named (the strip's first, a raid-wide card)").toMatch(new RegExp(`^${first}`));
   await tab.evaluate(`document.querySelector("[data-cancel]").click()`);
   const version = await tab.evaluate<string>(`document.querySelector("[data-rail]").dataset.version`);
@@ -157,34 +193,52 @@ it("Q2 and Q1: a room closing under the end panel keeps the ending it shows, and
   // Phase two's gate, the breaker's Q2: with the end panel up, the room's empty
   // next fight was closed when the room expired, and the panel changed to
   // "Nobody stayed", a fight nobody played. And Q1, in the page: the last
-  // fight's lines stay in the log while its ending is up. A fast clock and four
-  // Echoes play the fight out; the room closes two seconds after it's empty.
+  // fight's lines stay in the log while its ending is up. Since ADR-009 a
+  // room returns to its lobby with everyone seated, so the end panel is the
+  // view of a page with no seat in the next fight: a second browser watching
+  // the room by its code. The host plays the fight out with four Echoes on a
+  // fast clock, then leaves the lobby; the room closes two seconds after it's
+  // empty, under the watcher's end panel.
   const own = await boot(scratchDatabase(), { TICK_MS: "5", TURN_TIMEOUT_MS: "250", ECHO_BEAT_MS: "100", ROOM_EMPTY_MS: "2000" });
-  const tab = await chrome.open("about:blank");
+  // Each in a browser of its own: the watcher is another session, not the host's cookie in a second tab,
+  // and neither is a background tab behind the earlier tests' live fights, whose timers Chrome clamps.
+  const mine = await launchChrome();
+  const tab = await mine.open("about:blank");
+  const other = await launchChrome();
+  const watcher = await other.open("about:blank");
   try {
     await tab.send("Page.navigate", { url: `${own.base}/` });
     await tab.until(`!!document.querySelector("form[data-join]") && !document.querySelector("form[data-join]").hidden`, "the join form", 15_000);
     await sit(tab, "create", "striker", "Stays Shown");
-    for (const role of ["warden", "mender", "breaker", "chronist"]) {
-      await tab.until(`!!document.querySelector('[data-add-echo="${role}"]:not([disabled])')`, `the ${role} Echo button`, 10_000);
-      await tab.evaluate(`document.querySelector('[data-add-echo="${role}"]').click()`);
-      await tab.until(`!document.querySelector('[data-add-echo="${role}"]')`, `the ${role} Echo seated`, 10_000);
-    }
+    await echoes(tab, ["warden", "mender", "breaker", "chronist"]);
+    const code = await tab.evaluate<string>(`document.querySelector("#battle").dataset.room`);
+    await watcher.send("Page.navigate", { url: `${own.base}/?room=${encodeURIComponent(code)}` });
+    await watcher.until(`!!document.querySelector("form[data-join]") && !document.querySelector("form[data-join]").hidden`, "the watcher's join form", 15_000);
+    await start(tab);
+
     const visible = `(() => { const p = document.querySelector("[data-join-end]"); return !!p && !p.hidden && !p.closest("[hidden]"); })()`;
-    await tab.until(visible, "the end panel", 60_000);
-    const title = await tab.evaluate<string>(`document.querySelector("[data-join-end] .join-end-title").textContent`);
+    await watcher.until(visible, "the end panel, on the watcher's screen", 60_000);
+    const title = await watcher.evaluate<string>(`document.querySelector("[data-join-end] .join-end-title").textContent`);
     expect(title, "a fight four Echoes and a person played out ends won or lost").not.toBe("Nobody stayed");
-    await tab.until(`document.querySelector("#battle").dataset.closed === "expired"`, "the empty room to close", 15_000);
-    await tab.evaluate(`new Promise((r) => setTimeout(r, 300))`);
-    expect(await tab.evaluate<boolean>(visible), "the end panel is still up").toBe(true);
-    expect(await tab.evaluate<string>(`document.querySelector("[data-join-end] .join-end-title").textContent`), "and still says how the fight that was played ended").toBe(title);
-    expect(await tab.evaluate<string>(`document.querySelector("[data-join-end] a").getAttribute("href")`), "the room's gone: the link is the front door").toBe("/");
-    const log = await tab.evaluate<string>(`document.querySelector("[data-log]").textContent`);
+    // The host is back in the room's lobby, the last fight's outcome on it; then leaves, and the room empties.
+    // At a 5 ms tick a whole fight lands at once, and the page shows every event of it before the next fight
+    // (rule 11), so the lobby comes a while after the ending: about twenty seconds, measured.
+    await tab.until(`document.querySelector("#battle").dataset.phase === "lobby"`, "the host back in the lobby", 60_000);
+    expect(await tab.evaluate<string>(`document.querySelector(".lobby-last").textContent`), "the lobby says how the last fight went").toMatch(/victory|defeat/i);
+    await tab.evaluate(`document.querySelector('[data-lobby] [data-lobby-leave]').click()`);
+    await watcher.until(`document.querySelector("#battle").dataset.closed === "expired"`, "the empty room to close", 20_000);
+    await watcher.evaluate(`new Promise((r) => setTimeout(r, 300))`);
+    expect(await watcher.evaluate<boolean>(visible), "the end panel is still up").toBe(true);
+    expect(await watcher.evaluate<string>(`document.querySelector("[data-join-end] .join-end-title").textContent`), "and still says how the fight that was played ended").toBe(title);
+    expect(await watcher.evaluate<string>(`document.querySelector("[data-join-end] a").getAttribute("href")`), "the room's gone: the link is the front door").toBe("/");
+    const log = await watcher.evaluate<string>(`document.querySelector("[data-log]").textContent`);
     expect(log, "the last fight's end line is still in the log (Q1)").toMatch(/The table wins|has fallen|fall/i);
   } finally {
+    await other.close();
+    await mine.close();
     await own.kill();
   }
-}, 120_000);
+}, 180_000);
 
 it("N11 (rule 2): a refused Reaction off-turn lights nothing of the turn", async () => {
   // Phase two's re-review, N11: R1's test refused only an on-turn action, where
@@ -206,8 +260,8 @@ it("N11 (rule 2): a refused Reaction off-turn lights nothing of the turn", async
     };
   })();`);
   await sit(tab, "create", "warden", "Refused Off Turn");
-  await tab.until(`!!document.querySelector('[data-add-echo="mender"]:not([disabled])')`, "the Echo button", 10_000);
-  await tab.evaluate(`document.querySelector('[data-add-echo="mender"]').click()`);
+  await echoes(tab, ["mender"]);
+  await start(tab);
   await tab.evaluate(`window.__react = "first"`);
   const mine = `(() => { const me = document.body.dataset.me; const up = document.querySelector('[data-rail] [data-token-id][data-active="true"]'); return !!up && up.dataset.tokenId === me; })()`;
   await tab.until(`!!document.querySelector('button[data-action="intercept"]:not([disabled])') && ${LIVE} === 0 && !${mine}`, "the Reaction live off-turn", 30_000);
@@ -238,11 +292,8 @@ it("N12 (P2): Restore is offered the downed, as the page's own state has them", 
   // the window offers is what main.ts hands it.
   const tab = await page(SOCKET_TAMPER);
   await sit(tab, "create", "mender", "Brings Back");
-  for (const role of ["warden", "striker"]) {
-    await tab.until(`!!document.querySelector('[data-add-echo="${role}"]:not([disabled])')`, `the ${role} Echo button`, 10_000);
-    await tab.evaluate(`document.querySelector('[data-add-echo="${role}"]').click()`);
-    await tab.until(`!document.querySelector('[data-add-echo="${role}"]')`, `the ${role} Echo seated`, 10_000);
-  }
+  await echoes(tab, ["warden", "striker"]);
+  await start(tab);
   await tab.evaluate(`window.__rewrite = (b, me) => {
     const take = (role, hp) => {
       const i = b.queue.findIndex((t) => t.echo && t.role === role);
