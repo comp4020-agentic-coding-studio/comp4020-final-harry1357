@@ -428,7 +428,9 @@ the rules.
     at least twelve Orrery turns and all three phases before an ending. No
     fight is endless: past forty Orrery turns (`ENRAGE_AFTER`), whatever the
     phase, the Orrery enrages, and the Grand Alignment ends the fight, its
-    log saying the clock began it; no fight that ends on its own meets it.
+    log saying the clock began it. 40 is past the 12–30 target, so no fight
+    that ends inside the target meets it; a slow table that runs past 40 can
+    (ADR-010's Cost names the one measured room).
     Every phase change emits a card the strip draws, and the client shows
     it as a moment (a title, the rings' change, a flash), under reduced
     motion too. *Spec: `spec/pace.test.ts`, `spec/effects.test.ts`.*
