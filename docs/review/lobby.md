@@ -523,3 +523,46 @@ The file was restored after each.
 - The 30 scripted rooms: 0 endless.
 - ADR-010's table: unchanged.
 - The roster on a fresh instance of HEAD (`6f715ab`), `APP_URL=http://localhost:8090 pnpm check`: 287 green, R7 red.
+
+## Second confirm pass, on the confirm pass's fix round
+
+The reviewer, on a fresh context, read `git diff e413e3d 6f715ab` and the files it leans on, and ran the roster twice through its hook against a fresh instance of HEAD on `:8090`, uncontended:
+- **Run 1:** 286 of 288 passed. R7 failed, and so did `assets.test.ts`, on a fetch reset (`ECONNRESET`); that test passed alone, 4 of 4.
+- **Run 2:** 287 of 288 passed, R7 the only failure.
+
+Its report, summarised; its verdicts are kept as it gave them.
+
+- **Status of the first pass's findings:**
+  - F1: fixed in code, partly held.
+  - F2: not closed.
+  - F3: closed, apart from a dropped bound.
+  - F4: closed. The client comment at `cards.ts:307` still said "before phase III".
+  - F5: partly closed.
+  - F6: closed at the enrage's start.
+- **1 (kind 1: rule 28 and ADR-010, with kind 2).** The clause "no fight that ends on its own meets it", in rule 28, ADR-010:148-150, `tuning.ts` and `pace.test.ts`, is broken in letter by the measured Mender/Breaker/Chronist room, which ADR-010 itself describes in the same section. As a guarantee it has no test that can go red: the thirty-room test asserts only that a room ending before 40 meets no clock that starts at 40. "No ruling closes this … The owner has to reword the clause or rule on it."
+- **2 (kind 1: "Never weaken one to get a green roster … change it deliberately, in its own commit"; and kind 3).** `f15b4fe`, a red-spec commit, removed the enrage test's wipe-timing bound (`ENRAGE_AFTER + 4 * 3 + 2`), which the fresh count would have failed (55 to 56 against 54). The removal wasn't named or made in its own commit. With no bound, a server whose enraged Alignments resolve many turns late passed, and ADR-010's Cost ("around turn 52 to 56") was held by no test.
+- **3 (kind 3).** A table already in phase III before turn 40 and still fighting at it was never tested. Either deleting the `b.phase !== 3` guard or keying the reason on the turn would pass, and would make phase III's own Alignments claim the clock.
+- **4 (kind 3).** Phase III's entry line during the enrage was held by no test. The F1 test recorded no phase per Alignment, so the old phase-read reason passed whenever no Alignment landed after the crossing.
+- **5 (kind 1, low: ADR-010's "goes on").** The rotation's count restarted on any phase change during the enrage, putting two Alignments up to seven cards apart.
+- **6 (kind 3, low).** The thirty-room test's `every` ignored its argument, so an Alignment in phase II before 40, in a room that later reached phase III, passed.
+- **Kind 4:** none.
+- **Other rules:** no violation found.
+
+### Disposition of the second confirm pass
+
+| finding | what was done | red | fix |
+| --- | --- | --- | --- |
+| 1 | **Open: the owner's ruling.** Rule 28's and ADR-010's clause "no fight that ends on its own meets it" is the owner's own wording, from their ruling on L1, and a measured room contradicts it. The room is a Mender, Breaker and Chronist that ended on its own before this pass, lost at 75 Orrery turns. It now meets the clock's first Alignment at 45, survives it, and falls to ordinary blows at 48. ADR-010 had said it was "wiped at 48"; that is corrected in `adffc96`. The clause is not reworded here, because rewording it is the owner's to do. The gate does not close until it is ruled on. | | |
+| 2 | The timing is held again, and tighter than the dropped bound: the first enraged Alignment within six Orrery turns of the clock, each after it within six of the last, and the wipe twelve to sixteen Orrery turns after the clock, which is ADR-010's "around 52 to 56". The removal of the bound in `f15b4fe`, without its own commit, is recorded here as history. | `bd6a2f9` | (held) |
+| 3 | A table put into phase III at turn 34 that defends past the clock: no line of its Grand Alignment claims the clock, and its Alignments stay four cards apart across turn 40. Deleting the phase guard fails it, and so does keying the reason on the turn. | `bd6a2f9` | (held) |
+| 4 | The F1 test reads the phase III line ("already begun by the clock", not "begins:") and the phase each Alignment lands in, and requires one of the clock's Alignments to land in phase III. Putting the old line back fails it, and so does the phase-read reason, on any timing. | `bd6a2f9` | (held) |
+| 5 | Once the clock has begun the Grand Alignment, a phase line doesn't restart its count. Red on a crossing in the middle of a cycle (six cards apart), green after. | `bd6a2f9` | `adffc96` |
+| 6 | Each Alignment a room meets before the clock must come after that room's phase III began. | `bd6a2f9` | (held) |
+| F4's comment | `cards.ts` says the clock starts at the enrage too. | | `adffc96` |
+
+**After the round:**
+- The 30 scripted rooms: 0 endless.
+- ADR-010's table: unchanged.
+- The roster on a fresh instance of HEAD (`adffc96`), `APP_URL=http://localhost:8090 pnpm check`: 289 green, R7 red.
+
+**The gate is not closed.** Finding 1 is open, waiting on the owner's ruling. The stopping rule permits one fix round on a confirm pass's findings, so the fixes to 2–6 are not re-reviewed by a third pass. Under CLAUDE.md, a gate closes when every finding is fixed, carried red, closed by ruling or recorded as history, and the last review finds no rule or ADR violation; finding 1 is a rule violation until it is ruled on. Nothing is pushed while the gate is open.
