@@ -407,16 +407,18 @@ the rules.
 ### The lobby and the pace (ADR-009, ADR-010)
 
 27. **A private room's fight starts on its host's decision, never on a
-    timer.** Creating a room seats its creator as host in a lobby, where no
-    counter runs and no card is announced. Only the host's Start starts the
-    fight; anyone else's is refused (403), and so is a second one (409).
-    The host is the first person seated; if they leave the lobby before
-    Start, the next person seated becomes host, and an Echo never does.
-    After a fight ends the room returns to its lobby with everyone still
-    seated, and the host starts the next one. The public raid has no host
-    and no lobby: its fight is always running, and its next one pulls after
-    a short ready window (`READY_MS`). The client draws who is host and
-    never decides it. *Spec: `spec/lobby.test.ts`.*
+    timer.** A private room's fight is a lobby until Start, where no counter
+    runs and no card is announced. Hosting is a lobby role, not ownership:
+    the host is whoever is seated first (the room's asker, rule 22), has no
+    power beyond Start and the Echo buttons, passes the role to the next
+    person seated on leaving, and the room doesn't belong to them. An Echo
+    is never host. Only the host's Start starts the fight; anyone else's is
+    refused (403), and so is a second one (409). After a fight ends the room
+    returns to its lobby with everyone still seated, and the host starts the
+    next one. The public raid has no host and no lobby: its fight is always
+    running, and its next one pulls after a short ready window
+    (`READY_MS`). The client draws who is host and never decides it.
+    *Spec: `spec/lobby.test.ts`.*
 28. **The fight is as long as the room.** The Orrery's reset follows the
     room's pace (ADR-010), so it comes round about once per three player
     turns whatever the room's size: for a solo person with four Echoes and
