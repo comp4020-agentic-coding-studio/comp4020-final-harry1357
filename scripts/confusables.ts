@@ -5,9 +5,10 @@
 //   curl -o /tmp/tr39/confusables.txt https://www.unicode.org/Public/security/latest/confusables.txt
 //   node scripts/confusables.ts /tmp/tr39/confusables.txt
 //
-// The cut keeps every entry the full table uses while computing either key
-// (src/server/confusables.ts: the name as given, and lowercased, each settled)
-// made only of characters in the kept names' keys, and the
+// The cut keeps every entry the full table uses while computing any of a
+// character's four forms (src/server/confusables.ts charOptions: as given,
+// lowercased, as NFKC, and as NFKC lowercased, each settled) made only of
+// characters in the kept names' keys, and the
 // entry of any character that itself appears in them, and the entry of any
 // character whose absence would make it look like part of one. Then it proves,
 // over every character in the full table, that the cut table gives the same answer to "could this be part
@@ -32,10 +33,9 @@ for (const line of text.split("\n")) {
   if ([...from].length === 1) full.set(from, to);
 }
 
-// Both keys of a name (src/server/confusables.ts), as separate functions so each is proven; tracing
-// either records both keys' lookups (keptKeys computes them together), so the cut is a little larger.
-// For one character, a key per choice it has, as src/server/confusables.ts's charOptions makes them: as given,
-// lowercased, as NFKC, as NFKC lowercased, each settled.
+// The four forms of a character (src/server/confusables.ts charOptions), as separate functions so each
+// is proven: as given, lowercased, as NFKC, as NFKC lowercased, each settled. Tracing any of them
+// records both of keptKeys' lookups (it computes them together), so the cut is a little larger.
 const settled = (x: string, m: ReadonlyMap<string, string>): string => keptKeys(x, m)[0];
 const KEYS = [
   (t: string, m: ReadonlyMap<string, string>) => settled(t, m),

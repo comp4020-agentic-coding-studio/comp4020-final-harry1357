@@ -63,8 +63,8 @@ export function charOptions(c: string, prototypes: ReadonlyMap<string, string> =
  * given, lowercased, and their NFKC forms) spells one of the kept name's keys. A whole-name order
  * can't do it: "ՏTRIKER ECHO" needs the Armenian Տ taken as given (its prototype
  * is S) and the capital I lowercased (its prototype is l), both at once (the
- * confirm pass's sweep). Per character, each choice is one of the two keys the
- * generator cuts and proves.
+ * confirm pass's sweep). Per character, each choice is one of the four forms
+ * charOptions makes, each of which the generator cuts and proves.
  */
 export function sameKept(name: string, kept: string, prototypes: ReadonlyMap<string, string> = KEPT_NAME_PROTOTYPES): boolean {
   const options = [...name].map((c) => charOptions(c, prototypes));
