@@ -415,8 +415,10 @@ the rules.
     never decides it. *Spec: `spec/lobby.test.ts`.*
 28. **The fight is as long as the room.** The Orrery's reset follows the
     room's pace (ADR-010), so it comes round about once per three player
-    turns at any size: across one, three and five seats, its turns per
-    player turn stay within one band. A solo person with four Echoes sees
+    turns whatever the room's size: for a solo person with four Echoes and
+    for rooms of three and five people, its turns per player turn stay
+    within one band. A room of one or two seats isn't held to it, because
+    its ratio is its players' rank choices, not its size. A solo person with four Echoes sees
     at least twelve Orrery turns and all three phases before an ending.
     Every phase change emits a card the strip draws, and the client shows
     it as a moment (a title, the rings' change, a flash), under reduced
