@@ -590,11 +590,15 @@ export function leave(b: Battle, id: string, clock: Clock): Step | null {
  * A room's next fight, after `ended` (rule 27). A private room's is a lobby
  * again with everyone at the table at the end, people and Echoes, in their seat
  * order and as their roles, the same host if they are among them; anyone gone,
- * the lobby's presence sweep unseats (rule 27). The public raid's has no sweep,
- * so it carries only the people still standing as themselves (ADR-009): not a
- * seat its person left to an Echo, which would come back as the person and be
- * counted whole at the pull (rules 8 and 20; breaker B3). `fresh` is the empty
- * fight the table opened.
+ * the lobby's presence sweep unseats (rule 27). A seat its person left to an
+ * Echo stays that Echo, its count kept, until the person acts (rule 8), so it is
+ * half a seat at Start (rule 20; review 1b). The public raid's has no sweep, so
+ * it carries only the people still standing as themselves (ADR-009): never a
+ * seat left to an Echo (breaker B3). `fresh` is the empty fight the table opened.
+ *
+ * The carry is silent: the next fight reaches every screen as a whole state,
+ * with no events, and its seats are drawn from that state, so it writes no line
+ * a screen won't be shown (rule 11; review 1f). Only each person's member row.
  */
 export function nextFight(ended: Battle, fresh: Battle, clock: Clock): Step {
   let b = fresh;
@@ -604,23 +608,31 @@ export function nextFight(ended: Battle, fresh: Battle, clock: Clock): Step {
       : // Everyone at the table: standing, or downed on the way (still seated; someone who left isn't).
         [...ended.standing, ...ended.fallen.filter((f) => f.out === "downed")].filter((f) => f.kind === "character")
   ).sort((x, y) => x.seat - y.seat);
-  const effects: Effects = noEffects();
-  const merge = (step: Step): void => {
-    b = step.battle;
-    effects.log.push(...step.effects.log);
-    effects.events.push(...step.effects.events);
-    for (const [id, d] of Object.entries(step.effects.stats)) Object.assign(stat(effects, id), d);
-    effects.members.push(...step.effects.members);
-  };
-  // People first, in seat order, so the host is the same person; the table's Echoes after them, seated by the
-  // host now. They belong to the table, not to whoever seated them (ADR-009; breaker B2).
-  for (const f of carried.filter(isPerson)) merge(join(b, { id: f.id, name: f.name, role: f.role as RoleId }, clock));
-  if (isLobby(b) && ended.hostId !== null && b.standing.some((f) => f.id === ended.hostId)) b.hostId = ended.hostId;
-  const host = b.hostId;
-  if (host !== null) {
-    for (const f of carried.filter((x) => x.seatedBy !== null)) merge(seatEcho(b, { id: f.id, role: f.role as RoleId, seatedBy: host }, clock));
+  const members: Effects["members"] = [];
+  // The host first, so the table's Echoes can be seated as theirs in seat order (ADR-009: they belong to the
+  // table, not to whoever seated them; breaker B2, review 1e): the same host if carried, else the first person.
+  const people = carried.filter(isPerson);
+  const host = people.find((f) => f.id === ended.hostId) ?? people[0];
+  if (isLobby(b) && host) b.hostId = host.id;
+  for (const f of carried) {
+    if (f.seatedBy !== null) {
+      if (!host) continue;
+      b = seatEcho(b, { id: f.id, role: f.role as RoleId, seatedBy: host.id }, clock).battle;
+    } else {
+      b = join(b, { id: f.id, name: f.name, role: f.role as RoleId }, clock).battle;
+      members.push({ characterId: f.id, name: f.name, role: f.role as RoleId });
+      if (f.echo) {
+        // Still the Echo of its person until they act (rule 8).
+        const seat = b.standing.find((s) => s.id === f.id) as Fighter;
+        seat.echo = true;
+        seat.timeouts = f.timeouts;
+      }
+    }
   }
-  return { battle: b, effects, durable: true };
+  // The carry's own narration goes: nothing will be shown of it (rule 11).
+  b.log = [];
+  b.nextSeq = 1;
+  return { battle: b, effects: { ...noEffects(), members }, durable: true };
 }
 
 // --- the pace (docs/adr/010, rule 28) ----------------------------------------
