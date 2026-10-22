@@ -32,6 +32,10 @@
 //       ALIGNMENT_EVERY-th card an Alignment. The ALIGNMENT_STEPS-th Alignment
 //       to resolve is the wipe: the visible enrage. A Perihelion on entry.
 //   Any phase that runs PERIHELION_AGAIN Orrery turns without one gets another.
+//   THE ENRAGE (ADR-010; the owner's ruling on L1): past ENRAGE_AFTER Orrery
+//   turns, whatever the phase, the Grand Alignment begins as it does in phase
+//   III. It is the Orrery's answer to a table that only defends: no fight may
+//   be endless.
 //
 // Judgement calls, so the integrator can see them in one place:
 //
@@ -78,6 +82,7 @@ import {
   ALIGNMENT_EVERY,
   BASTION_CUT,
   CARD_DAMAGE,
+  ENRAGE_AFTER,
   GRAVITY_LETHAL,
   HP_EXPONENT,
   ORRERY_BASE_HP,
@@ -281,9 +286,12 @@ export function retargetCard(ctx: Ctx, cardId: string, toId: string): void {
   if (card) card.targetId = toId;
 }
 
-/** How many Alignments are still to resolve before the wipe, once the Grand Alignment has begun (phase III); null before. For the strip's clock. */
+/** Whether the Grand Alignment has begun: phase III, or the enrage past ENRAGE_AFTER Orrery turns (ADR-010). */
+const aligning = (b: Battle): boolean => b.phase === 3 || b.bossTurns >= ENRAGE_AFTER;
+
+/** How many Alignments are still to resolve before the wipe, once the Grand Alignment has begun (phase III, or the enrage); null before. For the strip's clock. */
 export function alignmentLeft(b: Battle): number | null {
-  if (b.phase !== 3) return null;
+  if (!aligning(b)) return null;
   return Math.max(0, ALIGNMENT_STEPS - script(b).aligned);
 }
 
@@ -366,7 +374,7 @@ function ordinary(ctx: Ctx, countdown: number): Omit<BossCard, "id" | "frozen"> 
   const s = script(b);
   const at = s.played++;
   const rotation = SCRIPT[b.phase];
-  const intent: Intent = b.phase === 3 && (at + 1) % ALIGNMENT_EVERY === 0 ? "alignment" : rotation[at % rotation.length];
+  const intent: Intent = aligning(b) && (at + 1) % ALIGNMENT_EVERY === 0 ? "alignment" : rotation[at % rotation.length];
   switch (intent) {
     case "eclipse":
     case "lunge": {
@@ -531,12 +539,16 @@ function alignment(ctx: Ctx, card: BossCard): void {
   const countdown = Math.max(0, ALIGNMENT_STEPS - s.aligned);
   const wipe = countdown === 0;
   if (wipe) for (const f of ctx.party()) f.hp = 0;
+  // Begun by the clock, not by phase III (the enrage, ADR-010): the log says so, so a table wiped while it was
+  // winning slowly knows why (the owner's ruling on L1).
+  const enraged = ctx.b.phase !== 3;
+  const why = enraged ? ` The Orrery has turned ${ENRAGE_AFTER} times and will be outlasted no longer.` : "";
   ctx.say(
     "boss",
     BOSS_ID,
     wipe
-      ? "The Grand Alignment is complete. Every ring stands in line, and nothing at the table survives it."
-      : `The rings creep into line: ${countdown} more ${countdown === 1 ? "Alignment" : "Alignments"} and the Grand Alignment is complete.`,
+      ? `The Grand Alignment is complete. Every ring stands in line, and nothing at the table survives it.${why}`
+      : `The rings creep into line: ${countdown} more ${countdown === 1 ? "Alignment" : "Alignments"} and the Grand Alignment is complete.${why}`,
     { kind: "alignment", actorId: BOSS_ID, countdown, wipe, cardId: card.id },
   );
   downTheFallen(ctx);

@@ -90,3 +90,9 @@ export const GRAVITY_LETHAL = 3;
 export const RETROGRADE_SLOTS = 5;
 /** Grand Alignment: every 4th boss card in phase III. */
 export const ALIGNMENT_EVERY = 4;
+/**
+ * ADR-010, "The enrage": past this many Orrery turns, whatever the phase, the
+ * Grand Alignment begins (every ALIGNMENT_EVERY-th card, the third the wipe).
+ * Ours: past the 12-30 target, so no fight that ends on its own meets it.
+ */
+export const ENRAGE_AFTER = 40;
