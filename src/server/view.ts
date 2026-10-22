@@ -48,10 +48,15 @@ function preview(b: Battle, turnMs: number): BattleState["preview"] {
   return { actorId: up.id, actions };
 }
 
-/** The battle after this action, played on a copy; null if playing it threw, so a preview never breaks a broadcast. */
+/**
+ * The battle after this action, played on a copy; null if playing it threw, so a preview never breaks a
+ * broadcast. The clock it plays on is fixed: the preview reads only counters and slots, never the deadline
+ * the copy would set, so the view stays a pure function of the battle, with no wall clock in it (the lobby
+ * gate: engine specs are deterministic simulations).
+ */
 function played(b: Battle, id: string, action: ActionId, target: string | null, turnMs: number): Battle | null {
   try {
-    return act(b, id, action, target, { now: Date.now(), turnMs }).battle;
+    return act(b, id, action, target, { now: 0, turnMs }).battle;
   } catch (err) {
     console.error(`previewing ${action} for ${id} failed`, err);
     return null;

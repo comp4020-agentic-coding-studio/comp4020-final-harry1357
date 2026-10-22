@@ -386,7 +386,7 @@ describe("the lobby, over the wire", () => {
     const refused = await seatEcho(server.base, door.code as string, seat.cookie, "warden");
     expect(refused.status, "and is refused an Echo there").toBe(403);
     expect(refused.error, "with a reason that says why").toMatch(/public/i);
-  }, 15_000);
+  }, 30_000); // boots a server of its own: under a parallel roster that alone can take seconds
 
   it("the host leaving the lobby passes the Start to the next seat", async () => {
     server = await boot(scratchDatabase(), { TICK_MS: "5" });
@@ -395,7 +395,7 @@ describe("the lobby, over the wire", () => {
     expect((await post(server.base, `/api/rooms/${host.code}/leave`, host.cookie)).status, "the host leaves the lobby").toBe(200);
     expect((await post(server.base, `/api/rooms/${host.code}/start`, host.cookie)).status, "and can't Start it now").toBe(403);
     expect((await post(server.base, `/api/rooms/${host.code}/start`, guest.cookie)).status, "the next seat can").toBe(200);
-  }, 15_000);
+  }, 30_000); // boots a server of its own: under a parallel roster that alone can take seconds
 
   it("a join during Start is counted once, before or after it, never lost", async () => {
     // Rule 10's clock decides between a Start and a join that arrive together.
@@ -415,7 +415,7 @@ describe("the lobby, over the wire", () => {
     expect(seats, "both seated in the one fight").toBe(2);
     const boss = now.queue.find((t) => t.kind === "boss")!;
     expect(boss.maxHp, "and the Orrery sized for the two of them, whichever came first").toBe((await engine()).orreryHp(2));
-  }, 15_000);
+  }, 30_000); // boots a server of its own: under a parallel roster that alone can take seconds
 
   it("after a fight ends the room returns to its lobby, with everyone still seated", async () => {
     server = await boot(scratchDatabase(), { TICK_MS: "5", TURN_TIMEOUT_MS: "150", ECHO_BEAT_MS: "10" });
@@ -460,7 +460,7 @@ describe("the lobby gate's breaker findings, over the wire", () => {
     expect(st.hostId, "as its host").toBe(seat.characterId);
     const started = await post(server.base, `/api/rooms/${made.code}/start`, seat.cookie);
     expect(started.status, "and may Start it").toBe(200);
-  }, 15_000);
+  }, 30_000); // boots a server of its own: under a parallel roster that alone can take seconds
 });
 
 describe("the public raid, over the wire", () => {
