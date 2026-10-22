@@ -336,9 +336,11 @@ the rules.
     `spec/orrery.test.ts`.*
 20. **The Orrery's HP is set at the pull, from the seats present, as base ×
     seats^0.75, with an Echo counting as half a seat.** A bigger room is
-    slightly favoured, and difficulty comes from mechanics, never HP alone. A
-    late joiner does not change a running fight's HP; the next fight
-    re-scales. *Spec: `spec/orrery.test.ts`.*
+    slightly favoured, and difficulty comes from mechanics, never HP alone.
+    A late joiner raises a running fight's max HP to the curve for the seats
+    now present, with the current percentage kept, so the bar never jumps
+    (ADR-009); the next fight re-scales. *Spec: `spec/orrery.test.ts`,
+    `spec/lobby.test.ts`.*
 21. **No mechanic ships without a renderer and a test.** A new rule here gets a
     spec test before it is code, and every event it emits gets a renderer
     before it reaches a player (rule 11). *Spec: `spec/shown.test.ts`,
@@ -372,7 +374,9 @@ the rules.
     `spec/rooms.test.ts`.*
 25. **An Echo is a seat the server plays, and it gets no favours.** Someone
     seated in the room seats it on purpose: one per role, at most four per
-    room. A seat that times out becomes the same Echo (rule 8). It plays a
+    room, and only in a private room's lobby, by its host: never in the
+    public raid and never mid-fight (ADR-009). A seat that times out
+    becomes the same Echo (rule 8). It plays a
     fixed policy for its role, using that role's actions only and reading
     only the state every client is sent, at low output: what it deals and
     heals is `ECHO_POTENCY` of a person's, and its other effects are its
@@ -386,7 +390,7 @@ the rules.
     the same check a person's does: the queue, its role, rule 2 and rule 10's
     refusal. Every state marks it as an Echo, it counts half a seat at the
     pull (rule 20), and its turns are never in anyone's record. *Spec:
-    `spec/echoes.test.ts`.*
+    `spec/echoes.test.ts`, `spec/lobby.test.ts`.*
 26. **Rooms expire. Logs and characters don't.** A room whose fight has had
     no person seated in it for fifteen minutes (`ROOM_EMPTY_MS`) is gone, and
     its code with it. The public raid never expires. A finished fight's log
@@ -395,6 +399,28 @@ the rules.
     onto rooms) goes the same way on the same window. Rooms live in memory
     like fights and don't survive a restart; characters do (rule 6).
     *Spec: `spec/rooms.test.ts`.*
+
+### The lobby and the pace (ADR-009, ADR-010)
+
+27. **A private room's fight starts on its host's decision, never on a
+    timer.** Creating a room seats its creator as host in a lobby, where no
+    counter runs and no card is announced. Only the host's Start starts the
+    fight; anyone else's is refused (403), and so is a second one (409).
+    The host is the first person seated; if they leave the lobby before
+    Start, the next person seated becomes host, and an Echo never does.
+    After a fight ends the room returns to its lobby with everyone still
+    seated, and the host starts the next one. The public raid has no host
+    and no lobby: its fight is always running, and its next one pulls after
+    a short ready window (`READY_MS`). The client draws who is host and
+    never decides it. *Spec: `spec/lobby.test.ts`.*
+28. **The fight is as long as the room.** The Orrery's reset follows the
+    room's pace (ADR-010), so it comes round about once per three player
+    turns at any size: across one, three and five seats, its turns per
+    player turn stay within one band. A solo person with four Echoes sees
+    at least twelve Orrery turns and all three phases before an ending.
+    Every phase change emits a card the strip draws, and the client shows
+    it as a moment (a title, the rings' change, a flash), under reduced
+    motion too. *Spec: `spec/pace.test.ts`, `spec/effects.test.ts`.*
 
 ## How to work in here
 
