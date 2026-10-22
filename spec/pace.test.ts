@@ -213,15 +213,13 @@ describe("every fight ends (L1)", () => {
     // three Alignments to come from the fortieth Orrery turn on.
     expect(f.clockAt[ENRAGE_AFTER - 1], "no clock on the Orrery's thirty-ninth turn").toBeNull();
     expect(f.clockAt[ENRAGE_AFTER], "the strip's clock at three on its fortieth").toBe(3);
-    // Every fourth card after it, as in phase III: three before the first Alignment (F3, F6).
-    const firstAlignment = f.cardsAfterClock.indexOf("alignment");
-    expect(f.cardsAfterClock.slice(0, firstAlignment + 1), "the first Alignment is the fourth card after the clock").toEqual([
-      ...f.cardsAfterClock.slice(0, 3).filter((c) => c !== "alignment"),
-      "alignment",
-    ]);
-    expect(firstAlignment, "three ordinary cards before it").toBe(3);
-    const gaps = f.cardsAfterClock.flatMap((c, i) => (c === "alignment" ? [i] : [])).map((at, i, all) => (i ? at - all[i - 1] : null)).slice(1);
-    expect(gaps.every((g) => g === 4), `Alignments four cards apart: ${f.cardsAfterClock.join(", ")}`).toBe(true);
+    // Every fourth card of the rotation after it, as in phase III: three before the first Alignment (F3, F6).
+    // A Perihelion is the Orrery's other cadence, announced besides the rotation, so it isn't counted; phase
+    // III counts the same way.
+    const rotation = f.cardsAfterClock.filter((c) => c !== "perihelion");
+    expect(rotation.indexOf("alignment"), `the first Alignment is the fourth card after the clock: ${rotation.join(", ")}`).toBe(3);
+    const at = rotation.flatMap((c, i) => (c === "alignment" ? [i] : []));
+    expect(at.slice(1).map((x, i) => x - at[i]), `Alignments four cards apart: ${rotation.join(", ")}`).toEqual(at.slice(1).map(() => 4));
     // Exactly three resolve, and the third is the wipe (F3).
     expect(f.alignments.length, "three Alignments resolve").toBe(3);
     expect(f.wipedAt, "the third is the wipe").toBe(f.alignments[2]);
