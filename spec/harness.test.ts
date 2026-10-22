@@ -1,3 +1,4 @@
+import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
@@ -43,5 +44,45 @@ describe("the harness guards itself", () => {
       harness.some((heading) => heading.startsWith("What the app must never do")),
       'CLAUDE.md has no "What the app must never do" heading: the specs hold claims that are written there',
     ).toBe(true);
+  });
+});
+
+describe("the reviewer can run the roster on HEAD, and nothing else", () => {
+  // The lobby gate (the owner's ruling): a gate whose reviewer can't run the roster on HEAD hasn't reviewed
+  // HEAD. Its Bash hook refused "APP_URL=http://localhost:8090 pnpm check", so the run fell back to :8080, which
+  // ran other code. The hook is held here as Claude Code calls it: the tool call as JSON on stdin, exit 0 to
+  // allow and 2 to refuse.
+  const hook = (command: string): number =>
+    spawnSync("sh", [".claude/agents/reviewer-bash.sh"], { input: JSON.stringify({ tool_input: { command } }) }).status ?? -1;
+
+  it("lets the reviewer point the roster at a local instance on the port it was told", () => {
+    for (const command of [
+      "APP_URL=http://localhost:8090 pnpm check",
+      "APP_URL=http://127.0.0.1:8091 pnpm test",
+      "APP_URL=http://localhost:8090 pnpm vitest run spec/lobby.test.ts -t B4",
+      "pnpm check",
+      "git diff b53ddcf...HEAD --stat",
+    ]) {
+      expect(hook(command), `allowed: ${command}`).toBe(0);
+    }
+  });
+
+  it("refuses any other host, anything but the test runner after it, and anything chained", () => {
+    for (const command of [
+      "APP_URL=https://comp4020-final-harry1357.fly.dev pnpm check",
+      "APP_URL=http://evil.example:8090 pnpm check",
+      "APP_URL=http://localhost:8090@evil.example:1 pnpm check",
+      "APP_URL=http://localhost.evil.example:80 pnpm check",
+      "APP_URL=http://localhost:8090/x pnpm check",
+      "APP_URL=http://localhost:80a pnpm check",
+      "APP_URL=http://localhost:8090 git diff main",
+      "APP_URL=http://localhost:8090 node -e 1",
+      "APP_URL=http://localhost:8090 APP_URL=http://localhost:1 pnpm check",
+      "APP_URL=http://localhost:8090 pnpm check; rm -rf .",
+      "FOO=1 pnpm check",
+      "pnpm check --config x",
+    ]) {
+      expect(hook(command), `refused: ${command}`).toBe(2);
+    }
   });
 });

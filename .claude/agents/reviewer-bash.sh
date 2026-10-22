@@ -6,6 +6,8 @@
 # so the reviewer can read and run the roster but can't edit, commit, push or
 # reach out.
 #
+# The test runner may be prefixed by one APP_URL pointing at a local port.
+#
 # Every argument is checked against an ALLOWLIST, not a list of bad ones: a
 # blocklist of write flags leaked twice (--output, then --config, which makes
 # Vite run any script, and --clearCache; review F10). What isn't named here is
@@ -25,6 +27,27 @@ esac
 
 # shellcheck disable=SC2086
 set -- $cmd
+
+# The roster may be pointed at a local instance by one leading APP_URL, so the
+# reviewer runs it against the sensor port it was told (the lobby gate: its run
+# was refused APP_URL=http://localhost:8090 and fell back to :8080, which ran
+# other code). Only http, only localhost or 127.0.0.1, only a port of digits,
+# and only before the test runner: never a remote host, never the live deploy.
+if [ "${1#APP_URL=}" != "$1" ]; then
+  url=${1#APP_URL=}
+  # The whole value, not its tail: "http://localhost:8090@evil.example:1" is a URL whose host is evil.example.
+  case "$url" in
+    http://localhost:*) port=${url#http://localhost:} ;;
+    http://127.0.0.1:*) port=${url#http://127.0.0.1:} ;;
+    *) refuse "APP_URL must be http://localhost:<port> or http://127.0.0.1:<port>" ;;
+  esac
+  case "$port" in
+    '' | *[!0-9]*) refuse "APP_URL must be exactly http://localhost:<port> or http://127.0.0.1:<port>, the port digits and nothing after" ;;
+  esac
+  [ ${#port} -le 5 ] || refuse "APP_URL's port is too long"
+  [ "$2" = pnpm ] || refuse "APP_URL may only come before the test runner"
+  shift
+fi
 
 # A ref, a range of refs, or a path: letters, digits and . _ / - ~ ^ @ :, never
 # starting with a dash. (`git diff main...HEAD -- spec/economy.test.ts`.)
