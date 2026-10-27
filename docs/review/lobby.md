@@ -584,3 +584,18 @@ The stopping rule permits one fix round on a confirm pass's findings, so the fix
 - the second confirm pass's 1–6.
 
 The last review found no rule or ADR violation that a ruling or a fix hasn't answered. R7 (the README) stays carried red: it is the owner's, and the branch doesn't merge while it is open.
+
+## After the gate: merged with main, and the same reset again
+
+Overhaul was merged with main (`f5611a9`), the owner's ruling: a merge, not a rebase, so every SHA these reviews cite still resolves. ADR-008 was then carried onto the lobby, red first:
+- told-apart on this build's names, with the other-seat 403 and one log line for an ally-aimed, an Orrery-aimed and a card-aimed action;
+- every refusal on every route one line, held by `spec/refusals.test.ts`, structurally and by a walker over the app's own route table;
+- the room code and `echo` on the log.
+
+Then `docs/narration.md` was rewritten from lines the merged server wrote. Against a local build of `cf01698`, `pnpm check` was 301 of 301.
+
+**The second occurrence of the same reset.** Against a fresh image of the merged commit (`cf01698`), the roster was 300 of 301. `spec/assets.test.ts` "every sprite has every required frame" failed with `TypeError: fetch failed — SocketError: other side closed` (`UND_ERR_SOCKET`), after reading 59,262 bytes from the image. The machine was under heavy load from unrelated processes (load average 14.9; Finder and mediaanalysisd over 200% CPU). It is the same reset recorded as a risk on the second confirm pass (an `ECONNRESET` on that test against `:8090`, which passed alone and on that pass's second run). It was rerun on a quieter machine, below.
+
+### For the next phase
+
+- **`assets.test.ts`'s reset against the image, twice now.** The test fetches a 59 KB file over one connection with no retry. Either it retries once, or the breaker checks whether the container closes idle connections under load. Not done in this phase, by the owner's ruling.
