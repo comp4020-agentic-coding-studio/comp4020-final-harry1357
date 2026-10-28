@@ -599,3 +599,16 @@ Then `docs/narration.md` was rewritten from lines the merged server wrote. Again
 ### For the next phase
 
 - **`assets.test.ts`'s reset against the image, twice now.** The test fetches a 59 KB file over one connection with no retry. Either it retries once, or the breaker checks whether the container closes idle connections under load. Not done in this phase, by the owner's ruling.
+
+## The push to main: a red check run, and the build put inside the check
+
+Pushing main (`1254f5c`) ran CI's check job for the first time on overhaul's work, and it failed:
+- 8 of 301 failed, every one a page spec that boots its own server from the checkout and opens it in Chrome: `gate-two-page.test.ts` (7), `lobby-page.test.ts` (1) and `focus.test.ts` (1).
+- Each waited 15 s for a join form that never drew.
+- The job runs `pnpm install` then `pnpm check`, never `pnpm build`, and `dist/` is git-ignored, so a server booted from that checkout served no client bundle (`src/server/pages.ts:28`). The deploy was skipped, and the live site stayed on `e308192`.
+
+The owner's ruling: neither a workflow step nor a spec change, but the build inside the check. `pnpm check` runs `pnpm build` before the roster, so a server the roster boots always serves the client built from the same checkout, locally and in CI alike. From a clean clone of `1254f5c` with no `dist/`, the three page specs failed as CI's did (8 of 8, "waited 15000ms for the join form"); with the build in the check, the same clone ran `pnpm check` at 301 of 301. The workflow is unchanged.
+
+Recorded as history:
+- **`gate-two-page.test.ts` and `focus.test.ts` had never run in CI before this push.** CI runs on pushes to main and on pull requests, and neither file was on main or in a pull request until now. Phase two's gate and this one ran them locally only.
+- **Until now a local roster could pass the page specs against a stale `dist/`.** A self-booted server served whatever `dist/client/` the last `pnpm build` left behind, so a page spec could be green against a client older than the code under test. With the build in the check, it can't.

@@ -8,7 +8,7 @@
     "build": "esbuild src/client/main.ts --bundle --format=esm --target=es2022 --sourcemap --loader:.svg=text --outfile=dist/client/app.js && esbuild src/client/styles.css --bundle --sourcemap --outfile=dist/client/styles.css",
     "typecheck": "tsc --noEmit",
     "lint": "stylelint \"**/*.css\" --ignore-path .gitignore --allow-empty-input",
-    "check": "pnpm typecheck && pnpm lint && pnpm test",
+    "check": "pnpm typecheck && pnpm lint && pnpm build && pnpm test",
     "check:evidence": "node scripts/check-evidence.ts",
     "check:viewports": "node scripts/check-viewports.ts",
     "check:keyboard": "node scripts/check-keyboard.ts",
