@@ -326,13 +326,19 @@ the rules.
     and the spender when it is consumed, and both are in the state the client
     is sent. *Spec: `spec/economy.test.ts`.*
 17. **Brace is rank 2, halves incoming damage, and banks one Charge (max 3).**
-    A Brace at three Charge banks nothing more. *Spec:
-    `spec/economy.test.ts`.*
+    A Brace at three Charge banks nothing more. **Charge is spent by each
+    role's signature move** (Bastion, Restore, Finisher, Shatter,
+    Stillpoint), which empties it and is the stronger for every pip, and
+    its event says how many it spent (ADR-011). *Spec:
+    `spec/economy.test.ts`, `spec/mechanics.test.ts`.*
 18. **Each player has one Reaction per boss turn, triggered off a telegraphed
     card.** A Reaction is taken out of turn, only against a boss card already
     on the strip, and only once between two boss turns. It is not an action
     queued for later (rule 2): it answers a card that is already announced.
-    *Spec: `spec/economy.test.ts`.*
+    **Every role has exactly one** (ADR-011): the Warden's Intercept, the
+    Mender's Veil, the Striker's Riposte, the Breaker's Fracture, the
+    Chronist's Nudge, each marked `reaction: true`. *Spec:
+    `spec/economy.test.ts`, `spec/mechanics.test.ts`.*
 19. **Every boss attack is announced on the strip before it resolves.** Each
     boss action is first emitted as a card with an intent, a target and a
     countdown; nothing the Orrery does arrives unannounced. *Spec:
@@ -393,7 +399,11 @@ the rules.
     gate). Every action it takes goes through
     the same check a person's does: the queue, its role, rule 2 and rule 10's
     refusal. Every state marks it as an Echo, it counts half a seat at the
-    pull (rule 20), and its turns are never in anyone's record. *Spec:
+    pull (rule 20), and its turns are never in anyone's record. **It plays
+    its job, not the fight** (ADR-011): it heals, tanks, strikes, scans and
+    delays by its policy, but never takes a Reaction, never swaps on
+    Gravity, never cancels a Retrograde, never chooses a ring, and never
+    spends Charge. Those answers are a person's. *Spec:
     `spec/echoes.test.ts`, `spec/lobby.test.ts`.*
 26. **Rooms expire. Logs and characters don't.** A room whose fight has had
     no person seated in it for fifteen minutes (`ROOM_EMPTY_MS`) is gone, and
@@ -465,6 +475,25 @@ the rules.
     server recognises it (a seat, a fight, an action, a valid name). Nothing
     else writes to stdout; a crash's trace goes to stderr. *Spec:
     `spec/told-apart.test.ts`. Why: `docs/adr/008`.*
+
+### The Orrery can kill you (ADR-011)
+
+33. **Difficulty is the cost of not knowing the mechanics, measured, not
+    felt.** Three scripted players per role (naive, competent as the Echo's
+    own policy, expert) play the thirty-one rooms of one to five distinct
+    roles on the pure engine, with no wall clock. A naive table wipes before
+    phase III in at least 25; a competent table wins between 10 and 20; an
+    expert table wins at least 25; a solo Brace-only person with four
+    Echoes wipes before phase III, and a solo expert with four Echoes wins,
+    in every role. The teeth: a Lunge on an unbraced, unswapped seat already
+    carrying Gravity downs it; an unmet Perihelion deals its full amount to
+    every seat; an uncancelled Retrograde costs the table a full rotation of
+    the strip; an Eclipse on a seat that isn't Warded downs it (a Brace
+    halves it); the Grand Alignment's third card wipes. Each tooth is one
+    spec naming the mechanic and the seat. ADR-010's pace band and the
+    forty-turn enrage stay. The values are ours; the targets are not.
+    *Spec: `spec/difficulty.test.ts`, `spec/pace.test.ts`. Why:
+    `docs/adr/011`.*
 
 ## How to work in here
 
