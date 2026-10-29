@@ -397,4 +397,30 @@
     z-index: 1;
     overflow: visible;
   }
+
+  /* The seat bar sticks to the foot of the phone's screen (join.css), so it
+     is kept short: the cards above it are what's being chosen. The error
+     line takes no room until there's something to say. */
+  #battle .join-seat {
+    gap: 0.4rem;
+    padding-block: 0.4rem 0.2rem;
+  }
+
+  #battle .join-plate {
+    gap: 0.25rem;
+    padding: 0.4rem 0.6rem;
+  }
+
+  #battle .join-name {
+    font-size: 1.45rem;
+  }
+
+  #battle .join-error {
+    min-height: 0;
+  }
+
+  #battle .join-submit {
+    padding: 0.6rem 1rem;
+    font-size: 12px;
+  }
 }

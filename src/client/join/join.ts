@@ -342,7 +342,11 @@ export function mountJoin(root: HTMLElement, opts: JoinOptions): Join {
     submit.append(submitCursor, submitText);
     actions.append(submit);
 
-    form.append(greeting, doors, cast, plate, actions);
+    // The name and the button ride one bar that sticks to the foot of the screen (RICE item 1): the seat is
+    // always in view, whatever the cards above it run to. Its order in the DOM is unchanged.
+    const seat = make("div", "join-seat");
+    seat.append(plate, actions);
+    form.append(greeting, doors, cast, seat);
     host.append(form);
 
     name.addEventListener("input", () => {

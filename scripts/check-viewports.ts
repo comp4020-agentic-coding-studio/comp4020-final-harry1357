@@ -32,6 +32,10 @@ import { join as joinBattle, newBattle } from "../spec/raid.ts";
 // Wide content may scroll inside its own `overflow-x: auto` container (the
 // phone's turn strip does) --- that is the fix, not the failure.
 //
+// On / before joining, one more claim (RICE item 1, the first minute): the
+// name field and Take a Seat are on the first screen, unscrolled, and nothing
+// is drawn over them. Read only after innerWidth was believed.
+//
 // The order of the checks is CLAUDE.md's (design gates), and they fail
 // differently on purpose. 1 and 2 are read on their own, before anything else
 // on the page is measured or photographed:
@@ -567,6 +571,24 @@ async function measure(
   return { m, problems, fits };
 }
 
+/** The join form's name field and button: inside the first screen at scroll 0, and the topmost thing at their centre. */
+const FOLD = `(() => {
+  scrollTo(0, 0);
+  const problems = [];
+  for (const [what, sel] of [["the name field", 'form[data-join] input[name="name"]'], ["Take a Seat", 'form[data-join] button[type="submit"]']]) {
+    const el = document.querySelector(sel);
+    if (!el) { problems.push(what + " isn't on the page"); continue; }
+    const r = el.getBoundingClientRect();
+    if (r.top < 0 || r.bottom > innerHeight || r.left < 0 || r.right > innerWidth) {
+      problems.push(what + " is outside the first screen (" + Math.round(r.top) + ".." + Math.round(r.bottom) + " of " + innerHeight + "px)");
+      continue;
+    }
+    const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+    if (!hit || !(hit === el || el.contains(hit))) problems.push(what + " is covered by " + (hit ? hit.tagName.toLowerCase() + "." + hit.className : "nothing"));
+  }
+  return problems;
+})()`;
+
 /**
  * Prove the probe can fail before trusting a green one, on the real page.
  *
@@ -785,6 +807,7 @@ async function main(): Promise<void> {
             await route.open();
             await sleep(400); // let an entrance land
             const { m, problems, fits } = await measure(page, label);
+            if (fits && route.slug === "home") problems.push(...(await page.evaluate<string[]>(FOLD)));
             // A screenshot is believed only after innerWidth was: one taken
             // when the viewport grew is a picture of a different page.
             const shot = join(shots, `${viewport.name}-${route.slug}${fits ? "" : `.UNTRUSTED-innerWidth-${m.innerWidth}`}.png`);
