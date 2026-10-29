@@ -68,6 +68,7 @@ function readmePage(rendered: string): string {
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>About — The Orrery</title>
+<link rel="icon" type="image/svg+xml" href="/assets/favicon.svg">
 <link rel="stylesheet" href="/assets/styles.css">
 </head>
 <body class="readme-page">
@@ -110,6 +111,19 @@ export function mountPages(app: Hono, root: string): void {
       "Cache-Control": "public, max-age=300",
       "X-Content-Type-Options": "nosniff",
       ...(match[1] === "svg" ? { "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'" } : {}),
+    });
+  });
+
+  // A browser asks for /favicon.ico whatever the page links, so it is answered with the page's icon rather
+  // than logged as a refused read on every page load (RICE item 4; rule 32's log is for refusals).
+  app.get("/favicon.ico", async (c) => {
+    const body = await readOrNull(join(root, "src/assets/favicon.svg"));
+    if (!body) return c.json({ error: "No such asset." }, 404);
+    return c.body(new Uint8Array(body), 200, {
+      "Content-Type": ART_TYPES.svg,
+      "Cache-Control": "public, max-age=86400",
+      "X-Content-Type-Options": "nosniff",
+      "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'",
     });
   });
 

@@ -15,7 +15,7 @@
     "check:tags": "node scripts/check-tags.ts",
     "probe": "node scripts/probe-propagation.ts",
     "db:generate": "drizzle-kit generate",
-    "assets": "node scripts/assets/derive-down.ts && node scripts/assets/sprites.ts && node scripts/assets/orrery.ts",
+    "assets": "node scripts/assets/derive-down.ts && node scripts/assets/sprites.ts && node scripts/assets/orrery.ts && node scripts/assets/favicon.ts",
     "test": "vitest run"
   },
   "devDependencies": {
