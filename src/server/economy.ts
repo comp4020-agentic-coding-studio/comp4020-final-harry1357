@@ -167,6 +167,8 @@ export function echoTurn(ctx: Ctx, f: Fighter): void {
  */
 export function checkReaction(b: Battle, actor: Fighter, action: ActionId, cardId: string | null): Refusal | null {
   if (!ACTIONS[action].reaction) return { status: 400, error: `${ACTIONS[action].label} isn't a Reaction.` };
+  // Out of turn only (rule 18; the gate's F1): on your own turn, take your turn.
+  if (b.activeId === actor.id) return { status: 409, error: "A Reaction is taken out of turn; it's your turn now." };
   if (!actor.reactionReady) return { status: 409, error: "You've used your Reaction; it comes back after the Orrery's next turn." };
   const card = cardId === null ? undefined : b.cards.find((c) => c.id === cardId);
   if (!card) return { status: 409, error: "There's no announced card on the strip to react to." };
@@ -188,7 +190,7 @@ export function checkReaction(b: Battle, actor: Fighter, action: ActionId, cardI
  * The token's reactionCard, and the one card checkReaction takes.
  */
 export function reactionCardOf(b: Battle, f: Fighter): string | null {
-  if (f.kind !== "character" || !f.reactionReady || b.status !== "fighting") return null;
+  if (f.kind !== "character" || !f.reactionReady || b.status !== "fighting" || b.activeId === f.id) return null;
   const reactions = ROLES[f.role as RoleId].actions.filter((a) => ACTIONS[a].reaction);
   let best: { id: string; lands: number } | null = null;
   for (const action of reactions) {
