@@ -329,6 +329,15 @@ describe("each role's policy, branch by branch", () => {
     }
   });
 
+  it("every Echo Braces when a Perihelion lands next: Brace is everyone's, no person's answer (ADR-011; the gate's T4)", async () => {
+    const e = await echoEngine();
+    for (const role of ROLES) {
+      const { b, echoId } = withEcho(e, role, ["mender", "striker"]);
+      const board = withCards(e, b, [{ intent: "perihelion", targetId: "party", countdown: 0 }]);
+      expect(moveOf(e, board, echoId), `a ${role} Echo, a Perihelion next`).toMatchObject({ kind: "brace" });
+    }
+  });
+
   it("a timed-out seat's Echo makes the same move as a seated Echo in its place", async () => {
     const e = await echoEngine();
     for (const role of ROLES) {

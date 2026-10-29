@@ -229,3 +229,18 @@ describe("a Reaction is taken out of turn, never on your own (rule 18; the gate'
     expect(e.checkAction(mine, "warden-1", "intercept", card.id), "an Intercept on your own turn").toHaveProperty("status", 409);
   });
 });
+
+describe("a blow on a revealed weakness cracks a shield pip (ADR-011; the gate's T3)", () => {
+  it("a Jab on the Scanned outer ring takes a pip off it; on a hidden one, none", async () => {
+    const e = await engine();
+    const b = clearCards(table(e, ["striker", "warden"]));
+    const hidden = turn(e, b, "striker-1", "jab", "outer");
+    expect(ring(hidden.battle, "outer").pips, "weakness hidden: no pip").toBe(ring(b, "outer").pips);
+    const revealed = edit(b, (x) => {
+      const r = x.rings.find((y) => y.id === "outer")!;
+      r.weakness = r.element;
+    });
+    const hit = turn(e, revealed, "striker-1", "jab", "outer");
+    expect(ring(hit.battle, "outer").pips, "weakness revealed: one pip").toBe(ring(b, "outer").pips - 1);
+  });
+});

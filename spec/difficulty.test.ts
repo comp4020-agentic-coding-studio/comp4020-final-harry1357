@@ -49,6 +49,16 @@ describe("the teeth: what an unanswered card costs, and the seat it costs", () =
     expect(down(after.battle, "warden-2"), "a Warden at Gravity 2 who swaps the Lunge onto themself stands").toBe(false);
   });
 
+  it("Gravity is counted as it stood when the Orrery's turn began: two Lunges on one turn can't stack and crush (the gate's T2)", async () => {
+    const e = await engine();
+    let b = clearCards(edit(table(e, ["striker", "warden"]), (x) => (x.standing.find((f) => f.id === "striker-1")!.gravity = 1)));
+    b = e.announce(b, { intent: "lunge", targetId: "striker-1", amount: 10, countdown: 0 });
+    b = e.announce(b, { intent: "lunge", targetId: "striker-1", amount: 10, countdown: 0 });
+    const step = bossTurn(e, b);
+    expect(down(step.battle, "striker-1"), "one stack carried in: the second Lunge of the turn is an ordinary blow").toBe(false);
+    expect(events(step, "gravity").filter((x) => x.lethal === true), "nothing lethal").toEqual([]);
+  });
+
   it("Perihelion: unmet, it deals its full amount to every seat, and that downs them", async () => {
     const e = await engine();
     const roles = ["warden", "mender", "striker", "breaker", "chronist"];
@@ -64,14 +74,21 @@ describe("the teeth: what an unanswered card costs, and the seat it costs", () =
       expect(landed.hits.find((h) => h.targetId === id)?.amount, `${id} takes Perihelion's full ${peri}`).toBe(peri);
       expect(down(hit.battle, id), `and ${id} is downed by it`).toBe(true);
     }
-    // Met: the outer ring Broken.
-    const broken = edit(b, (x) => {
-      const outer = x.rings.find((r) => r.id === "outer")!;
-      outer.pips = 0;
-      outer.broken = true;
+    // Met: the Breaker Shatters the outer ring under the scripted Perihelion, and the server cuts what it will
+    // deal (the gate's W1: the amount is read off the server, never set by the test).
+    const ready = edit(e.announce(b, { ...card, amount: peri }), (x) => {
+      x.rings.find((r) => r.id === "outer")!.pips = 2;
+      x.standing.find((f) => f.id === "breaker-4")!.resource = 3;
     });
-    const met = bossTurn(e, e.announce(broken, { ...card, amount: Math.floor(peri / 4) }));
-    expect(roles.every((r, i) => !down(met.battle, `${r}-${i + 1}`)), "a Broken outer ring: every seat stands").toBe(true);
+    const shattered = turn(e, ready, "breaker-4", "shatter", "outer");
+    const cut = shattered.battle.cards.find((c) => c.intent === "perihelion")!;
+    expect(cut.amount, "a Break cuts the Perihelion to an eighth").toBe(Math.floor(peri / 8));
+    const lands = edit(shattered.battle, (x) => {
+      x.cards = x.cards.filter((c) => c.id === cut.id);
+      x.cards[0].countdown = 0;
+    });
+    const met = bossTurn(e, lands);
+    expect(roles.every((r, i) => !down(met.battle, `${r}-${i + 1}`)), "met by a Break: every seat stands").toBe(true);
   });
 
   it("Retrograde: uncancelled, it costs the table a full rotation of the strip", async () => {
@@ -112,6 +129,10 @@ describe("the teeth: what an unanswered card costs, and the seat it costs", () =
     const bare = shadow(() => undefined);
     expect(down(bare.battle, "warden-1"), "the Warden, 170 HP, unwarded: downed by a 10-point Eclipse").toBe(true);
     expect(events(bare, "eclipse")[0], "and the fight says the Eclipse did it").toMatchObject({ targetId: "warden-1" });
+    // Braced (the gate's T1): halved as an ordinary blow, and the seat stands.
+    const braced = shadow((x) => (x.standing.find((f) => f.id === "warden-1")!.braced = true));
+    expect(down(braced.battle, "warden-1"), "Braced, it stands").toBe(false);
+    expect(events(braced, "eclipse")[0], "taking half").toMatchObject({ targetId: "warden-1", amount: 5 });
     const warded = shadow((x) => (x.standing.find((f) => f.id === "warden-1")!.warded = true));
     expect(down(warded.battle, "warden-1"), "Warded, it stands untouched").toBe(false);
     expect(fighter(warded.battle, "warden-1").hp, "for nothing").toBe(fighter(table(e, ["warden", "mender"]), "warden-1").hp);
