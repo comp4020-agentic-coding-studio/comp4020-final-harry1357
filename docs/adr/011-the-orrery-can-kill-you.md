@@ -115,8 +115,9 @@ the seat, so the fight can later say what killed you.
    shields"), so every role that strikes can help Break the outer ring, and
    a table without a Breaker has the Warden's Bastion and its own Braces.
 3. **Retrograde.** Uncancelled, it costs the table **a full rotation of the
-   strip**: every seat's counter is set back by a whole Standard turn of its
-   own, after the five-slot flip. The Orrery's counter isn't touched (rule 1:
+   strip**: after the five-slot flip, every seat's counter is set back by the
+   same amount, the slowest standing seat's Standard reset, so the flipped
+   order holds. The Orrery's counter isn't touched (rule 1:
    the Orrery never moves faster; the table moves slower), so the Orrery's
    next turns come before the table's. A Chronist's Delay or Stillpoint
    cancels it, as before.
@@ -148,7 +149,7 @@ role is for:
   counter-blow. Item 14's candidate, kept: the hitter's answer is to hit.
 - **Breaker: Fracture**, against a raid-wide card (a Revolution, a
   Perihelion): the outer ring loses `FRACTURE_PIPS` shield pips, and if that
-  Breaks it, the Perihelion halves. Better than item 14's "Read, which shows
+  Breaks it, the Perihelion falls to an eighth (tooth 2). Better than item 14's "Read, which shows
   a card's amount early": the amount is already on the card.
 - **Chronist: Nudge**, against any card: the card is pushed back one slot, and
   a Nudged Retrograde comes apart, as a Delayed one does. Item 14's
@@ -181,8 +182,13 @@ signature move, the one the join screen names, empties it and adds
 | Chronist | Stillpoint | its Flux cost falls by one per pip |
 
 The `finisher`, `bastion`, `restore`, `shatter` and `stillpoint` events carry
-`charge`, the pips spent, so the screen can draw the spend before the log
-says it (rule 11).
+`charge`, the pips spent, for the log and any client that wants the number.
+The screen draws the spend from state, as every mark is drawn: the seat's
+Charge meter and its status marks are read from the state the event arrives
+with, before the event's log line is written (rule 11). No renderer reads
+the field itself; the same holds for `retrograde`'s `setBack` (the strip is
+redrawn in its new order) and `phase`'s `reshuffled` (the rings' glyphs are
+redrawn hidden).
 
 ### The ring step
 
