@@ -1,3 +1,4 @@
+import { resolve } from "node:path";
 import { afterEach, describe, expect, inject, it } from "vitest";
 import { clock, engine, fighter, lobbyTable, sent, table, turn, type Battle, type Clock, type Engine, type Step } from "./engine.ts";
 import {
@@ -186,56 +187,38 @@ describe("each role's policy, branch by branch", () => {
     for (const r of b.rings) r.weakness = r.element;
   };
 
-  it("Warden: Anchors a blow on an ally one Lunge from lethal, else Counterweights; off its turn, Intercepts a blow about to land", async () => {
+  it("Warden: Counterweights, Bastions at three Resolve with no Charge; never Anchors a Lunge, even one from lethal", async () => {
+    // ADR-011 (rule 25): the swap on Gravity is a person's answer, not an Echo's. Was: "Anchors a blow on an
+    // ally one Lunge from lethal"; the Anchor is now the cost of not having a person in the Warden's seat.
     const e = await echoEngine();
     const { b, echoId } = withEcho(e, "warden", ["mender", "striker"]);
     const heavy = edit(withCards(e, b, [{ intent: "lunge", targetId: "mender-1", countdown: 1 }]), (x) => {
       x.standing.find((f) => f.id === "mender-1")!.gravity = 2;
     });
-    expect(moveOf(e, heavy, echoId), "a Lunge on an ally at two Gravity: Anchor it").toMatchObject({ kind: "anchor", card: heavy.cards[0].id });
-    const light = withCards(e, b, [{ intent: "lunge", targetId: "mender-1", countdown: 1 }]);
-    expect(moveOf(e, light, echoId), "the same Lunge at no Gravity: Counterweight").toMatchObject({ kind: "counterweight" });
-    // The line itself (re-review N9): one stack short of "one Lunge from lethal" isn't high.
-    const one = edit(light, (x) => {
-      x.standing.find((f) => f.id === "mender-1")!.gravity = 1;
-    });
-    expect(moveOf(e, one, echoId), "at one Gravity: still Counterweight").toMatchObject({ kind: "counterweight" });
-
-    // Off its turn: the Mender is on the plate, a blow at the Mender resolves next.
-    const due = e.plate(withCards(e, b, [{ intent: "eclipse", targetId: "mender-1", countdown: 0 }]), "mender-1", clock(T0));
-    const step = e.advance(due, clock(T0 + 10));
-    expect(step, "the clock gives the Warden Echo its Reaction while the Mender decides").not.toBeNull();
-    expect(step!.effects.events.find((ev) => ev.kind === "intercept"), "it Intercepts the blow meant for the Mender").toMatchObject({
-      actorId: echoId,
-      protectedId: "mender-1",
-    });
-    expect(step!.battle.activeId, "and the Mender's turn is still the Mender's").toBe("mender-1");
+    expect(moveOf(e, heavy, echoId), "a Lunge on an ally at two Gravity: no Anchor, a Counterweight").toMatchObject({ kind: "counterweight" });
+    const resolve = edit(withCards(e, b, []), (x) => (x.standing.find((f) => f.id === echoId)!.resource = 3));
+    expect(moveOf(e, resolve, echoId), "three Resolve, no Charge: Bastion").toMatchObject({ kind: "bastion" });
+    const charged = edit(resolve, (x) => (x.standing.find((f) => f.id === echoId)!.charge = 1));
+    expect(moveOf(e, charged, echoId), "with Charge banked it never spends it: no Bastion").toMatchObject({ kind: "counterweight" });
   });
 
-  it("Warden, off its turn: with a frozen blow first, Intercepts the one the server names (M6)", async () => {
-    // Phase two's third review, M6: the off-turn test above has one card, so
-    // an Echo choosing by countdown passed it too. A frozen blow at 0 lands a
-    // turn late; the one landing now is the card the server names, and the
-    // only one it takes a Reaction at (B1, N16).
+  it("an Echo takes no Reaction off its turn, whatever the strip holds (ADR-011, rule 25)", async () => {
+    // Was: the Warden Echo Intercepted a blow about to land (and, M6, the one the server names). ADR-011: a
+    // Reaction is a person's answer to a card; an Echo of any role takes none, even with one named for it.
     const e = await echoEngine();
-    const { b, echoId } = withEcho(e, "warden", ["mender", "striker"]);
-    const board = edit(
-      withCards(e, b, [
+    for (const role of ROLES) {
+      const { b, echoId } = withEcho(e, role, ["mender", "striker"]);
+      const board = withCards(e, b, [
         { intent: "eclipse", targetId: "mender-1", countdown: 0 },
-        { intent: "lunge", targetId: "striker-2", countdown: 0 },
-      ]),
-      (x) => {
-        x.cards[0].frozen = true;
-      },
-    );
-    const lands = board.cards[1].id;
-    const step = e.advance(e.plate(board, "mender-1", clock(T0)), clock(T0 + 10));
-    expect(step, "the clock gives the Warden Echo its Reaction").not.toBeNull();
-    expect(step!.effects.events.find((ev) => ev.kind === "intercept"), "at the blow landing now, not the frozen one ahead of it").toMatchObject({
-      actorId: echoId,
-      cardId: lands,
-      protectedId: "striker-2",
-    });
+        { intent: "lunge", targetId: echoId, countdown: 0 },
+        { intent: "revolution", targetId: "party", countdown: 0 },
+      ]);
+      const plated = e.plate(board, "mender-1", clock(T0));
+      const named = (sent(e, plated).queue as { id: string; reactionCard: string | null }[]).find((t) => t.id === echoId)?.reactionCard;
+      expect(named, `the server names a card for the ${role} Echo's Reaction`).not.toBeNull();
+      const step = e.advance(plated, clock(T0 + 10));
+      expect(step?.effects.events.filter((ev) => ev.kind === "reaction") ?? [], `the ${role} Echo takes none`).toEqual([]);
+    }
   });
 
   it("Mender: Wards the one a blow is aimed at, else Mends the lowest, else Quickens the next player", async () => {
@@ -253,7 +236,9 @@ describe("each role's policy, branch by branch", () => {
     expect(moveOf(e, whole, echoId), "nobody hurt: Quicken the next player on the strip").toMatchObject({ kind: "quicken", target: next });
   });
 
-  it("Striker: Finishes a Broken ring with Momentum, else Jabs", async () => {
+  it("Striker: Finishes with three Momentum and no Charge, where the server aims it, else Jabs", async () => {
+    // ADR-011 (rule 25): no ring of its own choosing, and never a Charge spent. The server's default Finisher
+    // ring is a Broken one, so a Broken middle ring is still where it lands.
     const e = await echoEngine();
     const { b, echoId } = withEcho(e, "striker");
     const broken = edit(b, (x) => {
@@ -261,14 +246,20 @@ describe("each role's policy, branch by branch", () => {
       x.rings[1].pips = 0;
       x.standing.find((f) => f.id === echoId)!.resource = 3;
     });
-    expect(moveOf(e, broken, echoId), "a Broken middle ring and Momentum: Finish it").toMatchObject({ kind: "finisher", ring: "middle" });
+    expect(moveOf(e, broken, echoId), "a Broken middle ring and Momentum: Finish, and the server aims it there").toMatchObject({ kind: "finisher", ring: "middle" });
+    const charged = edit(broken, (x) => {
+      x.standing.find((f) => f.id === echoId)!.charge = 1;
+    });
+    expect(moveOf(e, charged, echoId), "with Charge banked it never spends it: Jab").toMatchObject({ kind: "jab" });
     const empty = edit(broken, (x) => {
       x.standing.find((f) => f.id === echoId)!.resource = 0;
     });
     expect(moveOf(e, empty, echoId), "no Momentum: Jab").toMatchObject({ kind: "jab" });
   });
 
-  it("Breaker: Scans the unknown, Shatters at two pips, Marks a bare ring, else Pries", async () => {
+  it("Breaker: Scans the unknown, Shatters at two pips, Marks a bare ring, else Pries, each at the server's default ring", async () => {
+    // ADR-011 (rule 25): an Echo never chooses a ring; every move goes at the server's default (null), which is
+    // the outermost ring where that action does something.
     const e = await echoEngine();
     const { b, echoId } = withEcho(e, "breaker");
     expect(moveOf(e, b, echoId), "every weakness unknown: Scan the outer ring").toMatchObject({ kind: "scan", ring: "outer" });
@@ -282,7 +273,7 @@ describe("each role's policy, branch by branch", () => {
       scanned(x);
       x.rings[0].exposed = [{ appliedBy: "mender-1" }];
     });
-    expect(moveOf(e, bare, echoId), "all Scanned, none thin: Mark the outermost ring with no stack").toMatchObject({ kind: "mark", ring: "middle" });
+    expect(moveOf(e, bare, echoId), "all Scanned, none thin: Mark, where the server aims it").toMatchObject({ kind: "mark" });
     const marked = edit(b, (x) => {
       scanned(x);
       for (const r of x.rings) r.exposed = [{ appliedBy: "mender-1" }];
@@ -290,7 +281,7 @@ describe("each role's policy, branch by branch", () => {
     expect(moveOf(e, marked, echoId), "every ring Marked: Pry the outermost toward Shatter's range").toMatchObject({ kind: "pry", ring: "outer" });
   });
 
-  it("Chronist: Delays a boss card within two slots, else Relays", async () => {
+  it("Chronist: Delays a boss card within two slots, but never a Retrograde, else Relays", async () => {
     const e = await echoEngine();
     const { b, echoId } = withEcho(e, "chronist", ["warden"]);
     const near = withCards(e, b, [
@@ -301,6 +292,41 @@ describe("each role's policy, branch by branch", () => {
     expect(moveOf(e, near, echoId), "a card one slot out: Delay it").toMatchObject({ kind: "delay", card: soon.id });
     const far = withCards(e, b, [{ intent: "revolution", targetId: "party", countdown: 2 }]);
     expect(moveOf(e, far, echoId), "nothing within two slots: Relay").toMatchObject({ kind: "relay" });
+    // ADR-011 (rule 25): cancelling a Retrograde is a person's answer.
+    const turning = withCards(e, b, [{ intent: "retrograde", targetId: null, countdown: 0 }]);
+    expect(moveOf(e, turning, echoId), "a Retrograde about to land: no Delay, a Relay").toMatchObject({ kind: "relay" });
+  });
+
+  it("an Echo never chooses a ring, never spends Charge, never swaps, never cancels (ADR-011, rule 25)", async () => {
+    // Held on the policy itself, over many states, so a branch added later can't slip a person's answer in.
+    const e = await echoEngine();
+    const policy = (await import(resolve("src/server/echoes.ts"))) as { onTurn(s: unknown, id: string): { action: string; targetId: string | null } };
+    const RING_ACTIONS = new Set(["jab", "cleave", "finisher", "feint", "counterweight", "scan", "pry", "mark", "shatter"]);
+    const SIGNATURES = new Set(["bastion", "restore", "finisher", "shatter", "stillpoint"]);
+    for (const role of ROLES) {
+      const { b, echoId } = withEcho(e, role, ["mender", "striker"]);
+      for (const charge of [0, 2]) {
+        for (const cards of [
+          [{ intent: "lunge", targetId: "mender-1", countdown: 0 }],
+          [{ intent: "retrograde", targetId: null, countdown: 0 }],
+          [{ intent: "eclipse", targetId: "striker-2", countdown: 1 }],
+        ]) {
+          const board = edit(withCards(e, b, cards), (x) => {
+            const me = x.standing.find((f) => f.id === echoId)!;
+            me.charge = charge;
+            me.resource = 5;
+            x.standing.find((f) => f.id === "mender-1")!.gravity = 2;
+            for (const r of x.rings) r.weakness = r.element;
+          });
+          const move = policy.onTurn(sent(e, e.plate(board, echoId, clock(T0))), echoId);
+          const what = `a ${role} Echo, Charge ${charge}, facing ${cards[0].intent}: ${move.action} ${move.targetId}`;
+          if (RING_ACTIONS.has(move.action)) expect(move.targetId, `${what}: no ring of its own choosing`).toBeNull();
+          if (charge > 0) expect(SIGNATURES.has(move.action), `${what}: no Charge spent`).toBe(false);
+          expect(move.action, `${what}: no swap`).not.toBe("anchor");
+          if (cards[0].intent === "retrograde") expect(["delay", "stillpoint"].includes(move.action), `${what}: no cancel`).toBe(false);
+        }
+      }
+    }
   });
 
   it("a timed-out seat's Echo makes the same move as a seated Echo in its place", async () => {
