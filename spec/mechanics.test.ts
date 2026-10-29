@@ -217,3 +217,15 @@ describe("ring weaknesses re-hide and reshuffle at each phase change (item 19)",
     expect(deal()).toEqual(deal());
   });
 });
+
+describe("a Reaction is taken out of turn, never on your own (rule 18; the gate's F1)", () => {
+  it("the seat on the plate is named no card and refused every Reaction", async () => {
+    const e = await engine();
+    const b = e.announce(clearCards(table(e, ["warden", "striker"])), { intent: "eclipse", targetId: "striker-2", amount: 20, countdown: 0 });
+    const card = announced(b);
+    const mine = e.plate(b, "warden-1", clock());
+    const token = (e.view(mine, { tickMs: 150, turnMs: 12_000 }).queue as { id: string; reactionCard: string | null }[]).find((t) => t.id === "warden-1");
+    expect(token?.reactionCard, "on the plate, no card is named for its Reaction").toBeNull();
+    expect(e.checkAction(mine, "warden-1", "intercept", card.id), "an Intercept on your own turn").toHaveProperty("status", 409);
+  });
+});
