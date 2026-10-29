@@ -277,7 +277,11 @@ export function createScene(root: HTMLElement, { manifest, orrerySvg }: PartsOpt
     },
 
     target(id: string | null): void {
-      const next = id === null ? null : id === BOSS_ID ? orrery.el : (party.get(id)?.el ?? null);
+      // A ring (ADR-011's ring step) lights the Orrery, naming the ring so its marks are lifted.
+      const ring = id === "outer" || id === "middle" || id === "inner" ? id : null;
+      if (ring) orrery.el.dataset.targetedRing = ring;
+      else delete orrery.el.dataset.targetedRing;
+      const next = id === null ? null : id === BOSS_ID || ring ? orrery.el : (party.get(id)?.el ?? null);
       if (next === targeted) return;
       if (targeted) delete targeted.dataset.targeted;
       targeted = next;

@@ -426,9 +426,9 @@ describe("every fight ends (L1)", () => {
       if (f.bossTurns >= ENRAGE_AFTER) past.push(people.join("/"));
       else expect(f.alignments.every((t) => f.phaseNumbers.includes(3) && t >= f.phases[f.phaseNumbers.indexOf(3)]), `${people.join("/")} ended at ${f.bossTurns}, every Alignment it met phase III's own`).toBe(true);
     }
-    expect(past.sort(), "the rooms that run past the clock").toEqual(
-      ["mender", "mender/mender", "mender/breaker", "warden/mender/breaker", "warden/mender/chronist", "mender/striker/chronist", "mender/breaker/chronist"].sort(),
-    );
+    // ADR-011 (measured): the teeth decide four of the seven before the clock, won or lost. The three that still
+    // run past it are the tables with no blow to strike with and a Mender to keep them standing.
+    expect(past.sort(), "the rooms that run past the clock").toEqual(["mender", "mender/mender", "mender/chronist"].sort());
   }, WHOLE_FIGHTS_MS);
 
   it("phase III's own Grand Alignment says nothing of the clock (F5)", async () => {

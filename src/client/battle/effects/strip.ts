@@ -13,7 +13,7 @@
 // marks and move nothing.
 import type { AreaRenderers, EffectContext } from "../api.ts";
 import { BOSS_ID } from "../../../shared/protocol.ts";
-import { HOLD, bounded, castFor, rest, roleOf, stage, type Fx } from "./kit.ts";
+import { HOLD, bounded, castFor, rest, roleOf, showMarks, showRingMarks, showRings, stage, type Fx } from "./kit.ts";
 
 /** Acting on your turn ends a Brace (rules.ts clears it as every turn begins), as party.ts does. */
 function begins(ctx: EffectContext, actorId: string): void {
@@ -91,6 +91,105 @@ export const interceptReduced: Fx<"intercept"> = async (raw, e) => {
   void ctx.scene.frame(e.actorId, "guard");
   await ctx.wait(HOLD);
   rest(ctx, e.actorId);
+};
+
+// --- ADR-011: a Reaction for every role, and the sting each one leaves ------------------------
+
+/** The Mender's Veil: whoever the blow is aimed at is Warded now, before it lands. */
+export const veil: Fx<"veil"> = async (raw, e) => {
+  const ctx = stage(raw);
+  const pose = ctx.scene.frame(e.actorId, castFor(roleOf(ctx, e.actorId)));
+  ctx.strip.card(e.cardId, "retargeted");
+  if (e.targetId !== e.actorId) await bounded(ctx, ctx.scene.projectile(e.actorId, e.targetId, "spark"), 420);
+  ctx.scene.ward(e.targetId, true);
+  showMarks(ctx, e.targetId);
+  await bounded(ctx, pose, 400);
+  rest(ctx, e.actorId);
+};
+
+export const veilReduced: Fx<"veil"> = async (raw, e) => {
+  const ctx = stage(raw);
+  void ctx.scene.frame(e.actorId, castFor(roleOf(ctx, e.actorId)));
+  ctx.strip.card(e.cardId, "retargeted");
+  ctx.scene.ward(e.targetId, true);
+  showMarks(ctx, e.targetId);
+  await ctx.wait(HOLD);
+  rest(ctx, e.actorId);
+};
+
+/** The Striker's Riposte: feet set against the blow aimed at them, guarded and Warded; the sting follows. */
+export const riposte: Fx<"riposte"> = async (raw, e) => {
+  const ctx = stage(raw);
+  ctx.strip.card(e.cardId, "retargeted");
+  const guard = ctx.scene.frame(e.actorId, "guard");
+  await bounded(ctx, ctx.scene.windUp(e.actorId), 260);
+  ctx.scene.guard(e.actorId, true);
+  ctx.scene.ward(e.actorId, true);
+  showMarks(ctx, e.actorId);
+  await bounded(ctx, guard, 400);
+};
+
+export const riposteReduced: Fx<"riposte"> = async (raw, e) => {
+  const ctx = stage(raw);
+  ctx.strip.card(e.cardId, "retargeted");
+  void ctx.scene.frame(e.actorId, "guard");
+  ctx.scene.guard(e.actorId, true);
+  ctx.scene.ward(e.actorId, true);
+  showMarks(ctx, e.actorId);
+  await ctx.wait(HOLD);
+};
+
+/** The Breaker's Fracture: the outer ring's shield cracks as a blow on everyone gathers. */
+export const fracture: Fx<"fracture"> = async (raw, e) => {
+  const ctx = stage(raw);
+  const pose = ctx.scene.frame(e.actorId, castFor(roleOf(ctx, e.actorId)));
+  await bounded(ctx, ctx.scene.projectile(e.actorId, BOSS_ID, "spark"), 420);
+  ctx.scene.hit(BOSS_ID);
+  showRingMarks(ctx);
+  await bounded(ctx, pose, 400);
+  rest(ctx, e.actorId);
+};
+
+export const fractureReduced: Fx<"fracture"> = async (raw, e) => {
+  const ctx = stage(raw);
+  void ctx.scene.frame(e.actorId, castFor(roleOf(ctx, e.actorId)));
+  ctx.scene.hit(BOSS_ID);
+  showRingMarks(ctx);
+  await ctx.wait(HOLD);
+  rest(ctx, e.actorId);
+};
+
+/** The Chronist's Nudge: a card pushed back a slot (a Retrograde so touched comes apart on the Orrery's turn). */
+export const nudge: Fx<"nudge"> = async (raw, e) => {
+  const ctx = stage(raw);
+  const pose = ctx.scene.frame(e.actorId, castFor(roleOf(ctx, e.actorId)));
+  ctx.strip.card(e.cardId, "delayed");
+  await bounded(ctx, pose, 360);
+  rest(ctx, e.actorId);
+};
+
+export const nudgeReduced: Fx<"nudge"> = async (raw, e) => {
+  const ctx = stage(raw);
+  void ctx.scene.frame(e.actorId, castFor(roleOf(ctx, e.actorId)));
+  ctx.strip.card(e.cardId, "delayed");
+  await ctx.wait(HOLD);
+  rest(ctx, e.actorId);
+};
+
+/** A Reaction's counter-blow: a number on the Orrery, and its rings and bar where the server has them. */
+export const sting: Fx<"sting"> = async (raw, e) => {
+  const ctx = stage(raw);
+  await bounded(ctx, ctx.scene.projectile(e.actorId, BOSS_ID, "spark"), 360);
+  ctx.scene.hit(BOSS_ID);
+  ctx.scene.number(BOSS_ID, e.amount, "harm", e.seq);
+  showRings(ctx);
+};
+
+export const stingReduced: Fx<"sting"> = (raw, e) => {
+  const ctx = stage(raw);
+  ctx.scene.hit(BOSS_ID);
+  ctx.scene.number(BOSS_ID, e.amount, "harm", e.seq);
+  showRings(ctx);
 };
 
 // --- the actions that move something on the strip ---------------------------------------
@@ -246,6 +345,11 @@ export const STRIP: AreaRenderers = {
     resonance: { full: resonance, reduced: resonanceReduced },
     reaction: { full: reaction, reduced: reactionReduced },
     intercept: { full: intercept, reduced: interceptReduced },
+    veil: { full: veil, reduced: veilReduced },
+    riposte: { full: riposte, reduced: riposteReduced },
+    fracture: { full: fracture, reduced: fractureReduced },
+    nudge: { full: nudge, reduced: nudgeReduced },
+    sting: { full: sting, reduced: stingReduced },
     anchor: { full: anchor, reduced: anchorReduced },
     quicken: { full: quicken, reduced: quickenReduced },
     delay: { full: delay, reduced: delayReduced },
@@ -268,6 +372,25 @@ export const STRIP: AreaRenderers = {
     intercept: [
       ["strip.card", "card", "retargeted"],
       ["scene.frame", "me", "guard"],
+    ],
+    veil: [
+      ["strip.card", "card", "retargeted"],
+      ["scene.ward", "target", true],
+      ["scene.status", "target", "*"],
+    ],
+    riposte: [
+      ["strip.card", "card", "retargeted"],
+      ["scene.guard", "me", true],
+      ["scene.ward", "me", true],
+    ],
+    fracture: [
+      ["scene.hit", BOSS_ID],
+      ["scene.ringMarks", "*", "*"],
+    ],
+    nudge: [["strip.card", "card", "delayed"]],
+    sting: [
+      ["scene.number", BOSS_ID, "*", "harm"],
+      ["scene.rings", "*", "*"],
     ],
     anchor: [
       ["strip.card", "card", "retargeted"],

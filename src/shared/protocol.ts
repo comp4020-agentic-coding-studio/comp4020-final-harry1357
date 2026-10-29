@@ -18,21 +18,25 @@ export type ActionId =
   | "bastion"
   | "counterweight"
   // Mender
+  | "veil"
   | "mend"
   | "ward"
   | "quicken"
   | "restore"
   // Striker
+  | "riposte"
   | "jab"
   | "cleave"
   | "finisher"
   | "feint"
   // Breaker
+  | "fracture"
   | "scan"
   | "pry"
   | "mark"
   | "shatter"
   // Chronist
+  | "nudge"
   | "delay"
   | "haste"
   | "relay"
@@ -55,6 +59,8 @@ export interface ActionInfo {
   reaction?: true;
   /** Which resource it spends, and how much, if any. */
   spends?: { resource: Resource; amount: number | "all" };
+  /** A role's signature move: it empties Charge and is the stronger for it (rule 17, ADR-011). */
+  signature?: true;
   blurb: string;
 }
 
@@ -77,36 +83,40 @@ export const ACTIONS: Readonly<Record<ActionId, ActionInfo>> = {
 
   intercept: a({ id: "intercept", label: "Intercept", rank: 0, target: "card", reaction: true, blurb: "Take a single-target blow meant for an ally." }),
   anchor: a({ id: "anchor", label: "Anchor", rank: 2, target: "card", blurb: "Pull the next targeted boss card onto yourself." }),
-  bastion: a({ id: "bastion", label: "Bastion", rank: 4, target: "self", spends: { resource: "resolve", amount: "all" }, blurb: "Blunt the next raid-wide card by 40%." }),
+  bastion: a({ id: "bastion", label: "Bastion", rank: 4, target: "self", spends: { resource: "resolve", amount: "all" }, signature: true, blurb: "Blunt the next raid-wide card by 40%, more with Charge." }),
   counterweight: a({ id: "counterweight", label: "Counterweight", rank: 3, target: "boss", blurb: "Strike, and leave Exposed scaled by Resolve." }),
 
+  veil: a({ id: "veil", label: "Veil", rank: 0, target: "card", reaction: true, blurb: "Ward whoever a single-target blow is aimed at." }),
   mend: a({ id: "mend", label: "Mend", rank: 2, target: "ally", blurb: "Heal an ally." }),
   ward: a({ id: "ward", label: "Ward", rank: 3, target: "ally", blurb: "Shield an ally a boss card is aimed at. Grace if it holds." }),
   quicken: a({ id: "quicken", label: "Quicken", rank: 3, target: "ally", blurb: "Cut an ally's wait by 30%: they move up the strip." }),
-  restore: a({ id: "restore", label: "Restore", rank: 5, target: "ally", spends: { resource: "grace", amount: 3 }, blurb: "Bring a fallen ally back to the table." }),
+  restore: a({ id: "restore", label: "Restore", rank: 5, target: "ally", spends: { resource: "grace", amount: 3 }, signature: true, blurb: "Bring a fallen ally back to the table, stronger with Charge." }),
 
+  riposte: a({ id: "riposte", label: "Riposte", rank: 0, target: "card", reaction: true, blurb: "Meet a blow aimed at you: guarded, and strike back." }),
   jab: a({ id: "jab", label: "Jab", rank: 1, target: "boss", blurb: "A quick blow. +1 Momentum." }),
   cleave: a({ id: "cleave", label: "Cleave", rank: 3, target: "boss", blurb: "+2 Momentum on a weakness." }),
-  finisher: a({ id: "finisher", label: "Finisher", rank: 4, target: "boss", spends: { resource: "momentum", amount: "all" }, blurb: "Spend all Momentum. Double against a Broken ring." }),
+  finisher: a({ id: "finisher", label: "Finisher", rank: 4, target: "boss", spends: { resource: "momentum", amount: "all" }, signature: true, blurb: "Spend all Momentum and Charge. Double against a Broken ring." }),
   feint: a({ id: "feint", label: "Feint", rank: 2, target: "boss", blurb: "Spend an Exposed stack for a sure Resonance." }),
 
+  fracture: a({ id: "fracture", label: "Fracture", rank: 0, target: "card", reaction: true, blurb: "As a raid-wide card comes, crack the outer ring's shield." }),
   scan: a({ id: "scan", label: "Scan", rank: 2, target: "boss", blurb: "Reveal a ring's weakness to the room." }),
   pry: a({ id: "pry", label: "Pry", rank: 3, target: "boss", blurb: "Strip 2 shield pips if the element matches." }),
   mark: a({ id: "mark", label: "Mark", rank: 2, target: "boss", blurb: "Leave 2 Exposed stacks on a ring." }),
-  shatter: a({ id: "shatter", label: "Shatter", rank: 4, target: "boss", spends: { resource: "insight", amount: 3 }, blurb: "Break a ring down to 2 pips or fewer." }),
+  shatter: a({ id: "shatter", label: "Shatter", rank: 4, target: "boss", spends: { resource: "insight", amount: 3 }, signature: true, blurb: "Break a ring down to 2 pips or fewer; Charge pushes the cards further." }),
 
+  nudge: a({ id: "nudge", label: "Nudge", rank: 0, target: "card", reaction: true, blurb: "Push a boss card back one slot; a Retrograde comes apart." }),
   delay: a({ id: "delay", label: "Delay", rank: 3, target: "card", blurb: "Push the next boss card back one slot." }),
   haste: a({ id: "haste", label: "Haste", rank: 3, target: "ally", blurb: "Halve an ally's next 2 waits." }),
   relay: a({ id: "relay", label: "Relay", rank: 1, target: "self", blurb: "End your turn and hand +25% to the next player." }),
-  stillpoint: a({ id: "stillpoint", label: "Stillpoint", rank: 5, target: "card", spends: { resource: "flux", amount: "all" }, blurb: "Freeze a boss card for a whole cycle." }),
+  stillpoint: a({ id: "stillpoint", label: "Stillpoint", rank: 5, target: "card", spends: { resource: "flux", amount: "all" }, signature: true, blurb: "Freeze a boss card for a whole cycle; Charge pays for Flux." }),
 };
 
 export const ROLES: Readonly<Record<RoleId, RoleInfo>> = {
   warden: { id: "warden", label: "Warden", blurb: "Takes the blows meant for others.", resource: "resolve", actions: ["brace", "intercept", "anchor", "bastion", "counterweight"] },
-  mender: { id: "mender", label: "Mender", blurb: "Reads the strip and heals before the hit.", resource: "grace", actions: ["brace", "mend", "ward", "quicken", "restore"] },
-  striker: { id: "striker", label: "Striker", blurb: "Builds Momentum and cashes in a Break.", resource: "momentum", actions: ["brace", "jab", "cleave", "finisher", "feint"] },
-  breaker: { id: "breaker", label: "Breaker", blurb: "Finds the weakness and cracks the shields.", resource: "insight", actions: ["brace", "scan", "pry", "mark", "shatter"] },
-  chronist: { id: "chronist", label: "Chronist", blurb: "Bends the turn order itself.", resource: "flux", actions: ["brace", "delay", "haste", "relay", "stillpoint"] },
+  mender: { id: "mender", label: "Mender", blurb: "Reads the strip and heals before the hit.", resource: "grace", actions: ["brace", "veil", "mend", "ward", "quicken", "restore"] },
+  striker: { id: "striker", label: "Striker", blurb: "Builds Momentum and cashes in a Break.", resource: "momentum", actions: ["brace", "riposte", "jab", "cleave", "finisher", "feint"] },
+  breaker: { id: "breaker", label: "Breaker", blurb: "Finds the weakness and cracks the shields.", resource: "insight", actions: ["brace", "fracture", "scan", "pry", "mark", "shatter"] },
+  chronist: { id: "chronist", label: "Chronist", blurb: "Bends the turn order itself.", resource: "flux", actions: ["brace", "nudge", "delay", "haste", "relay", "stillpoint"] },
 };
 
 export const ROLE_IDS: readonly RoleId[] = ["warden", "mender", "striker", "breaker", "chronist"];
@@ -341,8 +351,13 @@ export const EVENT_KINDS = [
   "chain", // the Chain grew, or a boss action broke it
   "exposed", // an Exposed stack applied, or spent, with who did each
   "reaction", // a Reaction taken out of turn against a card
+  "sting", // a Reaction's counter-blow on the Orrery (ADR-011)
   // the five roles (docs/design/overhaul.md, Priority 2)
   "intercept",
+  "veil", // the Mender's Reaction: the blow's mark is Warded (ADR-011)
+  "riposte", // the Striker's Reaction: guarded against the blow aimed at it (ADR-011)
+  "fracture", // the Breaker's Reaction: the outer ring's shield cracks (ADR-011)
+  "nudge", // the Chronist's Reaction: a card pushed back a slot (ADR-011)
   "anchor",
   "bastion",
   "counterweight",
@@ -413,30 +428,37 @@ export type BattleEvent =
   | (EventBase & { kind: "exposed"; ringId: RingId; appliedBy: string; spentBy: string | null; stacks: number })
   | Act<"reaction", { action: ActionId; cardId: string }>
   | Act<"intercept", { cardId: string; protectedId: string }>
+  // A Reaction's counter-blow (ADR-011): what came off the Orrery.
+  | Act<"sting", { amount: number }>
+  | Act<"veil", { cardId: string; targetId: string }>
+  | Act<"riposte", { cardId: string }>
+  | Act<"fracture", { cardId: string; ringId: RingId; pips: number }>
+  | Act<"nudge", { cardId: string; countdown: number }>
   | Act<"anchor", { cardId: string }>
-  | Act<"bastion", { spent: number }>
+  | Act<"bastion", { spent: number; charge: number }>
   | Act<"counterweight", { ringId: RingId; amount: number; exposed: number }>
   | Act<"mend", { targetId: string; amount: number }>
   | Act<"ward", { targetId: string }>
   | Act<"quicken", { targetId: string; from: number; to: number }>
-  | Act<"restore", { targetId: string }>
+  | Act<"restore", { targetId: string; charge: number }>
   | Act<"jab", { ringId: RingId; amount: number }>
   | Act<"cleave", { ringId: RingId; amount: number; weakness: boolean }>
-  | Act<"finisher", { ringId: RingId; amount: number; spent: number; broken: boolean }>
+  | Act<"finisher", { ringId: RingId; amount: number; spent: number; broken: boolean; charge: number }>
   | Act<"feint", { ringId: RingId; amount: number }>
   | Act<"scan", { ringId: RingId; weakness: Element }>
   | Act<"pry", { ringId: RingId; pips: number }>
   | Act<"mark", { ringId: RingId; stacks: number }>
-  | Act<"shatter", { ringId: RingId }>
+  | Act<"shatter", { ringId: RingId; charge: number }>
   | Act<"delay", { cardId: string; countdown: number }>
   | Act<"haste", { targetId: string }>
   | Act<"relay", { toId: string | null; potency: number }>
-  | Act<"stillpoint", { cardId: string }>
+  | Act<"stillpoint", { cardId: string; charge: number }>
   | Boss<"card", { card: BossCard }>
   | Boss<"pull", { seats: number; maxHp: number }>
   | Boss<"grow", { seats: number; maxHp: number; hp: number }>
   // name: the phase's, for its card on the strip and its title (rule 28).
-  | Boss<"phase", { phase: 2 | 3; name: string }>
+  // reshuffled: every ring's weakness hidden again and its element dealt anew (ADR-011).
+  | Boss<"phase", { phase: 2 | 3; name: string; reshuffled: boolean }>
   | Boss<"break", { ringId: RingId; by: string }>
   // cardId: the strip card that resolved into this event (phase two).
   | Boss<"revolution", { hits: Hit[]; cardId: string }>
@@ -447,7 +469,8 @@ export type BattleEvent =
   | Boss<"gravity", { targetId: string; anchoredBy: string | null; lethal: boolean }>
   | Boss<"perihelion", { hits: Hit[]; broken: boolean; cardId: string }>
   // slots: the portraits it turned about, in the order they stood (none when cancelled).
-  | Boss<"retrograde", { flipped: boolean; cancelledBy: string | null; cardId: string; slots: string[] }>
+  // setBack: the ticks every seat's counter was set back by an uncancelled Retrograde (ADR-011); 0 when cancelled.
+  | Boss<"retrograde", { flipped: boolean; cancelledBy: string | null; cardId: string; slots: string[]; setBack: number }>
   | Boss<"alignment", { countdown: number; wipe: boolean; cardId: string }>;
 
 /** One member per kind, so this never collapses to `never` (a member whose kind was a pair did). */

@@ -40,10 +40,19 @@
 //   Resonance, Exposed, Echo on/off, a Reaction and its Intercept write
 //   "system" lines; a timeout writes its "timeout" line (spec/pacing.test.ts
 //   counts those).
+// - ADR-011: every role has one Reaction. Each answers the card the server
+//   names (reactionCardOf) and is what that role is for: Intercept and Veil a
+//   blow aimed at one ally, Riposte a blow aimed at the Striker, Fracture a
+//   raid-wide card, Nudge any card. Each stings the Orrery for
+//   REACTION_STING × the role's power, so the roles with no blow can still
+//   hurt it, but only by knowing play: an Echo never reacts (rule 25). A
+//   Reaction taken against a blow aimed at the reactor Wards them, so an
+//   Eclipse is met without a Mender.
 
 import { ACTIONS, ROLES, type ActionId, type BossCard, type ExposedStack, type RingId, type RoleId } from "../shared/protocol.ts";
 import { ATTACK_RANK } from "./ctb.ts";
 import { STATS } from "./roles.ts";
+import * as orrery from "./orrery.ts";
 import { reset, wound, type Battle, type Ctx, type Fighter, type Refusal } from "./rules.ts";
 import {
   CHAIN_CAP,
@@ -51,7 +60,9 @@ import {
   CHARGE_MAX,
   ECHO_POTENCY,
   ECHO_SEAT,
+  FRACTURE_PIPS,
   RANK_MIN,
+  REACTION_STING,
   RESOLVE_MAX,
   TIMEOUTS_TO_ECHO,
 } from "./tuning.ts";
@@ -192,18 +203,33 @@ export function reactionCardOf(b: Battle, f: Fighter): string | null {
 
 /** Whether this Reaction could answer this card at all: what it's for, not which card is named. */
 function answers(b: Battle, actor: Fighter, action: ActionId, card: BossCard): Refusal | null {
+  const single = card.targetId !== null && card.targetId !== "party";
+  const standing = single && b.standing.some((f) => f.id === card.targetId && f.kind === "character");
   switch (action) {
     case "intercept": {
-      // A single-target card: aimed at one character, not the room or the strip.
-      if (card.targetId === null || card.targetId === "party") {
-        return { status: 409, error: "Intercept answers a blow aimed at one ally; that card isn't one." };
-      }
-      if (card.targetId === actor.id) return { status: 409, error: "That blow is already meant for you." };
-      if (!b.standing.some((f) => f.id === card.targetId && f.kind === "character")) {
-        return { status: 409, error: "Nobody standing is under that card." };
-      }
+      // A single-target card: aimed at one character, not the room or the strip. At an ally, the Warden takes it;
+      // at the Warden, they stand into it (ADR-011: a Reaction against a blow aimed at you Wards you).
+      if (!single) return { status: 409, error: "Intercept answers a blow aimed at one ally; that card isn't one." };
+      if (!standing) return { status: 409, error: "Nobody standing is under that card." };
       return null;
     }
+    case "veil": {
+      // The Mender's: whoever a single-target blow is aimed at, themselves included, unless already Warded.
+      if (!single || !standing) return { status: 409, error: "Veil answers a blow aimed at someone standing; that card isn't one." };
+      if (b.standing.find((f) => f.id === card.targetId)?.warded) return { status: 409, error: "They're already Warded against it." };
+      return null;
+    }
+    case "riposte":
+      // The Striker's: a blow aimed at the Striker.
+      return card.targetId === actor.id ? null : { status: 409, error: "Riposte answers a blow aimed at you; that card isn't." };
+    case "fracture":
+      // The Breaker's: a card that falls on everyone, while the outer ring still has a shield to crack.
+      if (card.targetId !== "party" || card.intent === "alignment") return { status: 409, error: "Fracture answers a blow on everyone; that card isn't one." };
+      if (b.rings.find((r) => r.id === "outer")?.broken) return { status: 409, error: "The outer ring is already Broken." };
+      return null;
+    case "nudge":
+      // The Chronist's: any card that isn't frozen.
+      return card.frozen ? { status: 409, error: "That card is frozen; it isn't going anywhere." } : null;
     default:
       return { status: 400, error: `${ACTIONS[action].label} isn't a Reaction.` };
   }
@@ -231,24 +257,90 @@ export function react(
     action,
     cardId: card.id,
   });
+  // Aimed at the reactor before it answers: they're Warded against it too (ADR-011).
+  const atMe = card.targetId === actor.id;
   switch (action) {
     case "intercept": {
-      // Warden: the blow is retargeted onto them, and absorbing it for an ally banks Resolve.
+      // Warden: the blow is retargeted onto them, and absorbing it for an ally banks Resolve. One already aimed
+      // at the Warden they stand into: the Ward below meets it.
       const protectedId = card.targetId as string;
       const ward = ctx.b.standing.find((f) => f.id === protectedId);
-      card.targetId = actor.id;
+      orrery.retargetCard(ctx, card.id, actor.id);
+      orrery.swapped(ctx, card.id);
       actor.resource = Math.min(RESOLVE_MAX, actor.resource + 1);
       ctx.say(
         "system",
         actor.id,
-        `${actor.name} steps in front of the blow meant for ${ward?.name ?? "an ally"} (Resolve ${actor.resource}).`,
+        atMe
+          ? `${actor.name} stands into the blow meant for them (Resolve ${actor.resource}).`
+          : `${actor.name} steps in front of the blow meant for ${ward?.name ?? "an ally"} (Resolve ${actor.resource}).`,
         { kind: "intercept", actorId: actor.id, cardId: card.id, protectedId },
       );
-      return;
+      break;
+    }
+    case "veil": {
+      // Mender: whoever the blow is aimed at is Warded now.
+      const target = ctx.fighter(card.targetId as string);
+      target.warded = true;
+      const whom = target === actor ? "themselves" : target.name;
+      ctx.say("system", actor.id, `${actor.name} veils ${whom} against the Orrery's ${card.intent}: the blow will be absorbed.`, {
+        kind: "veil",
+        actorId: actor.id,
+        cardId: card.id,
+        targetId: target.id,
+      });
+      break;
+    }
+    case "riposte": {
+      // Striker: guarded against the blow aimed at them (the Ward below), and the sting is the counter-blow.
+      actor.braced = true;
+      ctx.say("system", actor.id, `${actor.name} sets their feet against the Orrery's ${card.intent}, ready to answer it.`, {
+        kind: "riposte",
+        actorId: actor.id,
+        cardId: card.id,
+      });
+      break;
+    }
+    case "fracture": {
+      // Breaker: the outer ring's shield cracks as the blow comes; a Break halves a Perihelion (orrery.ts).
+      const outer = ctx.ring("outer");
+      const pips = Math.min(FRACTURE_PIPS, outer.pips);
+      ctx.say("system", actor.id, `${actor.name} cracks ${pips} ${pips === 1 ? "pip" : "pips"} off the outer ring as the Orrery's ${card.intent} gathers.`, {
+        kind: "fracture",
+        actorId: actor.id,
+        cardId: card.id,
+        ringId: "outer",
+        pips,
+      });
+      orrery.stripPips(ctx, "outer", pips, actor);
+      break;
+    }
+    case "nudge": {
+      // Chronist: the card slips back a slot; a Nudged Retrograde comes apart, as a Delayed one does.
+      orrery.delayCard(ctx, card.id, 1, actor);
+      const countdown = ctx.b.cards.find((c) => c.id === card.id)?.countdown ?? card.countdown;
+      ctx.say("system", actor.id, `${actor.name} nudges the Orrery's ${card.intent} back a slot.`, {
+        kind: "nudge",
+        actorId: actor.id,
+        cardId: card.id,
+        countdown,
+      });
+      break;
     }
     default:
       throw new Error(`${action} isn't a Reaction`);
   }
+  if (atMe && !actor.warded) actor.warded = true;
+  sting(ctx, actor);
+}
+
+/** A Reaction's counter-blow (ADR-011): the role's power × REACTION_STING, at the Chain's potency, on the Orrery. */
+function sting(ctx: Ctx, actor: Fighter): void {
+  if (ctx.b.status !== "fighting" || ctx.orrery().hp <= 0) return;
+  const raw = STATS[actor.role as RoleId].power * REACTION_STING * ctx.b.chain.potency;
+  const amount = Math.max(1, Math.min(Math.round(raw), ctx.orrery().hp));
+  ctx.say("system", actor.id, `${actor.name}'s answer stings the Orrery for ${amount}.`, { kind: "sting", actorId: actor.id, amount });
+  ctx.stat(actor.id).damage += wound(ctx, amount);
 }
 
 // --- for the other areas ----------------------------------------------------

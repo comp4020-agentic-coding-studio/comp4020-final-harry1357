@@ -36,7 +36,7 @@ import {
   type RoleId,
 } from "../shared/protocol.ts";
 import { ATTACK_RANK, counterReset, tickSpeed } from "./ctb.ts";
-import { ECHO_BEAT_MS, ECHO_MAX, READY_MS, TEMPO, TEMPO_MIN } from "./tuning.ts";
+import { BASTION_CUT, ECHO_BEAT_MS, ECHO_MAX, READY_MS, TEMPO, TEMPO_MIN } from "./tuning.ts";
 import * as echoes from "./echoes.ts";
 import * as economy from "./economy.ts";
 import * as orrery from "./orrery.ts";
@@ -138,6 +138,8 @@ export interface Battle {
   spentExposed: { ringId: RingId; appliedBy: string; spentBy: string }[];
   /** A Bastion stands against the next raid-wide card. */
   bastion: boolean;
+  /** What the standing Bastion takes off it: BASTION_CUT, deeper for the Charge it was raised with (ADR-011). */
+  bastionCut: number;
   /** The Orrery's script's memory between turns (its rotation, who touched which
    *  card). Opaque here; orrery.ts alone reads and writes it. Never sent. */
   orreryScript: unknown;
@@ -376,6 +378,7 @@ export function createBattle(id: string, isPublic: boolean, now: number): Battle
     chain: { links: 0, potency: 1 },
     spentExposed: [],
     bastion: false,
+    bastionCut: BASTION_CUT,
     orreryScript: null,
   };
 }

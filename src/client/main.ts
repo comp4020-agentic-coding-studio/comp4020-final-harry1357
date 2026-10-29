@@ -130,6 +130,8 @@ function mountCommand(role: RoleId): void {
     fallen: () => (app.state?.fallen ?? []).filter((t) => t.kind === "character" && t.hp <= 0).map((t) => ({ id: t.id, name: t.name })),
     // Card-target actions aim at the strip's boss cards, never at ally ids (review F7).
     cards: () => (app.state?.cards ?? []).map((c) => ({ id: c.id, name: cardName(c.intent, c.targetId, c.countdown) })),
+    // A blow's ring step (ADR-011, item 9): the rings as the server has them, each said with what's known of it.
+    rings: () => (app.state?.rings ?? []).map((r) => ({ id: r.id, name: ringName(r) })),
     // A card aim marks the card on the strip; any other aim lights its target on the field.
     onTarget: (targetId) => {
       const card = !!targetId && !!app.state?.cards.some((c) => c.id === targetId);
@@ -144,6 +146,13 @@ function mountCommand(role: RoleId): void {
       strip.preview(mine && action ? mine.actorId : null, mine && action ? (mine.actions[action] ?? null) : null);
     },
   });
+}
+
+/** A ring as the command window names it: which, and what the room knows of it (its weakness only once Scanned). */
+function ringName(r: { id: string; pips: number; weakness: string | null; broken: boolean }): string {
+  const which = `${r.id.charAt(0).toUpperCase()}${r.id.slice(1)} ring`;
+  if (r.broken) return `${which}, Broken`;
+  return `${which}, ${r.pips} ${r.pips === 1 ? "pip" : "pips"}${r.weakness ? `, weak to ${r.weakness}` : ""}`;
 }
 
 /** A boss card as the command window names it: what, at whom, how soon. */

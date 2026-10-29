@@ -10,9 +10,16 @@
 // refused exactly as a person is (rules 1, 2, 10) and decides nothing about
 // turn order. Each policy is a list read top to bottom: the first that
 // matches wins.
+//
+// ADR-011: an Echo plays its job, not the fight. It heals, tanks, strikes,
+// scans and delays, but never takes a Reaction, never swaps on Gravity
+// (Anchor), never cancels a Retrograde (no Delay or Stillpoint at one), never
+// chooses a ring (every blow goes at the server's default, null), and never
+// spends Charge (a signature move waits until it has none). Those answers are
+// a person's (rule 25), and they are the ones that keep a table alive.
 
 import type { ActionId, BattleState, BossCard, Ring, Token } from "../shared/protocol.ts";
-import { GRAVITY_LETHAL, SHATTER_AT, SHATTER_COST } from "./tuning.ts";
+import { SHATTER_AT, SHATTER_COST } from "./tuning.ts";
 
 /** A move an Echo proposes: an action from its role's catalogue, and what it's aimed at (null for the action's default). */
 export interface Move {
@@ -39,20 +46,21 @@ const party = (state: BattleState): Token[] => state.queue.filter((t) => t.kind 
 /** The outermost unbroken ring (rings are listed outer first) that passes. */
 const outermost = (rings: readonly Ring[], ok: (r: Ring) => boolean): Ring | undefined => rings.find((r) => !r.broken && ok(r));
 
-/** The Echo's move on its own turn, by its role's policy (first match wins). */
+/** The Echo's move on its own turn, by its role's policy (first match wins). Never a Charge spend, never a ring (ADR-011). */
 export function onTurn(state: BattleState, echoId: string): Move {
   const me = state.queue.find((t) => t.id === echoId);
   if (!me) return BRACE;
   const rings = state.rings;
+  // A signature move spends Charge (rule 17); an Echo never does, so it waits for none (ADR-011).
+  const charged = me.charge > 0;
+  // Everyone's job: Brace before a blow on everyone lands next, a Perihelion always, or a Revolution while hurt.
+  // A Brace is no Reaction, swap, cancel, ring or Charge spend, so it is an Echo's to make (ADR-011).
+  const raid = soonest(state.cards, (c) => c.targetId === "party" && c.countdown === 0 && !c.frozen);
+  if (raid && (raid.intent === "perihelion" || (raid.intent === "revolution" && me.hp <= (raid.amount ?? 0) * 1.5))) return BRACE;
   switch (me.role) {
-    case "warden": {
-      const doomed = soonest(
-        state.cards,
-        (c) =>
-          single(c) && c.targetId !== me.id && (state.queue.find((t) => t.id === c.targetId)?.gravity ?? 0) >= GRAVITY_LETHAL - 1,
-      );
-      return doomed ? go("anchor", doomed.id) : go("counterweight");
-    }
+    case "warden":
+      // Tanks by striking: no Anchor (the swap is a person's), no Bastion while Charged.
+      return me.resource >= 3 && !charged && !state.bastion ? go("bastion") : go("counterweight");
     case "mender": {
       const standing = (id: string | null) => party(state).some((t) => t.id === id);
       const warded = (id: string | null) => state.queue.find((t) => t.id === id)?.warded ?? true;
@@ -65,22 +73,20 @@ export function onTurn(state: BattleState, echoId: string): Move {
       const next = party(state).find((t) => t.id !== me.id);
       return next ? go("quicken", next.id) : BRACE;
     }
-    case "striker": {
-      const broken = rings.find((r) => r.broken);
-      return me.resource > 0 && broken ? go("finisher", broken.id) : go("jab");
-    }
+    case "striker":
+      // Strikes at the default ring; Finishes only with Momentum and no Charge, where the server aims it.
+      return me.resource >= 3 && !charged ? go("finisher") : go("jab");
     case "breaker": {
-      const unknown = outermost(rings, (r) => r.weakness === null);
-      if (unknown) return go("scan", unknown.id);
-      const thin = outermost(rings, (r) => r.pips <= SHATTER_AT);
-      if (thin && me.resource >= SHATTER_COST) return go("shatter", thin.id);
-      const bare = outermost(rings, (r) => r.exposed.length === 0);
-      if (bare) return go("mark", bare.id);
-      const thick = outermost(rings, (r) => r.weakness !== null && r.pips > SHATTER_AT);
-      return thick ? go("pry", thick.id) : go("mark");
+      // Scans, Pries and Marks where the server aims each (its default ring is where the action does something);
+      // Shatters only with no Charge to spend.
+      if (outermost(rings, (r) => r.weakness === null)) return go("scan");
+      if (!charged && me.resource >= SHATTER_COST && outermost(rings, (r) => r.pips <= SHATTER_AT)) return go("shatter");
+      if (outermost(rings, (r) => r.exposed.length === 0)) return go("mark");
+      return outermost(rings, (r) => r.weakness !== null && r.pips > SHATTER_AT) ? go("pry") : go("mark");
     }
     case "chronist": {
-      const close = soonest(state.cards, (c) => c.countdown <= 1);
+      // Delays a blow that's close, never a Retrograde (cancelling it is a person's answer).
+      const close = soonest(state.cards, (c) => c.countdown <= 1 && c.intent !== "retrograde");
       return close ? go("delay", close.id) : go("relay");
     }
     default:
@@ -88,11 +94,9 @@ export function onTurn(state: BattleState, echoId: string): Move {
   }
 }
 
-/** A Reaction the Echo takes off its turn, if its policy has one now (the Warden's Intercept); else null. */
+/** An Echo takes no Reaction (ADR-011): a Reaction is a person's answer to a card. Always null. */
 export function offTurn(state: BattleState, echoId: string): Move | null {
-  const me = state.queue.find((t) => t.id === echoId);
-  if (!me || me.role !== "warden" || !me.reactionReady) return null;
-  // The card the server names (its reactionCard), and only once it lands on the Orrery's next turn.
-  const blow = state.cards.find((c) => c.id === me.reactionCard);
-  return blow && single(blow) && blow.countdown === 0 && !blow.frozen ? go("intercept", blow.id) : null;
+  void state;
+  void echoId;
+  return null;
 }
