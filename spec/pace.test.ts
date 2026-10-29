@@ -56,8 +56,33 @@ const ACTION_KINDS = new Set([
   "finisher", "feint", "scan", "pry", "mark", "shatter", "delay", "haste", "relay", "stillpoint",
 ]);
 
+/**
+ * Before the Orrery's turn, keep the party standing: whole, Warded, Braced, no Gravity. For the enrage's specs,
+ * which hold the clock, not the table's answers: since ADR-011 an unanswered card downs its seat, and a table that
+ * falls before turn forty never meets the clock. The Alignment's wipe takes every HP, Ward or no.
+ */
+function shield(b: Battle): Battle {
+  if (b.activeId !== "orrery" && !b.standing.some((f) => f.kind === "boss" && f.counter === 0)) return b;
+  const next = structuredClone(b);
+  for (const f of next.standing) {
+    if (f.kind !== "character") continue;
+    f.hp = f.maxHp;
+    f.warded = true;
+    f.braced = true;
+    f.gravity = 0;
+  }
+  return next;
+}
+
+/**
+ * A table that only defends: every seat Braces. With `shield`, the enrage's specs' table (ADR-010: "the
+ * Orrery's answer to a table that only defends"), which deals nothing, so it stalls in phase II until the clock.
+ * Before ADR-011 the Warden, Mender and Breaker's own policies stalled there; ADR-011's stings and pips move them.
+ */
+const DEFEND: Policy = { onTurn: () => ({ action: "brace", targetId: null }) };
+
 /** A private room's fight, played from Start to its ending: `people` as persons, `echoes` seated by the first. */
-function play(e: PaceEngine, policy: Policy, people: string[], echoes: string[] = [], maxBossTurns = Infinity): Fight {
+function play(e: PaceEngine, policy: Policy, people: string[], echoes: string[] = [], maxBossTurns = Infinity, shielded = false): Fight {
   let now = 9_000_000;
   const c = () => ({ ...clock(now), beatMs: 3_000 });
   let b = e.createBattle("pace", false, now);
@@ -103,7 +128,7 @@ function play(e: PaceEngine, policy: Policy, people: string[], echoes: string[] 
       b = step.battle;
       continue;
     }
-    const step = e.advance(b, c());
+    const step = e.advance(shielded ? shield(b) : b, c());
     if (!step) continue;
     note(step);
     b = step.battle;
@@ -207,8 +232,12 @@ describe("every fight ends (L1)", () => {
     // only defends, and no fight may be endless. A Warden, Mender and Breaker stall in phase II under the
     // policies; past the clock they meet the Alignment, and the third to resolve ends the fight.
     const { e, policy } = await parts();
-    const f = play(e, policy, ["warden", "mender", "breaker"], [], MAX_TURNS);
-    expect(f.phaseNumbers, "a table that stalls in phase II, never reaching phase III").toEqual([2]);
+    // Shielded and defending (ADR-011): kept standing before each Orrery turn, dealing nothing, so it is the clock
+    // that is held, not the table.
+    void policy;
+    const f = play(e, DEFEND, ["warden", "mender", "breaker"], [], MAX_TURNS, true);
+    // Rule 28: "whatever the phase". A defending table never leaves phase I; it never reaches phase III either.
+    expect(f.phaseNumbers.includes(3), `a table that never reaches phase III (phases ${JSON.stringify(f.phaseNumbers)})`).toBe(false);
     // The clock starts at exactly forty (the confirm pass's F3, F4): the strip's clock is null before, and all
     // three Alignments to come from the fortieth Orrery turn on.
     expect(f.clockAt[ENRAGE_AFTER - 1], "no clock on the Orrery's thirty-ninth turn").toBeNull();
@@ -265,10 +294,11 @@ describe("every fight ends (L1)", () => {
       const up = b.standing.find((f) => f.id === b.activeId);
       let step: Step | null;
       if (up && up.kind === "character" && up.counter === 0) {
-        const move = policy.onTurn(e.view(b, { tickMs: 0, turnMs: 12_000 }), up.id);
+        // Defending until the late Striker sits down; its own blows, by its policy, carry the Orrery across.
+        const move = (up.id === "late" ? policy : DEFEND).onTurn(e.view(b, { tickMs: 0, turnMs: 12_000 }), up.id);
         const ok = "status" in e.checkAction(b, up.id, move.action, move.targetId) ? { action: "brace", targetId: null } : move;
         step = e.act(b, up.id, ok.action, ok.targetId, clock());
-      } else step = e.advance(b, clock());
+      } else step = e.advance(shield(b), clock());
       if (!step) continue;
       for (const ev of step.effects.events) {
         const line = step.battle.log.find((l) => (l as { seq?: number }).seq === ev.seq)?.text ?? "";
@@ -318,8 +348,8 @@ describe("every fight ends (L1)", () => {
       const up = b.standing.find((f) => f.id === b.activeId);
       const step =
         up && up.kind === "character" && up.counter === 0
-          ? e.act(b, up.id, up.role === "mender" ? "ward" : "brace", up.role === "mender" ? up.id : null, clock())
-          : e.advance(b, clock());
+          ? e.act(b, up.id, up.role === "mender" && !up.warded ? "ward" : "brace", up.role === "mender" && !up.warded ? up.id : null, clock())
+          : e.advance(shield(b), clock());
       if (!step) continue;
       for (const ev of step.effects.events) {
         if (ev.kind === "card" && entered) cards.push([turns(step.battle), String((ev.card as { intent: string }).intent)]);
@@ -358,10 +388,11 @@ describe("every fight ends (L1)", () => {
       const up = b.standing.find((f) => f.id === b.activeId);
       let step: Step | null;
       if (up && up.kind === "character" && up.counter === 0) {
-        const move = policy.onTurn(e.view(b, { tickMs: 0, turnMs: 12_000 }), up.id);
+        // Defending until the late Striker sits down; its own blows, by its policy, carry the Orrery across.
+        const move = (up.id === "late" ? policy : DEFEND).onTurn(e.view(b, { tickMs: 0, turnMs: 12_000 }), up.id);
         const ok = "status" in e.checkAction(b, up.id, move.action, move.targetId) ? { action: "brace", targetId: null } : move;
         step = e.act(b, up.id, ok.action, ok.targetId, clock());
-      } else step = e.advance(b, clock());
+      } else step = e.advance(shield(b), clock());
       if (!step) continue;
       for (const ev of step.effects.events) if (ev.kind === "card" && turns(step.battle) >= ENRAGE_AFTER) cards.push(String((ev.card as { intent: string }).intent));
       b = step.battle;
@@ -419,7 +450,7 @@ describe("every fight ends (L1)", () => {
     const lines: string[] = [];
     for (let i = 0; i < 200_000 && b.status === "fighting" && turns(b) < ENRAGE_AFTER; i++) {
       const up = b.standing.find((f) => f.id === b.activeId);
-      const step = up && up.kind === "character" && up.counter === 0 ? e.act(b, up.id, "brace", null, clock()) : e.advance(b, clock());
+      const step = up && up.kind === "character" && up.counter === 0 ? e.act(b, up.id, "brace", null, clock()) : e.advance(shield(b), clock());
       if (!step) continue;
       for (const ev of step.effects.events) if (ev.kind === "alignment") lines.push(step.battle.log.find((l) => (l as { seq?: number }).seq === ev.seq)?.text ?? "");
       b = step.battle;
