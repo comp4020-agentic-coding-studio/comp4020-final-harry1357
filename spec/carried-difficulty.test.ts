@@ -48,11 +48,42 @@ describe("C2 (ADR-011, tooth 3): after an uncancelled Retrograde the Orrery come
 });
 
 describe("C3 (ADR-011, tooth 1; ADR-006: a rule read off the screen): Gravity is marked lethal at the server's count", () => {
-  it("the party scene's lethal mark uses GRAVITY_LETHAL, not the old 3", async () => {
+  // The owner's ruling: the screen reads the threshold from state, never a literal. ADR-011 names it,
+  // GRAVITY_LETHAL, 2; so the mark moves to two and the kill stays where it is.
+  it("the state carries the lethal count, and a seat at it is marked lethal; one short isn't", async () => {
+    const { engine, table, sent } = await import("./engine.ts");
     const { GRAVITY_LETHAL } = await import("../src/server/tuning.ts");
-    const source = readFileSync(resolve("src/client/scene/party.ts"), "utf8");
-    const at = /m\.kind === "gravity" && \(m\.count \?\? 0\) >= (\w+)/.exec(source)?.[1];
-    expect(at, "the lethal mark's threshold").toBeDefined();
-    expect(Number.isNaN(Number(at)) ? at : Number(at), `marked lethal at ${at}; a Lunge kills from ${GRAVITY_LETHAL}`).toBe(GRAVITY_LETHAL);
+    const e = await engine();
+    const state = sent(e, table(e, ["striker", "warden"])) as { gravityLethal?: number };
+    expect(state.gravityLethal, "the state names the lethal count").toBe(GRAVITY_LETHAL);
+    const { marksOf } = (await import(resolve("src/client/scene/marks.ts"))) as {
+      marksOf: (t: unknown, bracedLeft?: number | null, lethalAt?: number) => { kind: string; lethal?: boolean }[];
+    };
+    const at = (gravity: number) => marksOf({ kind: "character", gravity, charge: 0, warded: false, braced: false, hasted: false }, null, state.gravityLethal).find((m) => m.kind === "gravity");
+    expect(at(GRAVITY_LETHAL)?.lethal, `at ${GRAVITY_LETHAL} stacks: marked lethal`).toBe(true);
+    expect(at(GRAVITY_LETHAL - 1)?.lethal ?? false, "one short: not").toBe(false);
+    expect(readFileSync(resolve("src/client/scene/party.ts"), "utf8"), "no literal threshold on the screen").not.toMatch(/m\.kind === "gravity" && \(m\.count/);
+  });
+});
+
+describe("the breaker's R-A and R-B: a ring the server doesn't offer (the owner's ruling)", () => {
+  it("a target that isn't text is refused with a 400, like every other bad ring, never defaulted", async () => {
+    const { engine, table, clock } = await import("./engine.ts");
+    const e = await engine();
+    const b = e.plate(table(e, ["striker", "warden"]), "striker-1", clock());
+    for (const bad of [{}, ["outer"], 7, true]) {
+      expect(e.checkAction(b, "striker-1", "jab", bad), `jab at ${JSON.stringify(bad)}`).toHaveProperty("status", 400);
+    }
+    expect(e.checkAction(b, "striker-1", "jab", null), "no target at all still takes the default").not.toHaveProperty("status");
+  });
+
+  it("a refused ring name is said back capped at forty characters", async () => {
+    const { engine, table, clock } = await import("./engine.ts");
+    const e = await engine();
+    const b = e.plate(table(e, ["striker", "warden"]), "striker-1", clock());
+    const refused = e.checkAction(b, "striker-1", "jab", "A".repeat(5000)) as { status: number; error: string };
+    expect(refused.status).toBe(400);
+    const said = /"([^"]*)"/.exec(refused.error)?.[1] ?? "";
+    expect([...said].length, `the name said back: ${said.length} characters`).toBeLessThanOrEqual(40);
   });
 });
