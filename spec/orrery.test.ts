@@ -77,9 +77,17 @@ describe("the Orrery's script", () => {
     const seen = new Set<string>();
     const phases = new Set<number>();
     for (let turnNo = 0; turnNo < 60 && b.status === "fighting"; turnNo++) {
-      // Keep the party standing, and walk the Orrery's HP down a little each turn.
+      // Keep the party standing, and walk the Orrery's HP down a little each turn. Since ADR-011 an unanswered
+      // Eclipse or Gravity Lunge downs its seat, so standing means Warded and Braced as well as whole: this walk
+      // holds the card rule, not the table's answers.
       const next = structuredClone(b);
-      for (const f of next.standing) if (f.kind === "character") f.hp = f.maxHp;
+      for (const f of next.standing) {
+        if (f.kind !== "character") continue;
+        f.hp = f.maxHp;
+        f.warded = true;
+        f.braced = true;
+        f.gravity = 0;
+      }
       const o = next.standing.find((f) => f.id === "orrery")!;
       o.hp = Math.max(1, Math.round(o.maxHp * (1 - (turnNo + 1) / 70)));
       if (o.hp < o.maxHp * 0.7 && next.phase < 2) next.phase = 2;
@@ -144,10 +152,10 @@ describe("the Orrery's script", () => {
     }
   });
 
-  it("the Lunge that brings Gravity to three isn't lethal; the next one is (the design record's reading)", async () => {
+  it("the Lunge that brings Gravity to the lethal count isn't lethal; the next one is (the design record's reading)", async () => {
     const e = await engine();
-    // docs/design/overhaul.md: "At 3 stacks the next Lunge is lethal". The
-    // Lunge that makes the third stack is an ordinary blow.
+    // docs/design/overhaul.md: "At 3 stacks the next Lunge is lethal". ADR-011 makes the count 2 (GRAVITY_LETHAL,
+    // ours); the reading stands: the Lunge that makes the stack is an ordinary blow, the next is lethal.
     const lungeOn = (stacks: number) => {
       const b = table(e, ["warden", "striker", "mender"]);
       const next = structuredClone(b);
@@ -156,29 +164,29 @@ describe("the Orrery's script", () => {
       w.hp = w.maxHp; // full, so only lethality can fell them
       return bossTurn(e, e.announce(next, { intent: "lunge", targetId: "warden-1", amount: 20, countdown: 0 }));
     };
-    const third = lungeOn(2);
-    expect(fighter(third.battle, "warden-1").hp, "the Lunge that makes three stacks leaves them standing").toBeGreaterThan(0);
-    expect(fighter(third.battle, "warden-1").gravity, "and they now carry three").toBe(3);
-    expect(events(third, "gravity").filter((x) => x.lethal === true), "nothing lethal yet").toEqual([]);
+    const making = lungeOn(1);
+    expect(fighter(making.battle, "warden-1").hp, "the Lunge that makes two stacks leaves them standing").toBeGreaterThan(0);
+    expect(fighter(making.battle, "warden-1").gravity, "and they now carry two").toBe(2);
+    expect(events(making, "gravity").filter((x) => x.lethal === true), "nothing lethal yet").toEqual([]);
 
-    const fourth = lungeOn(3);
-    const fell = fourth.battle.fallen.some((f) => f.id === "warden-1") || fighter(fourth.battle, "warden-1").hp === 0;
-    expect(fell, "at three stacks, the next Lunge is lethal").toBe(true);
+    const next = lungeOn(2);
+    const fell = next.battle.fallen.some((f) => f.id === "warden-1") || fighter(next.battle, "warden-1").hp === 0;
+    expect(fell, "at two stacks, the next Lunge is lethal").toBe(true);
   });
 
-  it("Gravity is lethal at three stacks unless a second Warden Anchors the Lunge", async () => {
+  it("Gravity is lethal at its stacks unless a second Warden Anchors the Lunge", async () => {
     const e = await engine();
     const setUp = () => {
       let b = table(e, ["warden", "warden", "striker"]);
       const next = structuredClone(b);
-      next.standing.find((f) => f.id === "warden-1")!.gravity = 3;
+      next.standing.find((f) => f.id === "warden-1")!.gravity = 2;
       b = e.announce(next, { intent: "lunge", targetId: "warden-1", amount: 30, countdown: 0 });
       return b;
     };
 
     const unanswered = bossTurn(e, setUp());
     const fell = unanswered.battle.fallen.some((f) => f.id === "warden-1") || fighter(unanswered.battle, "warden-1").hp === 0;
-    expect(fell, "a Lunge on three Gravity stacks, unanswered, is lethal").toBe(true);
+    expect(fell, "a Lunge on two Gravity stacks, unanswered, is lethal").toBe(true);
     expect(events(unanswered, "gravity")[0], "and says so").toMatchObject({ targetId: "warden-1", lethal: true, anchoredBy: null });
 
     const b = setUp();
