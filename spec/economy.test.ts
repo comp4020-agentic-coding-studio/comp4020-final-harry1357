@@ -270,15 +270,17 @@ describe("the action economy", () => {
 
 describe("the five roles", () => {
   // The design record's table (docs/design/overhaul.md, Priority 2), with each
-  // action's rank. Intercept is a Reaction and takes no turn (rank 0 here).
-  // Brace is everyone's (rule 17).
+  // action's rank. A Reaction takes no turn (rank 0 here): Intercept was the
+  // record's, and ADR-011 gives every role one (rule 18): Veil, Riposte,
+  // Fracture and Nudge. Brace is everyone's (rule 17).
   const ROLE_TABLE: Record<string, Record<string, number>> = {
     warden: { brace: 2, intercept: 0, anchor: 2, bastion: 4, counterweight: 3 },
-    mender: { brace: 2, mend: 2, ward: 3, quicken: 3, restore: 5 },
-    striker: { brace: 2, jab: 1, cleave: 3, finisher: 4, feint: 2 },
-    breaker: { brace: 2, scan: 2, pry: 3, mark: 2, shatter: 4 },
-    chronist: { brace: 2, delay: 3, haste: 3, relay: 1, stillpoint: 5 },
+    mender: { brace: 2, veil: 0, mend: 2, ward: 3, quicken: 3, restore: 5 },
+    striker: { brace: 2, riposte: 0, jab: 1, cleave: 3, finisher: 4, feint: 2 },
+    breaker: { brace: 2, fracture: 0, scan: 2, pry: 3, mark: 2, shatter: 4 },
+    chronist: { brace: 2, nudge: 0, delay: 3, haste: 3, relay: 1, stillpoint: 5 },
   };
+  const REACTIONS = ["intercept", "veil", "riposte", "fracture", "nudge"];
 
   it("each of the five roles has every action in the design record, at the stated rank", async () => {
     const protocol = (await import("../src/shared/protocol.ts")) as unknown as {
@@ -292,7 +294,7 @@ describe("the five roles", () => {
         expect(protocol.ACTIONS[action]?.rank, `${action} is rank ${rank}`).toBe(rank);
       }
     }
-    expect(protocol.ACTIONS.intercept?.reaction, "Intercept is a Reaction").toBe(true);
+    for (const r of REACTIONS) expect(protocol.ACTIONS[r]?.reaction, `${r} is a Reaction`).toBe(true);
     expect(Object.keys(protocol.ROLES).sort(), "five roles, and only these").toEqual(Object.keys(ROLE_TABLE).sort());
   });
 
@@ -319,7 +321,7 @@ describe("the five roles", () => {
     const targets: Record<string, string | null> = { mend: "striker-2", ward: "striker-2", quicken: "striker-2", haste: "striker-2", restore: "striker-2" };
     for (const [role, actions] of Object.entries(ROLE_TABLE)) {
       for (const action of Object.keys(actions)) {
-        if (action === "intercept") continue; // a Reaction, held above
+        if (REACTIONS.includes(action)) continue; // a Reaction: spec/mechanics.test.ts holds each
         let b = prepare(table(e, [role, "striker"]), role, action);
         let target = targets[action] ?? null;
         if (["anchor", "delay", "stillpoint"].includes(action)) {
