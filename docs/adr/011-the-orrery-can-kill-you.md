@@ -97,16 +97,23 @@ Each is one spec in `spec/difficulty.test.ts` that names the mechanic and
 the seat, so the fight can later say what killed you.
 
 1. **Gravity.** A Lunge on a seat that hasn't been swapped, and that isn't
-   Braced, downs it once it carries Gravity: from the **second** stack
-   (`GRAVITY_LETHAL`, 2, was 3), the Lunge takes everything. Bracing halves it
-   instead (the seat survives on its HP); a Warden's Anchor or Intercept
-   swaps it. **A blow a Warden takes on purpose is never lethal**: that is
-   the swap. A Ward takes it, as before.
+   Braced, downs it once it carries Gravity: on a seat already carrying
+   `GRAVITY_LETHAL` stacks (2, was 3), the Lunge takes everything. The stacks
+   are counted as they stood when the Orrery's turn began, so two Lunges
+   landing on one turn (a Delay can double one up) can't make a stack and
+   crush with it before anyone could answer. Bracing halves it instead (the
+   seat survives on its HP); a Warden's Anchor or Intercept swaps it. **A
+   blow a Warden takes on purpose is never lethal**: that is the swap. A Ward
+   takes it, as before.
 2. **Perihelion.** Unmet, it deals its full amount to every seat, and that
-   amount is now the whole party's death (`AMOUNT.perihelion`). Met is any of:
-   the outer ring Broken (halves it), a Bastion (takes 40% off), Brace (halves
-   it for the seat). A table that Breaks and Bastions survives it; one that
-   does nothing doesn't.
+   amount is more than any seat's HP (`AMOUNT.perihelion`, 360 before
+   `CARD_DAMAGE`: 180). Met is any of: the outer ring Broken (an eighth of it:
+   the design record's halving, steeper), a Bastion (`BASTION_CUT`, now 60%
+   off, more with Charge), Brace (halves it for the seat). A blow on a ring
+   whose weakness the Breaker has revealed cracks a shield pip off it
+   (Octopath's Break, the design record's "hitting weaknesses removes
+   shields"), so every role that strikes can help Break the outer ring, and
+   a table without a Breaker has the Warden's Bastion and its own Braces.
 3. **Retrograde.** Uncancelled, it costs the table **a full rotation of the
    strip**: every seat's counter is set back by a whole Standard turn of its
    own, after the five-slot flip. The Orrery's counter isn't touched (rule 1:
@@ -114,7 +121,9 @@ the seat, so the fight can later say what killed you.
    next turns come before the table's. A Chronist's Delay or Stillpoint
    cancels it, as before.
 4. **Eclipse.** On a seat that isn't Warded, it downs it. A Ward takes it. A
-   Brace doesn't: an Eclipse is a shadow, not a blow.
+   Brace, the seat's own shield, halves it as an ordinary blow: every seat
+   has an answer it can make on its own turn, and an Echo never makes it
+   against a single-target card.
 5. **The Grand Alignment's third card wipes**, as now.
 
 ### Every role has one Reaction
@@ -126,6 +135,10 @@ once between two boss turns. The other four, chosen from item 14's
 candidates or better, each answering the card that most threatens what that
 role is for:
 
+- **Warden: Intercept**, as before, against a single-target blow aimed at an
+  ally, which it takes onto itself; and now against one aimed at the Warden,
+  which it stands into (Warded: below). The Warden is the well's usual body,
+  and before this it had no Reaction to its own Lunge.
 - **Mender: Veil**, against a single-target blow (an Eclipse or a Lunge) aimed
   at anyone standing: the target is Warded now. Item 14's candidate was a
   "Brace-for-ally"; Veil is a Ward instead, because a Ward is what answers
@@ -191,7 +204,9 @@ the screen hides the rings' glyphs when it draws it.
 
 ### Echoes play their job, not the fight
 
-An Echo heals, tanks, strikes, scans and delays by its policy. It **never**
+An Echo heals, tanks, strikes, scans and delays by its policy, and Braces
+before a blow on everyone (a Perihelion, or a Revolution while hurt): Brace
+is everyone's, and it is no Reaction, swap, cancel, ring or Charge. It **never**
 takes a Reaction, never swaps on Gravity (Anchor), never cancels Retrograde
 (Delay or Stillpoint at one), never chooses a ring, and never spends Charge
 (its signature moves wait until it has none). Those answers are a person's.
@@ -217,7 +232,19 @@ are the cards Echoes don't answer.
   The measurement below includes that.
 - **The numbers are ours.** Every value in `tuning.ts` that this ADR adds or
   changes is marked so, and was chosen by the measurement below, not by
-  feel.
+  feel. Besides the teeth's, they include the Orrery's rotation (one Eclipse
+  and one Lunge each, Revolutions between), the strip held three Orrery turns
+  ahead (was two: a Mender gets a turn between a shadow's announcing and its
+  landing), a lighter Revolution (chip, not the threat), base HP 120 (was
+  160), and `ECHO_POTENCY` 0.6 (was 0.75: item 18's first lever, which this
+  ADR rejected as the main one, turned out to be the last notch the
+  Brace-only floor needed).
+- **Four rooms no longer meet the enrage.** Of the thirty rooms of one to
+  three seats `spec/pace.test.ts` plays by policy, seven used to run past
+  turn forty; three still do (a lone Mender, two Menders, a Mender and a
+  Chronist), the tables with no blow and a Mender to keep them standing.
+  The enrage itself is unchanged, and its specs now hold it with a table
+  that only defends.
 
 ## How it was tuned
 
