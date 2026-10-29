@@ -28,6 +28,7 @@ import { door } from "./door.ts";
 import { mountJoin } from "./join/join.ts";
 import { getJSON, postJSON, watchBattle, watchRoom, type Link, type RoomGone, type Watch } from "./net.ts";
 import { createLobby } from "./lobby/lobby.ts";
+import { createNudge } from "./nudge.ts";
 import { createScreen } from "./screen.ts";
 import { createSeats } from "./seats/seats.ts";
 import { createScene } from "./scene/scene.ts";
@@ -98,6 +99,8 @@ const app = {
 };
 
 const conductor = createConductor({ scene, strip, audio, log, registry: RENDERERS, onState });
+// Your turn, said in the tab's title and by a phone's buzz (RICE item 2), from the server's activeId alone.
+const nudge = createNudge({ doc: document, vibrate: (p) => (typeof navigator.vibrate === "function" ? navigator.vibrate(p) : false) });
 
 function say(text: string): void {
   announce.textContent = "";
@@ -171,6 +174,7 @@ function onState(state: BattleState): void {
   app.state = state;
   const mine = standing(state, app.myId);
   document.body.dataset.me = app.myId ?? "";
+  nudge.update(state, app.myId);
   seats.render(state, app.myId, app.code);
   const was = screen.phase();
   screen.state(state, app.myId);
