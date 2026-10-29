@@ -112,7 +112,7 @@ export function showRingMarks(ctx: EffectContext): void {
 export function showMarks(ctx: EffectContext, id: string): void {
   const t = tokenOf(ctx, id);
   if (!t || t.kind !== "character") return;
-  ctx.scene.status(id, isStanding(ctx, id) ? marksOf(t) : []);
+  ctx.scene.status(id, isStanding(ctx, id) ? marksOf(t, null, (ctx.state as BattleState | undefined)?.gravityLethal ?? null) : []);
 }
 
 /** A character's Ward, from the state: a blow it took has already cleared it. */

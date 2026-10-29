@@ -16,10 +16,11 @@ const ORDER: readonly StatusMark["kind"][] = ["gravity", "warded", "braced", "ha
  * is left (it holds until their next turn), when the caller has watched their
  * counter fall; otherwise the Brace is drawn whole.
  */
-export function marksOf(t: Token, bracedLeft: number | null = null): StatusMark[] {
+export function marksOf(t: Token, bracedLeft: number | null = null, lethalAt: number | null = null): StatusMark[] {
   if (t.kind !== "character" || t.hp <= 0) return [];
   const marks: StatusMark[] = [];
-  if (t.gravity > 0) marks.push({ kind: "gravity", left: null, count: t.gravity });
+  // Lethal by the server's count (state.gravityLethal), never a number of the screen's own (the owner's ruling, C3).
+  if (t.gravity > 0) marks.push({ kind: "gravity", left: null, count: t.gravity, lethal: lethalAt !== null && t.gravity >= lethalAt });
   if (t.warded) marks.push({ kind: "warded", left: null });
   if (t.braced) marks.push({ kind: "braced", left: bracedLeft });
   if (t.hasted) marks.push({ kind: "hasted", left: null });

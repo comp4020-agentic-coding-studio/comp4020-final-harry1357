@@ -109,8 +109,8 @@ export function createScene(root: HTMLElement, { manifest, orrerySvg }: PartsOpt
   }
 
   /** Every state-drawn phase-two mark on one character. */
-  function seatMarks(a: Actor, t: Token): void {
-    party.setMarks(a, marksOf(t, braceLeft(t)));
+  function seatMarks(a: Actor, t: Token, lethalAt: number | null): void {
+    party.setMarks(a, marksOf(t, braceLeft(t), lethalAt));
     party.setEcho(a, t.echo ? (t.seatedBy ? "seated" : "timeout") : null);
     party.setDrifting(a, t.drifting && t.hp > 0);
     party.setWard(a, t.warded);
@@ -435,7 +435,7 @@ export function createScene(root: HTMLElement, { manifest, orrerySvg }: PartsOpt
         party.setGuard(a, t.braced);
         party.setHaste(a, t.hasted);
         party.setMine(a, t.id === myId);
-        seatMarks(a, t);
+        seatMarks(a, t, state.gravityLethal ?? null);
       }
 
       for (const t of state.fallen) {

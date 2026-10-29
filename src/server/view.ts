@@ -11,6 +11,7 @@ import { ACTIONS, ROLES, type ActionId, type ActionPreview, type BattleState, ty
 import { counterReset } from "./ctb.ts";
 import { reactionCardOf } from "./economy.ts";
 import { alignmentLeft, bastionCard } from "./orrery.ts";
+import { GRAVITY_LETHAL } from "./tuning.ts";
 import { previewRank } from "./roles.ts";
 import { act, checkAction, echoRolesOpen, isLobby, plateMs, type Battle, type Fighter } from "./rules.ts";
 
@@ -152,6 +153,7 @@ export function view(b: Battle, timing: Timing): BattleState {
     pullAt: b.status === "waiting" ? b.pullAt : null,
     preview: preview(b, timing.turnMs),
     alignmentLeft: alignmentLeft(b),
+    gravityLethal: GRAVITY_LETHAL,
     bastion: b.bastion,
     bastionCard: bastionCard(b),
   };
@@ -185,6 +187,7 @@ export function archived(id: string, row: { status: BattleStatus }, log: LogEntr
     pullAt: null,
     preview: null,
     alignmentLeft: null,
+    gravityLethal: GRAVITY_LETHAL,
     bastion: false,
     bastionCard: null,
   };

@@ -292,6 +292,9 @@ export interface BattleState {
   /** How many Alignments are still to resolve before the Grand Alignment's wipe; null until it begins, in phase
    *  III or past the Orrery's fortieth turn, whatever the phase (the enrage, ADR-010). */
   alignmentLeft: number | null;
+  /** Gravity stacks at which the next Lunge on a seat is lethal (ADR-011's GRAVITY_LETHAL). The screen marks a
+   *  seat's Gravity lethal from this, never from a number of its own (the owner's ruling, C3). */
+  gravityLethal: number;
   /** Whether a Warden's Bastion stands against the next blow on everyone. The
    *  Warden's prompt to raise one, and the room's mark on the blow it meets,
    *  are drawn from this. */

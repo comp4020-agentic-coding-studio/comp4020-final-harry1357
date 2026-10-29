@@ -687,7 +687,7 @@ function resolve(b: Battle, actor: Fighter, action: ActionId, raw: string | null
       if (raw === null || raw === BOSS_ID) return { target: defaultRing(b, action).id };
       return isRingId(raw) && b.rings.some((r) => r.id === raw)
         ? { target: raw }
-        : { status: 400, error: `There's no ring called "${raw}". Aim at the outer, middle or inner ring.` };
+        : { status: 400, error: `There's no ring called "${said(raw)}". Aim at the outer, middle or inner ring.` };
     }
     case "card": {
       if (raw !== null) {
@@ -765,3 +765,10 @@ function card(ctx: Ctx, id: string | null): BossCard {
 }
 
 const refuse = (error: string): Refusal => ({ status: 409, error });
+
+/** A name the server refused, said back to its sender at most SAID_MAX characters long (the gate's R-B). */
+const SAID_MAX = 40;
+const said = (raw: string): string => {
+  const chars = [...raw];
+  return chars.length > SAID_MAX ? `${chars.slice(0, SAID_MAX - 1).join("")}…` : raw;
+};

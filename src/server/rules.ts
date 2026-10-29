@@ -302,6 +302,11 @@ export function checkAction(
     return { status: 400, error: `A ${ROLES[role].label} can't do that.` };
   }
   const info = ACTIONS[action as ActionId];
+  // A target is text or absent: anything else is a malformed request, refused like a ring that isn't one, never
+  // read as "no target" and defaulted (the owner's ruling on the difficulty gate's R-A).
+  if (targetId !== undefined && targetId !== null && typeof targetId !== "string") {
+    return { status: 400, error: "A target is named by its id, as text." };
+  }
   const target = typeof targetId === "string" ? targetId : null;
 
   // A Reaction is out of turn, against a telegraphed card, once per boss turn (rule 18).
@@ -482,6 +487,7 @@ export function advance(b: Battle, clock: Clock): Step | null {
       orrery.takeTurn(ctx);
       economy.afterBossTurn(ctx);
       ctx.orrery().counter = orreryReset(ctx.b);
+      behindTheOrrery(ctx);
       return finish(ctx);
     }
     // An Echo waits out its beat for its person (rule 8); then the server plays it.
@@ -503,6 +509,23 @@ export function advance(b: Battle, clock: Clock): Step | null {
   for (const f of next.standing) f.counter -= 1;
   next.tick += 1;
   return finish(context(next, clock));
+}
+
+/**
+ * ADR-011's third tooth, as the owner ruled it (C2): after an uncancelled Retrograde every seat comes round after
+ * the Orrery's next turn, in a one-seat room too. Its set-back (orrery.ts) is the slowest seat's Standard turn;
+ * where the Orrery's own reset is longer than that, every seat is set back the same further amount, so the
+ * flipped order holds, and the event's setBack says the whole of it. Only once the Orrery's counter is reset can
+ * this be known, so it is here, before anything is broadcast.
+ */
+function behindTheOrrery(ctx: Ctx): void {
+  const flip = ctx.fx.events.find((ev): ev is Extract<BattleEvent, { kind: "retrograde" }> => ev.kind === "retrograde" && ev.cancelledBy === null);
+  if (!flip) return;
+  const party = ctx.party();
+  if (party.length === 0) return;
+  const more = Math.max(0, ctx.orrery().counter + 1 - Math.min(...party.map((f) => f.counter)));
+  for (const f of party) f.counter += more;
+  flip.setBack += more;
 }
 
 /** The pull: the fight begins, and the Orrery's HP is set from the seats present (rule 20). */

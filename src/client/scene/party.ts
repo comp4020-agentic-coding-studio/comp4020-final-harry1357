@@ -232,7 +232,7 @@ export function createParty(host: HTMLElement, manifest: SpriteManifest, reduced
     node.dataset.mark = m.kind;
     if (m.left === null) node.dataset.lasting = "";
     else node.style.setProperty("--left", Math.max(0, Math.min(1, m.left)).toFixed(3));
-    if (m.kind === "gravity" && (m.count ?? 0) >= 3) node.dataset.lethal = "";
+    if (m.lethal) node.dataset.lethal = "";
     node.innerHTML = glyphSvg(MARK_GLYPHS[m.kind], "mark-glyph");
     if (m.count !== undefined && m.count > 0) {
       const n = el("span", "mark-count");

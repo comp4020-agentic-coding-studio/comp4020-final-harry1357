@@ -282,6 +282,7 @@ export const stillpoint: Fx<"stillpoint"> = async (raw, e) => {
   await cast(ctx, e.actorId);
   await bounded(ctx, ctx.scene.hitStop(), 160);
   ctx.strip.card(e.cardId, "frozen");
+  showMarks(ctx, e.actorId); // the Charge it spent (the gate's C1)
   await ctx.wait(360);
   rest(ctx, e.actorId);
 };
@@ -290,6 +291,7 @@ export const stillpointReduced: Fx<"stillpoint"> = async (raw, e) => {
   const ctx = stage(raw);
   castReduced(ctx, e.actorId);
   ctx.strip.card(e.cardId, "frozen");
+  showMarks(ctx, e.actorId); // the Charge it spent (the gate's C1)
   await ctx.wait(HOLD);
   rest(ctx, e.actorId);
 };

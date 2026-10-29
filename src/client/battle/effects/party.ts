@@ -90,6 +90,16 @@ async function blowReduced(raw: EffectContext, e: Blow, look: Look): Promise<voi
   rest(ctx, e.actorId);
 }
 
+/**
+ * A signature move spent the actor's Charge (rule 17, ADR-011): its meter mark is redrawn from state before the
+ * renderer returns, so the spend is shown before its log line ("…3 Charge behind it…") is written (rule 11;
+ * the gate's C1). The conductor's reconcile comes only after the queue drains, after the line.
+ */
+async function spends(raw: EffectContext, actorId: string, drawn: Promise<void> | void): Promise<void> {
+  await drawn;
+  showMarks(stage(raw), actorId);
+}
+
 // Jab: the Striker's own quick blow (its sheet's jab: ready, lunge, recover,
 // without the attack's wind-up), rank 1, gathering the least.
 const JAB: Look = { weight: "quick", tone: "harm", anim: "jab" };
@@ -103,8 +113,8 @@ export const cleaveReduced: Fx<"cleave"> = (ctx, e) => blowReduced(ctx, e, cleav
 
 /** Finisher: everything banked, at once. Double, and a Resonance, on a Broken ring. */
 const finisherLook = (e: { broken: boolean }): Look => ({ weight: "heavy", tone: e.broken ? "resonance" : "harm", ring: true });
-export const finisher: Fx<"finisher"> = (ctx, e) => blow(ctx, e, finisherLook(e));
-export const finisherReduced: Fx<"finisher"> = (ctx, e) => blowReduced(ctx, e, finisherLook(e));
+export const finisher: Fx<"finisher"> = (ctx, e) => spends(ctx, e.actorId, blow(ctx, e, finisherLook(e)));
+export const finisherReduced: Fx<"finisher"> = (ctx, e) => spends(ctx, e.actorId, blowReduced(ctx, e, finisherLook(e)));
 
 /** Feint: an Exposed stack spent for a sure Resonance. */
 const FEINT: Look = { weight: "quick", tone: "resonance", ring: true };
@@ -174,8 +184,8 @@ export const markReduced: Fx<"mark"> = (ctx, e) => ringWorkReduced(ctx, e, MARK)
 
 /** Shatter: a ring broken outright. */
 const SHATTER: RingWork = { pose: "attack", bolt: "bolt", strikes: true, heavy: true };
-export const shatter: Fx<"shatter"> = (ctx, e) => ringWork(ctx, e, SHATTER);
-export const shatterReduced: Fx<"shatter"> = (ctx, e) => ringWorkReduced(ctx, e, SHATTER);
+export const shatter: Fx<"shatter"> = (ctx, e) => spends(ctx, e.actorId, ringWork(ctx, e, SHATTER));
+export const shatterReduced: Fx<"shatter"> = (ctx, e) => spends(ctx, e.actorId, ringWorkReduced(ctx, e, SHATTER));
 
 // --- brace and bastion ----------------------------------------------------------------
 
@@ -291,6 +301,7 @@ export const restore: Fx<"restore"> = async (raw, e) => {
   const t = tokenOf(ctx, e.targetId);
   if (t) ctx.scene.number(e.targetId, t.hp, "heal", e.seq);
   void ctx.scene.afterimage(e.targetId);
+  showMarks(ctx, e.actorId); // the Charge it spent (the gate's C1)
   await bounded(ctx, cast, 500);
   rest(ctx, e.actorId);
   if (isStanding(ctx, e.targetId)) void ctx.scene.frame(e.targetId, "idle");
@@ -305,6 +316,7 @@ export const restoreReduced: Fx<"restore"> = async (raw, e) => {
   showSeat(ctx, e.targetId);
   const t = tokenOf(ctx, e.targetId);
   if (t) ctx.scene.number(e.targetId, t.hp, "heal", e.seq);
+  showMarks(ctx, e.actorId); // the Charge it spent (the gate's C1)
   await ctx.wait(HOLD);
   rest(ctx, e.actorId);
 };
