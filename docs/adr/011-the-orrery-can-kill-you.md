@@ -116,8 +116,10 @@ the seat, so the fight can later say what killed you.
    a table without a Breaker has the Warden's Bastion and its own Braces.
 3. **Retrograde.** Uncancelled, it costs the table **a full rotation of the
    strip**: after the five-slot flip, every seat's counter is set back by the
-   same amount, the slowest standing seat's Standard reset, so the flipped
-   order holds. The Orrery's counter isn't touched (rule 1:
+   same amount, the slowest standing seat's Standard reset, and further if
+   that isn't enough for every seat to come round after the Orrery's next
+   turn, in a one-seat room too (the owner's ruling on the gate's C2), so
+   the flipped order holds. The Orrery's counter isn't touched (rule 1:
    the Orrery never moves faster; the table moves slower), so the Orrery's
    next turns come before the table's. A Chronist's Delay or Stillpoint
    cancels it, as before.
@@ -245,6 +247,12 @@ are the cards Echoes don't answer.
   160), and `ECHO_POTENCY` 0.6 (was 0.75: item 18's first lever, which this
   ADR rejected as the main one, turned out to be the last notch the
   Brace-only floor needed).
+- **A table with no Chronist pays every Retrograde in full, and that is
+  deliberate.** Only a person's Delay, Stillpoint or Nudge cancels one; an
+  Echo Chronist never does (rule 25). So a table with no Chronist, or only an
+  Echo one, loses a whole rotation of the strip to every Retrograde, and a
+  lone seat comes round only after the Orrery's next turn. Measured after the
+  ruling: the five targets held unchanged, with no retune.
 - **Four rooms no longer meet the enrage.** Of the thirty rooms of one to
   three seats `spec/pace.test.ts` plays by policy, seven used to run past
   turn forty; three still do (a lone Mender, two Menders, a Mender and a
