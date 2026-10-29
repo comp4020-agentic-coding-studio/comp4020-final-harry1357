@@ -130,12 +130,15 @@ export const expert: Policy = {
     };
     const danger = threat(state, id);
     const others = party(state).filter((x) => x.id !== id);
-    // Everyone's own answer: a lethal blow aimed at me lands next and nothing else meets it; Brace (a Lunge on
-    // Gravity) or, for an Eclipse, hope a Ward comes (a Brace doesn't meet a shadow).
+    // Everyone's own answer: a lethal blow aimed at me lands next and nothing else meets it (a Lunge on Gravity,
+    // or an Eclipse): Brace. A Reaction against it would Ward me before it lands, so only when that won't come.
     const atMe = soonest(state.cards, (c) => c.targetId === id && !c.frozen);
     const lethalAtMe = !!atMe && !t.warded && lands(atMe) === 0 && ((atMe.intent === "lunge" && t.gravity >= 2) || atMe.intent === "eclipse");
-    // A Reaction against it would Ward me before it lands; only Brace when the Reaction won't come.
     if (lethalAtMe && t.reactionCard !== atMe?.id) return go("brace");
+    // A blow on everyone lands next and there's Charge to bank: Brace (rule 17), halving it and banking the Charge
+    // the signature move below spends.
+    const raidNext = soonest(state.cards, (c) => c.targetId === "party" && lands(c) === 0);
+    if (raidNext && raidNext.intent !== "alignment" && t.charge < 2 && t.role !== "warden") return go("brace");
     switch (t.role) {
       case "warden": {
         // The swap: a Lunge on someone else with Gravity on them comes to the Warden.
@@ -143,9 +146,10 @@ export const expert: Policy = {
           return go("anchor", danger.card.id);
         }
         if (danger && danger.why === "eclipse" && danger.card.targetId !== id && ok("anchor")) return go("anchor", danger.card.id);
-        // Perihelion coming with Resolve banked: Bastion it.
+        // Perihelion coming with Resolve banked: Bastion it, Charge deepening the cut.
         const raid = soonest(state.cards, (c) => (c.intent === "perihelion" || c.intent === "revolution") && lands(c) <= 1);
         if (raid && !state.bastion && t.resource > 0 && ok("bastion") && (raid.intent === "perihelion" || t.charge >= 2)) return go("bastion");
+        if (raid && raid.intent !== "perihelion" && t.charge < 2) return go("brace");
         return go("counterweight", blowRing(state));
       }
       case "mender": {
