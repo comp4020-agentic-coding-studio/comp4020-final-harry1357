@@ -59,7 +59,12 @@ export function createLobby(root: HTMLElement, opts: LobbyOptions): Lobby {
   const codeLabel = el("span", "lobby-code-label", "Room code");
   const code = el("span", "lobby-code");
   code.dataset.lobbyCode = "";
-  codeLine.append(codeLabel, code);
+  // The link that opens this room (door.ts reads ?room=), handed on by the share sheet on a phone, else
+  // copied (RICE item 3). The code is the one the server gave the room (rule 22); this only passes it on.
+  const share = el("button", "lobby-share");
+  share.type = "button";
+  share.dataset.share = "";
+  codeLine.append(codeLabel, code, share);
   const last = el("p", "lobby-last");
   last.hidden = true;
   const seatsTitle = el("p", "lobby-label");
@@ -112,6 +117,25 @@ export function createLobby(root: HTMLElement, opts: LobbyOptions): Lobby {
     if (current) draw(...current, true);
   }
 
+  const canShare = (): boolean => typeof navigator.share === "function";
+  share.addEventListener("click", () => {
+    const roomCode = current?.[2];
+    if (!roomCode) return;
+    const url = `${location.origin}/?room=${encodeURIComponent(roomCode)}`;
+    said.textContent = "";
+    const sent = canShare()
+      ? navigator.share({ title: "The Orrery", text: `Sit down at my table: room ${roomCode}.`, url }).then(() => "")
+      : navigator.clipboard.writeText(url).then(() => "Link copied. Anyone who opens it sits down in this room.");
+    sent.then(
+      (done) => (said.textContent = done),
+      (err: unknown) => {
+        // Closing the share sheet isn't a failure; anything else is said once, with the code to read out instead.
+        if (err instanceof Error && err.name === "AbortError") return;
+        said.textContent = `The link couldn't be ${canShare() ? "shared" : "copied"}. Read out the code instead: ${roomCode}.`;
+      },
+    );
+  });
+
   start.addEventListener("click", () => void press(opts.onStart, null));
   leave.addEventListener("click", () => void press(opts.onLeave, "You leave the table."));
 
@@ -126,6 +150,8 @@ export function createLobby(root: HTMLElement, opts: LobbyOptions): Lobby {
     shownKey = key;
 
     code.textContent = roomCode ?? "";
+    share.hidden = !roomCode;
+    share.textContent = canShare() ? "Share the link" : "Copy the link";
     code.setAttribute("aria-label", roomCode ? `Room code ${[...roomCode].join(" ")}` : "No code");
     last.hidden = outcome === null;
     last.textContent = outcome ? OUTCOME_LINE[outcome] : "";
