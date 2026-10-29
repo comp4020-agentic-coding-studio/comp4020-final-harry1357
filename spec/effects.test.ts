@@ -209,6 +209,13 @@ const PINNED: Record<string, { branches: Record<string, unknown>[]; want: Pin[] 
   },
   end: { branches: [{}, { outcome: "lost" }, { outcome: "abandoned" }], want: [["scene.banner", ANY_BUT_NULL]] },
   revolution: { branches: [{}], want: [["scene.hit", "hit"], ["scene.number", "hit", "*", "*"], ["scene.hp", "hit", "*", "*"]] },
+  // ADR-011: every role's Reaction, and the sting each leaves. The Veil Wards whoever the blow is aimed at, the
+  // Riposte the Striker, the Nudge pushes the named card back, and the sting's number is what came off.
+  veil: { branches: [{}, { targetId: "ally-1" }], want: [["scene.ward", "=targetId", true], ["strip.card", "=cardId", "retargeted"]] },
+  riposte: { branches: [{}], want: [["scene.ward", "me", true], ["scene.guard", "me", true]] },
+  fracture: { branches: [{}], want: [["scene.ringMarks", "*", "*"]] },
+  nudge: { branches: [{}], want: [["strip.card", "=cardId", "delayed"]] },
+  sting: { branches: [{}, { amount: 3 }], want: [["scene.number", "orrery", "=amount", "harm"]] },
   perihelion: { branches: [{}], want: [["scene.hit", "hit"], ["scene.number", "hit", "*", "*"], ["scene.hp", "hit", "*", "*"]] },
 };
 
