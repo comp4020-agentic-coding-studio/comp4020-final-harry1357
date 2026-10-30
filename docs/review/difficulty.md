@@ -235,23 +235,97 @@ and the rest are recorded:
 | Bastion's blurb says 40% | Risk, recorded: it misstates a tuning value on the button. |
 | 4-6: weak tests (F1, T3, T4) | Listed for the next phase. |
 
+## The owner's rulings, and a third confirm pass
+
+The owner ruled on C1 to C3 and the breaker's two risks: C2, the ADR stands
+and the code moves; C1, mechanical; C3, the threshold read from state, at
+whatever ADR-011 names; R-A refused with a 400; R-B capped at forty
+characters; and the look-alike sweep its own timeout. Then one confirm pass
+on those fixes alone, and the gate closes under the stopping rule if it
+finds no violation.
+
+**What was done** (`0d85dbd` red, `b30adbf` code, `82f04f9` ADR, `fae8574`
+the sweep's timeout):
+
+- **C2:** after an uncancelled Retrograde, `rules.ts` sets every seat back
+  the same further amount once the Orrery's counter is reset, so every seat
+  comes round after the Orrery's next turn, in a one-seat room too; the
+  event's `setBack` says the whole of it. ADR-011 records the cost: a table
+  with no Chronist, or only an Echo one, pays every Retrograde in full.
+- **C1:** Restore, Finisher, Shatter and Stillpoint redraw the spender's
+  marks before they return.
+- **C3: the mark moved, not the kill.** ADR-011 names `GRAVITY_LETHAL`, 2.
+  The state carries `gravityLethal`, and the screen's mark is drawn from it.
+- **R-A:** a target that isn't text is refused with a 400; null still takes
+  the default. **R-B:** the name said back is at most forty characters.
+
+**The five targets, re-measured after C2, unchanged, no retune:** naive
+wiped before phase III in 25 of 31, competent won 11, expert 30, every solo
+Brace-only table wiped before III, every solo expert won. 18 uncancelled
+Retrogrades landed across those fights, one in a one-seat room.
+
+**On a fresh image of `fae8574`** (a new volume): the roster 356 of 356;
+the probe's worst other-browser update 10.1 ms; `check:viewports`,
+`check:keyboard` (26 stops) and `check:tags` green. Getting there, recorded
+as history: the first image run timed out almost everywhere across a
+network outage overnight; the next three each lost a different two to five
+timing and page tests, every one green alone, with the load near 11 from
+three headless Chromes orphaned by the cut-off run and Spotlight indexing.
+With the orphans stopped, the next run was 356 of 356.
+
+**The confirm pass** (one fresh reviewer; its first run died on a network
+error and was resumed with its context). It held C1, C2, C3 in code, R-A,
+the cap, the sweep's timeout, rules 1, 2, 11, 13, 21 and 25, ADR-010's band
+and enrage, and the five targets. It found two violations:
+
+- **Rule 32.** A refused ring name still reaches stdout: the 400's error is
+  the refusal line's `reason=`. Shown on the image:
+  `reason="There's no ring called \"SECRETSECRET…"`. R-B capped it at forty
+  characters; the rule allows none. The echo is older than R-B, and the
+  record had closed R-B on the body alone; `spec/refusals.test.ts` only
+  checks that a reason is present, and `told-apart`'s cookie sensor checks
+  for the whole cookie, so a forty-character prefix passes it.
+- **ADR-011.** The Consequences sentence `82f04f9` added, "only a person's
+  Delay, Stillpoint or Nudge cancels one", is false: a Breaker's charged
+  Shatter pushes the soonest card and marks it touched, which cancels a
+  Retrograde.
+
+And, test strength: C3's test would pass a `marksOf` that hard-codes 2 and
+never drives the scene's wiring; C1's test token carries no marks, so a
+redraw that wipes them passes; no test holds the flipped order when the
+extra set-back is above zero, nor `setBack`'s truth; R-B's test reads only
+between straight quotes; R-A's covers `jab` only. Risks: R-A answers a
+malformed target before the turn check (a 400, not rule 10's 409), and
+reaches every action, not only rings; the mark cache's key leaves out
+`lethal`; "lethal at 3" survives in two comments.
+
+### Disposition of the third confirm pass
+
+| finding | disposition |
+| --- | --- |
+| Rule 32: a refused ring name in the log | **Open, carried red as C4** (`spec/carried-difficulty.test.ts`, a server of its own, a name no line may carry). |
+| ADR-011: who cancels a Retrograde | **Open, carried red as C5.** Either Shatter's push stops cancelling one, or the sentence names the Breaker; the test holds the sentence as written, so the code would move, but that is the owner's call, as C2's was. |
+| C1, C2, C3, R-A, R-B test strength | Listed for the next phase. |
+| R-A before the turn check; R-A on every action; the mark cache's key; "lethal at 3" in comments | Risks, recorded. |
+
 ## The gate stands open
 
 Every finding from the first pass is fixed, recorded as history, or recorded
 as a risk. The confirm pass found two rule or ADR violations and one more
-outside its scope, carried as three red tests. The last review found a
-violation, so **the gate is not closed** (CLAUDE.md: a gate closes when "the
-last review finds no rule or ADR violation"), and **the branch does not merge
-to main while C1 to C3 are open.** The branch is pushed, unmerged.
+outside its scope, carried as three red tests. C1 to C3 are closed. The last review, the third
+confirm pass, found two violations, so **the gate is not closed** (CLAUDE.md:
+a gate closes when "the last review finds no rule or ADR violation"), and
+**the branch does not merge to main while C4 and C5 are open.** The branch is
+pushed, unmerged.
 
-The roster on the branch's tip: 347 green, and the carried file's 6 red, by
-design.
+The roster on the branch's tip: 356 green, and the carried file's C4 and C5
+red, by design.
 
 ### For the next phase
 
-- Close C1 to C3: then one review pass on that fix, under the stopping rule.
-- C2 needs a decision first: keep the clause and set a solo table back
-  further, or drop the clause.
+- Close C4 and C5: then one confirm pass on that fix, under the stopping rule.
+- C5 needs a ruling first: Shatter's push stops cancelling a Retrograde, or
+  ADR-011 names the Breaker.
 - Risks: F3 (self-Ward unsaid in the log), "halved", the Bastion's 40%, an
   Echo that has Braced never taking its signature again, R-A and R-B, and the
   three-person table's eight Orrery turns.
