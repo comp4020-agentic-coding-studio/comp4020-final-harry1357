@@ -311,9 +311,9 @@ reaches every action, not only rings; the mark cache's key leaves out
 ## The gate stands open
 
 Every finding from the first pass is fixed, recorded as history, or recorded
-as a risk. The confirm pass found two rule or ADR violations and one more
-outside its scope, carried as three red tests. C1 to C3 are closed. The last review, the third
-confirm pass, found two violations, so **the gate is not closed** (CLAUDE.md:
+as a risk. The second confirm pass found two rule or ADR violations and one
+more outside its scope, carried red as C1 to C3; the owner's rulings closed
+all three. The last review, the third confirm pass, found two violations, so **the gate is not closed** (CLAUDE.md:
 a gate closes when "the last review finds no rule or ADR violation"), and
 **the branch does not merge to main while C4 and C5 are open.** The branch is
 pushed, unmerged.
