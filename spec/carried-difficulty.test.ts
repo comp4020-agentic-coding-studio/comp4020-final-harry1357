@@ -87,3 +87,53 @@ describe("the breaker's R-A and R-B: a ring the server doesn't offer (the owner'
     expect([...said].length, `the name said back: ${said.length} characters`).toBeLessThanOrEqual(40);
   });
 });
+
+describe("C4 (rule 32): a refused ring name never reaches the log (the third confirm pass)", () => {
+  it("the name sent is in no stdout line, the refusal line's reason included", async () => {
+    const { boot, scratchDatabase } = await import("./boot.ts");
+    const { newBattle, join, act, battle } = await import("./raid.ts");
+    const server = await boot(scratchDatabase(), { TICK_MS: "20" });
+    try {
+      const id = await newBattle(server.base);
+      const me = await join(server.base, id, `Probe ${Date.now() % 1000}`, "striker");
+      const other = await join(server.base, id, `Other ${Date.now() % 1000}`, "warden");
+      for (let i = 0; i < 400; i++) {
+        const st = await battle(server.base, id);
+        if (st.activeId === me.characterId) break;
+        if (st.activeId === other.characterId) await act(server.base, id, other.cookie, "brace");
+        await new Promise((r) => setTimeout(r, 20));
+      }
+      const secret = "ZQXJ-a-ring-nobody-offers";
+      const res = await act(server.base, id, me.cookie, "jab", secret);
+      expect(res.status, "refused").toBe(400);
+      await new Promise((r) => setTimeout(r, 200));
+      expect(server.stdout().filter((l) => l.includes("ZQXJ")), "lines carrying the name sent").toEqual([]);
+    } finally {
+      await server.kill();
+    }
+  }, 60_000);
+});
+
+describe("C5 (ADR-011's Consequences): only a Chronist's Delay, Stillpoint or Nudge cancels a Retrograde", () => {
+  it("a Breaker's charged Shatter pushes a Retrograde back, and it still flips the strip", async () => {
+    const { engine, table, turn, bossTurn, events } = await import("./engine.ts");
+    const e = await engine();
+    let b = structuredClone(table(e, ["breaker", "striker", "warden"]));
+    b.cards = [];
+    const me = b.standing.find((f) => f.id === "breaker-1")!;
+    me.resource = 3;
+    me.charge = 1;
+    b.rings.find((r) => r.id === "outer")!.pips = 2;
+    b = e.announce(b, { intent: "retrograde", targetId: null, amount: null, countdown: 0 });
+    const shattered = turn(e, b, "breaker-1", "shatter", "outer").battle;
+    let cur = shattered;
+    const seen: { flipped: unknown; cancelledBy: unknown }[] = [];
+    for (let i = 0; i < 4 && cur.cards.some((c) => c.intent === "retrograde"); i++) {
+      const step = bossTurn(e, cur);
+      seen.push(...events(step, "retrograde").map((x) => ({ flipped: x.flipped, cancelledBy: x.cancelledBy })));
+      cur = step.battle;
+    }
+    expect(seen.filter((x) => x.cancelledBy === "breaker-1"), "no Breaker cancels it").toEqual([]);
+    expect(seen.some((x) => x.flipped === true), "it flips when it lands").toBe(true);
+  });
+});
