@@ -46,7 +46,10 @@ nothing else, and sends it on the `end` event and on the state
 it from there; a page that opens a room after the end sees the next fight,
 not the last one's cause, and the end's log line is where that cause stays.
 On a bare battle, a page that arrives after the end reads the state's
-`ending` (the gate's 1d). It carries:
+`ending` while the fight is still in memory (`DROP_AFTER_MS`); once it has
+left memory, or the server has restarted, the state is the archived one and
+its `ending` is null, and the end's log line is the cause (the gate's 1d
+and the breaker's V5). It carries:
 
 - **lost:** the card that downed the table's last seat, its target (a seat,
   or `party` for a card on everyone), what it found there, and **the answers
