@@ -94,7 +94,7 @@ import { BOSS_ID, type BossCard, type Intent, type RingId } from "../shared/prot
 import * as roles from "./roles.ts";
 import { downTheFallen, harm, listNames, type Battle, type Ctx, type Fighter, type RingState } from "./rules.ts";
 import { counterReset } from "./ctb.ts";
-import { foundOn, landed } from "./ending.ts";
+import { foundOn, landed, standingAt } from "./ending.ts";
 import {
   ALIGNMENT_EVERY,
   CARD_DAMAGE,
@@ -207,7 +207,8 @@ export function onWound(ctx: Ctx): void {
  */
 function phaseChange(phase: 2 | 3, enraged: boolean): string {
   const hides = "Every weakness hides again.";
-  if (phase === 2) return `${PHASE_NAME[2]}: the Orrery flips the strip; a Chronist cancels it. ${hides}`;
+  // Two answers cancel a Retrograde (ADR-011, the owner's ruling on C5; the gate's 1f).
+  if (phase === 2) return `${PHASE_NAME[2]}: the Orrery flips the strip; a Chronist, or a Breaker's charged Shatter, cancels it. ${hides}`;
   return enraged
     ? `${cap(PHASE_NAME[3])}, already begun by the clock: the ${ordinal(ALIGNMENT_STEPS)} Alignment wipes the table. ${hides}`
     : `${cap(PHASE_NAME[3])}: every ${ordinal(ALIGNMENT_EVERY)} card is an Alignment, and the ${ordinal(ALIGNMENT_STEPS)} wipes the table. ${hides}`;
@@ -496,6 +497,7 @@ function resolve(ctx: Ctx, card: BossCard): void {
 
 function revolution(ctx: Ctx, card: BossCard): void {
   const found = ctx.b.bastion ? [] : ["no-bastion"];
+  const table = standingAt(ctx.b);
   const { amount, hits, bastion } = raidWide(ctx, card.amount ?? 0);
   ctx.say("boss", BOSS_ID, `The Orrery turns: Revolution, ${amount} to everyone standing${bastion}.`, {
     kind: "revolution",
@@ -503,13 +505,14 @@ function revolution(ctx: Ctx, card: BossCard): void {
     hits,
     cardId: card.id,
   });
-  landed(ctx.b, { cardId: card.id, intent: "revolution", targetId: "party", found });
+  landed(ctx.b, { cardId: card.id, intent: "revolution", targetId: "party", found, table });
   downTheFallen(ctx);
 }
 
 function perihelion(ctx: Ctx, card: BossCard): void {
   const broken = ctx.ring("outer").broken;
   const found = [...(ctx.b.bastion ? [] : ["no-bastion"]), ...(broken ? [] : ["outer-whole"])];
+  const table = standingAt(ctx.b);
   const { amount, hits, bastion } = raidWide(ctx, card.amount ?? 0);
   ctx.say(
     "boss",
@@ -517,7 +520,7 @@ function perihelion(ctx: Ctx, card: BossCard): void {
     `Perihelion: the Orrery swings closest and burns ${amount} into everyone${broken ? ", its outer ring Broken and its heat halved" : ""}${bastion}.`,
     { kind: "perihelion", actorId: BOSS_ID, hits, broken, cardId: card.id },
   );
-  landed(ctx.b, { cardId: card.id, intent: "perihelion", targetId: "party", found });
+  landed(ctx.b, { cardId: card.id, intent: "perihelion", targetId: "party", found, table });
   downTheFallen(ctx);
 }
 
@@ -544,7 +547,8 @@ function eclipse(ctx: Ctx, card: BossCard): void {
   // absorbs it; a Brace (the seat's own shield) halves it as an ordinary blow; a Warden who took it on purpose
   // takes it as an ordinary blow.
   const swap = script(ctx.b).swapped[card.id] === true;
-  const found = foundOn(target, null);
+  const found = foundOn(target, null, swap);
+  const table = standingAt(ctx.b);
   const whole = !target.warded && !target.braced && !swap;
   const taken = whole ? target.hp : harm(target, card.amount ?? 0);
   if (whole) target.hp = 0;
@@ -555,7 +559,7 @@ function eclipse(ctx: Ctx, card: BossCard): void {
     amount: taken,
     cardId: card.id,
   });
-  landed(ctx.b, { cardId: card.id, intent: "eclipse", targetId: target.id, found });
+  landed(ctx.b, { cardId: card.id, intent: "eclipse", targetId: target.id, found, table });
   downTheFallen(ctx);
 }
 
@@ -574,7 +578,8 @@ function lunge(ctx: Ctx, card: BossCard): void {
   // purpose (the swap), it was Braced (halved, as an ordinary blow) or Warded (absorbed).
   const swap = s.swapped[card.id] === true;
   const carried = Math.min(target.gravity, s.gravityBefore[target.id] ?? target.gravity);
-  const found = foundOn(target, carried);
+  const found = foundOn(target, carried, swap);
+  const table = standingAt(ctx.b);
   let lethal = carried >= GRAVITY_LETHAL && !swap && !target.braced;
   let taken: number;
   if (lethal && target.warded) {
@@ -606,7 +611,7 @@ function lunge(ctx: Ctx, card: BossCard): void {
       { kind: "gravity", actorId: BOSS_ID, targetId: target.id, anchoredBy, lethal },
     );
   }
-  landed(ctx.b, { cardId: card.id, intent: "lunge", targetId: target.id, found });
+  landed(ctx.b, { cardId: card.id, intent: "lunge", targetId: target.id, found, table });
   downTheFallen(ctx);
 }
 
@@ -656,7 +661,7 @@ function alignment(ctx: Ctx, card: BossCard): void {
       : `The rings creep into line: ${countdown} more ${countdown === 1 ? "Alignment" : "Alignments"} and the Grand Alignment is complete.${why}`,
     { kind: "alignment", actorId: BOSS_ID, countdown, wipe, cardId: card.id },
   );
-  landed(ctx.b, { cardId: card.id, intent: "alignment", targetId: "party", found: s.enraged ? ["enraged"] : [] });
+  landed(ctx.b, { cardId: card.id, intent: "alignment", targetId: "party", found: s.enraged ? ["enraged"] : [], table: standingAt(ctx.b) });
   downTheFallen(ctx);
 }
 
