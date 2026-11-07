@@ -114,26 +114,42 @@ describe("C4 (rule 32): a refused ring name never reaches the log (the third con
   }, 60_000);
 });
 
-describe("C5 (ADR-011's Consequences): only a Chronist's Delay, Stillpoint or Nudge cancels a Retrograde", () => {
-  it("a Breaker's charged Shatter pushes a Retrograde back, and it still flips the strip", async () => {
+describe("C5 (ADR-011, tooth 3; the owner's ruling): a Breaker's charged Shatter cancels a Retrograde", () => {
+  // The ruling: the code stands and the ADR moves; ADR-011 names two cancels, a Chronist's and a Breaker's
+  // Shatter that spends Charge, because its push touches the card. A promise now, so pinned.
+  const landsAfter = async (charge: number) => {
     const { engine, table, turn, bossTurn, events } = await import("./engine.ts");
     const e = await engine();
     let b = structuredClone(table(e, ["breaker", "striker", "warden"]));
     b.cards = [];
     const me = b.standing.find((f) => f.id === "breaker-1")!;
     me.resource = 3;
-    me.charge = 1;
+    me.charge = charge;
     b.rings.find((r) => r.id === "outer")!.pips = 2;
     b = e.announce(b, { intent: "retrograde", targetId: null, amount: null, countdown: 0 });
-    const shattered = turn(e, b, "breaker-1", "shatter", "outer").battle;
-    let cur = shattered;
+    let cur = turn(e, b, "breaker-1", "shatter", "outer").battle;
     const seen: { flipped: unknown; cancelledBy: unknown }[] = [];
     for (let i = 0; i < 4 && cur.cards.some((c) => c.intent === "retrograde"); i++) {
       const step = bossTurn(e, cur);
       seen.push(...events(step, "retrograde").map((x) => ({ flipped: x.flipped, cancelledBy: x.cancelledBy })));
       cur = step.battle;
     }
+    return seen;
+  };
+
+  it("with full Charge, the Retrograde comes apart, cancelled by the Breaker, and never flips", async () => {
+    const seen = await landsAfter(3);
+    expect(seen, "it comes apart, the Breaker named").toEqual([{ flipped: false, cancelledBy: "breaker-1" }]);
+  });
+
+  it("one pip is enough: the push touches the card", async () => {
+    const seen = await landsAfter(1);
+    expect(seen, "it comes apart, the Breaker named").toEqual([{ flipped: false, cancelledBy: "breaker-1" }]);
+  });
+
+  it("a Shatter with no Charge pushes nothing, and the Retrograde flips the strip", async () => {
+    const seen = await landsAfter(0);
+    expect(seen.some((x) => x.flipped === true), "it flips").toBe(true);
     expect(seen.filter((x) => x.cancelledBy === "breaker-1"), "no Breaker cancels it").toEqual([]);
-    expect(seen.some((x) => x.flipped === true), "it flips when it lands").toBe(true);
   });
 });

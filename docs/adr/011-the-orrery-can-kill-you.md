@@ -121,8 +121,12 @@ the seat, so the fight can later say what killed you.
    turn, in a one-seat room too (the owner's ruling on the gate's C2), so
    the flipped order holds. The Orrery's counter isn't touched (rule 1:
    the Orrery never moves faster; the table moves slower), so the Orrery's
-   next turns come before the table's. A Chronist's Delay or Stillpoint
-   cancels it, as before.
+   next turns come before the table's. **Two answers cancel it** (the
+   owner's ruling on the gate's C5): a Chronist's Delay, Stillpoint or Nudge,
+   as before; and a Breaker's Shatter that spends Charge, because each pip
+   pushes the soonest card back a slot, and a Retrograde pushed so comes
+   apart as a Delayed one does. One pip is enough: the push touches the
+   card.
 4. **Eclipse.** On a seat that isn't Warded, it downs it. A Ward takes it. A
    Brace, the seat's own shield, halves it as an ordinary blow: every seat
    has an answer it can make on its own turn, and an Echo never makes it
@@ -247,11 +251,14 @@ are the cards Echoes don't answer.
   160), and `ECHO_POTENCY` 0.6 (was 0.75: item 18's first lever, which this
   ADR rejected as the main one, turned out to be the last notch the
   Brace-only floor needed).
-- **A table with no Chronist pays every Retrograde in full, and that is
-  deliberate.** Only a person's Delay, Stillpoint or Nudge cancels one; an
-  Echo Chronist never does (rule 25). So a table with no Chronist, or only an
-  Echo one, loses a whole rotation of the strip to every Retrograde, and a
-  lone seat comes round only after the Orrery's next turn. Measured after the
+- **A table with no Chronist pays every Retrograde in full, unless its
+  Breaker spends Charge on it, and that is deliberate.** A person's Delay,
+  Stillpoint or Nudge cancels one, and so does a person's charged Shatter
+  when the Retrograde is the soonest card it pushes; an Echo does neither (it
+  never cancels and never spends Charge, rule 25). So a table with no
+  Chronist, or only an Echo one, loses a whole rotation of the strip to every
+  Retrograde its Breaker doesn't meet, and a lone seat comes round only after
+  the Orrery's next turn. Measured after the
   ruling: the five targets held unchanged, with no retune.
 - **Four rooms no longer meet the enrage.** Of the thirty rooms of one to
   three seats `spec/pace.test.ts` plays by policy, seven used to run past
