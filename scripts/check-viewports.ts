@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { join as joinBattle, newBattle } from "../spec/raid.ts";
+import { markArg } from "./stray-chromes.ts";
 
 // Does the battle screen fit the two viewports it is marked at?
 //
@@ -218,6 +219,7 @@ export async function launch(): Promise<Browser> {
   const chrome: ChildProcess = spawn(
     CHROME,
     [
+      markArg(),
       "--headless=new",
       `--remote-debugging-port=${CDP_PORT}`,
       `--user-data-dir=${profile}`,

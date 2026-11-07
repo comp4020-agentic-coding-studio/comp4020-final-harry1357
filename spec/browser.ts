@@ -3,6 +3,7 @@ import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { sleep } from "./raid.ts";
+import { markArg } from "../scripts/stray-chromes.ts";
 
 // A real browser for the one spec claim that only a rendered page can answer:
 // what B's screen does, and in what order. Headless Chrome over CDP, with no
@@ -11,6 +12,36 @@ import { sleep } from "./raid.ts";
 // another browser. It finds Chrome on macOS and on the CI runner (ubuntu-latest
 // ships google-chrome); CHROME overrides. No Chrome is a failure with that
 // sentence on it, never a skip.
+//
+// Every Chrome started here is marked with its starter's pid (scripts/stray-chromes.ts) and held in OPEN until
+// it closes, so a spec's afterAll(closeAll) closes what a timed-out test's finally never reached, and a run
+// stopped by a signal kills what it started on the way out. A run cut off with no chance to clean up is swept
+// by the mark, before the next `pnpm check`.
+
+/** Every Chrome this process has started and not closed. */
+const OPEN = new Set<{ close(): Promise<void>; kill(): void }>();
+
+/** Close every Chrome this process started that is still open: each Chrome spec's afterAll, abort or not. */
+export async function closeAll(): Promise<void> {
+  await Promise.all([...OPEN].map((c) => c.close()));
+}
+
+// A run stopped by a signal, or exiting, kills what it started: no await happens on the way out.
+let hooked = false;
+function hookExit(): void {
+  if (hooked) return;
+  hooked = true;
+  const killAll = () => {
+    for (const c of OPEN) c.kill();
+  };
+  process.once("exit", killAll);
+  for (const signal of ["SIGINT", "SIGTERM", "SIGHUP"] as const) {
+    process.once(signal, () => {
+      killAll();
+      process.kill(process.pid, signal);
+    });
+  }
+}
 
 const CANDIDATES = [
   process.env.CHROME,
@@ -40,6 +71,7 @@ export async function launchChrome(): Promise<Chrome> {
   if (!binary) throw new Error(`no Chrome found (looked in ${CANDIDATES.join(", ")}); set CHROME to its path`);
   const profile = mkdtempSync(join(tmpdir(), "raid-spec-chrome-"));
   const args = [
+    markArg(),
     "--headless=new",
     "--remote-debugging-port=0",
     `--user-data-dir=${profile}`,
@@ -52,6 +84,16 @@ export async function launchChrome(): Promise<Chrome> {
   const child: ChildProcess = spawn(binary, args, { stdio: "ignore" });
   let exited = false;
   child.once("exit", () => (exited = true));
+  hookExit();
+  const held = {
+    close: async () => {
+      if (!exited) child.kill("SIGKILL");
+    },
+    kill: () => {
+      if (!exited) child.kill("SIGKILL");
+    },
+  };
+  OPEN.add(held);
 
   let port = 0;
   for (const deadline = Date.now() + 15_000; !port; await sleep(50)) {
@@ -127,6 +169,7 @@ export async function launchChrome(): Promise<Chrome> {
     },
 
     async close() {
+      OPEN.delete(held);
       try {
         await call("Browser.close");
       } catch {

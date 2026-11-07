@@ -1,5 +1,8 @@
-import { beforeAll, describe, expect, inject, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, inject, it } from "vitest";
 import { colour, parseCss, type Rule, rootToken, servedCss } from "./served-css.ts";
+
+// Whatever Chrome a test here started, closed even if its finally never ran (the gate's harness ruling).
+afterAll(async () => (await import("./browser.ts")).closeAll());
 
 // Contrast is checkable arithmetic, so check it.
 //

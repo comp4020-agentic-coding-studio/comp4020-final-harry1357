@@ -1,7 +1,7 @@
 import { resolve } from "node:path";
 import { afterAll, describe, expect, inject, it } from "vitest";
 import { boot, cleanScratch, scratchDatabase } from "./boot.ts";
-import { launchChrome } from "./browser.ts";
+import { closeAll, launchChrome } from "./browser.ts";
 import { act, battle, join, newBattle, sleep, suffix, watch, type Event, type Watcher } from "./raid.ts";
 
 // The fight is shown, not read (CLAUDE.md rule 11). Every event the server can
@@ -10,6 +10,8 @@ import { act, battle, join, newBattle, sleep, suffix, watch, type Event, type Wa
 const base = inject("baseUrl");
 
 afterAll(cleanScratch);
+// Its Chrome, closed even if the test's finally never ran (the gate's harness ruling).
+afterAll(closeAll);
 
 interface Renderer {
   full?: unknown;

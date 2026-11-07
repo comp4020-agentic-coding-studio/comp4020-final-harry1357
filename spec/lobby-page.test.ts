@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, expect, it } from "vitest";
 import { boot, cleanScratch, scratchDatabase, type Booted } from "./boot.ts";
-import { launchChrome, type Chrome } from "./browser.ts";
+import { closeAll, launchChrome, type Chrome } from "./browser.ts";
 
 // The lobby gate's breaker B1 (rule 27, ADR-009: a lobby seat has left when
 // it has had "no socket open on the room for LOBBY_GRACE_MS"), held in real
@@ -22,6 +22,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await Promise.all([host?.close(), guest?.close()]);
+  await closeAll();
   await server?.kill();
   cleanScratch();
 });

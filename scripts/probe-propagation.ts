@@ -5,6 +5,7 @@ import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { BattleState, NewBattleResponse } from "../src/shared/protocol.ts";
+import { markArg } from "./stray-chromes.ts";
 
 // When one person acts, how long until a DIFFERENT browser shows it?
 //
@@ -302,6 +303,7 @@ async function launch(label: string, port: number): Promise<{ wsUrl: string; pid
   const proc = spawn(
     CHROME,
     [
+      markArg(),
       "--headless=new",
       `--remote-debugging-port=${port}`,
       `--user-data-dir=${profile}`,
