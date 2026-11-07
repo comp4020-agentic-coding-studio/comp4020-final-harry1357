@@ -84,7 +84,7 @@ describe("a loss names the card, the seat, what it found there, and the answers 
     // The Warden and Mender Echoes were already down: they held no answer. The Striker's own: its Riposte, its Brace.
     expect(said(ending!.answers)).toEqual(["striker:riposte:striker-1", "striker:brace:striker-1"]);
     expect(ending!.answers.some((a) => a.by !== null && echoIds.has(a.by)), "an Echo is never named as an answer").toBe(false);
-    expect(ending!.line, "in plain words, the server's").toBe("Lunge landed on striker 1 at Gravity 2, unbraced. striker 1's Riposte or Brace would have met it.");
+    expect(ending!.line, "in plain words, the server's").toBe("Lunge landed on striker 1 at Gravity 2, unwarded and unbraced. striker 1's Riposte or Brace would have met it.");
     expect(stateEnding(e, step.battle), "the state carries the same ending, for a page that arrives after it").toEqual(ending);
     const endLine = step.battle.log.find((l) => l.kind === "end");
     expect(endLine?.text, "and the end's log line says it, so a finished fight's log keeps it").toContain(ending!.line);

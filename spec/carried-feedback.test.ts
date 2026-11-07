@@ -157,7 +157,7 @@ describe("1b: the answers are the ones the table had and didn't make, when the c
     b = e.announce(b, { intent: "eclipse", targetId: "striker-1", amount: 40, countdown: 0 });
     const ending = endOf(bossTurn(e, b));
     expect(ending.answers).toEqual([]);
-    expect(ending.line).toBe("Eclipse landed on striker 1, unwarded. It was met, and still took the last of them.");
+    expect(ending.line).toBe("Eclipse landed on striker 1, unwarded and Braced. It was met, and still took the last of them.");
   });
 });
 
