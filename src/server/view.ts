@@ -156,6 +156,7 @@ export function view(b: Battle, timing: Timing): BattleState {
     gravityLethal: GRAVITY_LETHAL,
     bastion: b.bastion,
     bastionCard: bastionCard(b),
+    ending: b.ending ?? null,
   };
 }
 
@@ -190,5 +191,7 @@ export function archived(id: string, row: { status: BattleStatus }, log: LogEntr
     gravityLethal: GRAVITY_LETHAL,
     bastion: false,
     bastionCard: null,
+    // The cause is kept in the end's log line, not the database (ADR-012): the log above says it.
+    ending: null,
   };
 }

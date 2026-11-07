@@ -41,7 +41,8 @@ const expected: Expected = {
   seat: [["scene.arrive", "me"], ["scene.echo", "me", true, true]],
   leave: [["scene.depart", "me"]],
   down: [["scene.down", "me"], ["scene.ward", "me", false], ["scene.status", "me", "*"]],
-  end: [["scene.banner", "*"]],
+  // ADR-012: the server's cause, printed as sent, under the banner
+  end: [["scene.banner", "*"], ["scene.cause", "*"]],
   // the lobby (ADR-009): Start clears the last fight's banner and marks the strip; the host's change, the new host
   start: [["scene.banner", null], ["strip.started"]],
   host: [["strip.flag", "me", "host"]],

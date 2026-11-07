@@ -30,6 +30,7 @@ import {
   type BattleStatus,
   type BossCard,
   type Chain,
+  type Ending,
   type LogEntry,
   type Ring,
   type RingId,
@@ -42,6 +43,7 @@ import * as economy from "./economy.ts";
 import * as orrery from "./orrery.ts";
 import * as roles from "./roles.ts";
 import { view } from "./view.ts";
+import * as ending from "./ending.ts";
 import { sameKept } from "./confusables.ts";
 import type { ReasonCode } from "./reasons.ts";
 
@@ -144,6 +146,10 @@ export interface Battle {
   /** The Orrery's script's memory between turns (its rotation, who touched which
    *  card). Opaque here; orrery.ts alone reads and writes it. Never sent. */
   orreryScript: unknown;
+  /** What happened, kept as it runs, for the ending (ADR-012): ending.ts alone reads and writes it. Never sent. */
+  account?: ending.Account;
+  /** How the fight ended and why, composed once it has (ADR-012); null while it runs. */
+  ending?: Ending | null;
 }
 
 export interface StatDelta {
@@ -854,7 +860,8 @@ export function echoMove(b: Battle, echoId: string, clock: Clock): Step | Refusa
 export function close(b: Battle, text: string, clock: Clock): Step {
   const ctx = context(structuredClone(b), clock);
   if (!isEnded(ctx.b)) {
-    ctx.say("end", null, text, { kind: "end", outcome: "abandoned" });
+    ctx.b.ending = ending.compose(ctx.b, "abandoned", text);
+    ctx.say("end", null, text, { kind: "end", outcome: "abandoned", ending: ctx.b.ending });
     ctx.b.status = "abandoned";
     ctx.fx.status = "abandoned";
     ctx.b.endedAt = clock.now;
@@ -969,6 +976,7 @@ function context(b: Battle, clock: Clock): Ctx {
 function finish(ctx: Ctx): Step {
   const { b, fx, clock } = ctx;
   b.standing.sort((x, y) => x.counter - y.counter || x.seat - y.seat);
+  if (b.status === "fighting") ending.noted(b, fx.events);
   if (b.status === "fighting") {
     const party = b.standing.filter((f) => f.kind === "character");
     const outcome: BattleStatus | null =
@@ -1010,13 +1018,17 @@ function end(b: Battle, fx: Effects, outcome: BattleStatus, now: number): void {
       stat(fx, f.id)[outcome === "won" ? "wins" : "losses"] += 1;
     }
   }
-  const text =
+  const headline =
     outcome === "won"
       ? "The Orrery grinds to a halt. The table wins."
       : outcome === "lost"
         ? "The last of the table has fallen. The Orrery keeps turning."
         : "Nobody is left at the table. The fight is abandoned.";
-  say(b, fx, "end", null, text, { kind: "end", outcome: outcome as "won" | "lost" | "abandoned" });
+  // The cause, composed by the server from what it recorded (ADR-012): on the event, the state and the line.
+  const why = ending.compose(b, outcome as Ending["outcome"], headline);
+  b.ending = why;
+  const text = outcome === "abandoned" ? headline : `${headline} ${why.line}`;
+  say(b, fx, "end", null, text, { kind: "end", outcome: outcome as "won" | "lost" | "abandoned", ending: why });
 }
 
 /** One log line, and the event it narrates: the screen shows the event, the log reads the line. */

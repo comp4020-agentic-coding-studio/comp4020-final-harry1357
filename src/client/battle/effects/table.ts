@@ -119,6 +119,7 @@ export const end: Fx<"end"> = async (raw, e) => {
     await ctx.wait(300);
   }
   ctx.scene.banner(outcomeLine(e.outcome));
+  ctx.scene.cause(e.ending?.line ?? null);
   await ctx.wait(600);
 };
 
@@ -126,6 +127,7 @@ export const endReduced: Fx<"end"> = async (raw, e) => {
   const ctx = stage(raw);
   if (e.outcome === "won") apart(ctx);
   ctx.scene.banner(outcomeLine(e.outcome));
+  ctx.scene.cause(e.ending?.line ?? null);
   await ctx.wait(HOLD);
 };
 

@@ -61,6 +61,7 @@ const lobby = createLobby(need<HTMLElement>("[data-lobby]"), {
   onLeave: () => roomPost("leave"),
   onEcho,
   lastOutcome: () => screen.lastOutcome(),
+  lastCause: () => screen.lastCause(),
 });
 /** Which screen is up (join, lobby, fight, ended), decided in one place: src/client/screen.ts. */
 const screen = createScreen({
@@ -70,8 +71,8 @@ const screen = createScreen({
     show: () => join.show(app.me, { code: app.code, isPublic: app.state?.room?.isPublic ?? false }),
     hide: () => join.hide(),
     // In a room the link goes on to the room's next fight; on a bare battle, to the front door.
-    ended: (outcome) => {
-      join.ended(outcome, app.code ? { href: roomHref(app.code), go: goOn } : undefined);
+    ended: (outcome, cause) => {
+      join.ended(outcome, app.code ? { href: roomHref(app.code), go: goOn } : undefined, cause);
       // The record this fight added, for the welcome when the person sits down again.
       void loadMe();
     },
@@ -369,7 +370,7 @@ function onGone(why: RoomGone): void {
   // The room's gone: an end panel up for its last fight goes on to the front door, not back into it, and
   // still says how that fight ended (breaker Q2).
   const outcome = screen.lastOutcome();
-  if (screen.phase() === "ended" && outcome) join.ended(outcome);
+  if (screen.phase() === "ended" && outcome) join.ended(outcome, undefined, screen.lastCause());
   lobby.hide();
 }
 

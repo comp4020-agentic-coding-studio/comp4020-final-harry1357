@@ -74,6 +74,8 @@ export interface SceneApi {
   target(id: string | null): void;
   /** A line across the field, such as the battle's outcome; null clears it. */
   banner(text: string | null): void;
+  /** ADR-012: the server's line saying why the fight ended, under the banner, printed as sent; null clears it. */
+  cause(text: string | null): void;
   /** Phase two: status marks on a sprite, at most four drawn, each with a duration ring. reconcile() sets them from state too. */
   status(id: string, marks: readonly StatusMark[]): void;
   /** Phase two: the Orrery's rings as the server holds them: shield pips, the weakness once Scanned, Broken, and Exposed stacks in the applier's role colour. */
@@ -274,8 +276,8 @@ export interface Join {
   /** Show the select, prefilled from a returning visitor's character and record (their name fixed: rule 24). */
   show(me: import("../../shared/protocol.ts").MeResponse | null, here?: Here): void;
   hide(): void;
-  /** The battle is over: say how, and offer the next raid: in a room, its next fight (next); otherwise the front door. */
-  ended(outcome: "won" | "lost" | "abandoned", next?: Next): void;
+  /** The battle is over: say how, and why in the server's words (cause, ADR-012), and offer the next raid: in a room, its next fight (next); otherwise the front door. */
+  ended(outcome: "won" | "lost" | "abandoned", next?: Next, cause?: string | null): void;
   /** Clear the end panel: a new room or a new fight is a clean screen (ADR-009). */
   clear(): void;
 }

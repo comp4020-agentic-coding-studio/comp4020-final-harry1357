@@ -725,6 +725,26 @@
   color: var(--card);
 }
 
+/* Why it ended, in the server's words (ADR-012): the plain line under the
+   panel's own, before the link that goes on. */
+#battle .join-end-cause {
+  max-width: 36rem;
+  margin: 0;
+  padding: 0.5rem 0.8rem;
+  font-size: 1.3rem;
+  line-height: 1.3;
+  color: var(--card);
+  border-inline-start: 3px solid var(--brass);
+}
+
+#battle .join-end[data-outcome="lost"] .join-end-cause {
+  border-inline-start-color: var(--ember);
+}
+
+#battle .join-end-cause[hidden] {
+  display: none;
+}
+
 /* lost: an ember rule under the headline, the colour of harm */
 #battle .join-end[data-outcome="lost"] .join-end-title {
   padding-bottom: 0.6rem;

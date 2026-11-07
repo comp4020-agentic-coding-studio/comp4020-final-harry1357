@@ -66,6 +66,11 @@ export function createScene(root: HTMLElement, { manifest, orrerySvg }: PartsOpt
   bannerEl.className = "banner";
   bannerEl.dataset.banner = "";
   bannerEl.hidden = true;
+  // Why it ended, in the server's words (ADR-012): under the banner, printed as sent.
+  const causeEl = document.createElement("p");
+  causeEl.className = "banner-cause";
+  causeEl.dataset.cause = "";
+  causeEl.hidden = true;
 
   // A phase's title (ADR-010): across the field in the display face, held for a beat, then gone.
   const titleEl = document.createElement("p");
@@ -75,7 +80,7 @@ export function createScene(root: HTMLElement, { manifest, orrerySvg }: PartsOpt
   titleEl.hidden = true;
   let titleTimer: ReturnType<typeof setTimeout> | null = null;
 
-  root.replaceChildren(field, orrery.el, partyHost, layer, bannerEl, titleEl);
+  root.replaceChildren(field, orrery.el, partyHost, layer, bannerEl, causeEl, titleEl);
   delete root.dataset.stub;
 
   reducedQuery.addEventListener("change", () => party.motionChanged());
@@ -308,11 +313,19 @@ export function createScene(root: HTMLElement, { manifest, orrerySvg }: PartsOpt
       if (text === null || text === "") {
         bannerEl.hidden = true;
         bannerEl.textContent = "";
+        // The cause belongs to the banner: a clean screen clears both.
+        causeEl.hidden = true;
+        causeEl.textContent = "";
         return;
       }
       if (!bannerEl.hidden && bannerEl.textContent === text) return;
       bannerEl.textContent = text;
       bannerEl.hidden = false;
+    },
+
+    cause(text: string | null): void {
+      causeEl.textContent = text ?? "";
+      causeEl.hidden = !text;
     },
 
     // --- motion: nothing visible under reduced motion ---------------------

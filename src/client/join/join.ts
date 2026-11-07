@@ -84,6 +84,8 @@ interface End {
   panel: HTMLElement;
   title: HTMLElement;
   line: HTMLElement;
+  /** Why it ended, in the server's words (ADR-012), printed as sent. */
+  cause: HTMLElement;
   link: HTMLAnchorElement;
 }
 
@@ -379,6 +381,9 @@ export function mountJoin(root: HTMLElement, opts: JoinOptions): Join {
     const kicker = make("p", "join-label", "The raid is over");
     const title = make("h2", "join-end-title");
     const line = make("p", "join-end-line");
+    const cause = make("p", "join-end-cause");
+    cause.dataset.cause = "";
+    cause.hidden = true;
     const link = make("a", "join-next");
     link.href = "/";
     link.addEventListener("click", (event) => {
@@ -389,9 +394,9 @@ export function mountJoin(root: HTMLElement, opts: JoinOptions): Join {
     const cursor = make("span", "join-cursor");
     cursor.innerHTML = CURSOR;
     link.append(cursor, make("span", "", "Join the next raid"));
-    panel.append(kicker, title, line, link);
+    panel.append(kicker, title, line, cause, link);
     host.append(panel);
-    end = { panel, title, line, link };
+    end = { panel, title, line, cause, link };
     return end;
   }
 
@@ -561,7 +566,7 @@ export function mountJoin(root: HTMLElement, opts: JoinOptions): Join {
       }
     },
 
-    ended(outcome: Outcome, next?: Next) {
+    ended(outcome: Outcome, next?: Next, cause?: string | null) {
       const host = ensureShell();
       const e = ensureEnd();
       // In a room, going on is to the room's next fight, behind its code; elsewhere the front door.
@@ -576,6 +581,9 @@ export function mountJoin(root: HTMLElement, opts: JoinOptions): Join {
       const words = ENDINGS[outcome] ?? ENDINGS.abandoned;
       e.title.textContent = words.title;
       e.line.textContent = words.line;
+      // The server's line, as sent; none sent, none shown (ADR-012: the client composes none of it).
+      e.cause.textContent = cause ?? "";
+      e.cause.hidden = !cause;
       e.panel.dataset.outcome = outcome;
       e.panel.hidden = false;
       host.dataset.outcome = outcome;

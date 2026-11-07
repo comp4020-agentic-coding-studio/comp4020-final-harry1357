@@ -21,6 +21,8 @@ type Outcome = "won" | "lost" | "abandoned";
 export interface ScreenState {
   battleId: string;
   status: string;
+  /** How it ended and why, as the server composed it (ADR-012). */
+  ending?: { line: string } | null;
   lobby?: boolean;
   queue: { id: string; kind: string }[];
   fallen?: { id: string; kind: string; hp?: number }[];
@@ -31,7 +33,7 @@ export interface ScreenParts {
   root: HTMLElement;
   /** The scene's banner (scene.banner): the last fight's outcome line, cleared on a clean screen. */
   banner(text: string | null): void;
-  join: { show(): void; hide(): void; ended(outcome: Outcome): void; clear(): void };
+  join: { show(): void; hide(): void; ended(outcome: Outcome, cause: string | null): void; clear(): void };
   lobby: { show(state: ScreenState): void; hide(): void };
 }
 
@@ -46,6 +48,8 @@ export interface Screen {
   phase(): Shown;
   /** The outcome of the fight this page last saw end, for the lobby's "last fight" line; null once cleared by a new room. */
   lastOutcome(): Outcome | null;
+  /** Why it ended, in the server's words (ADR-012), alongside lastOutcome. */
+  lastCause(): string | null;
 }
 
 const OVER = new Set(["won", "lost", "abandoned"]);
@@ -55,6 +59,7 @@ export function createScreen(parts: ScreenParts): Screen {
   /** The battle whose ending is on the end panel, so a later state of it doesn't redraw it. */
   let endedId: string | null = null;
   let outcome: Outcome | null = null;
+  let cause: string | null = null;
   /** A clean screen is owed: the next state is a new room's or a new fight's. */
   let fresh = true;
   /** The join screen is up for this fight; shown once, never again over it. */
@@ -93,11 +98,12 @@ export function createScreen(parts: ScreenParts): Screen {
           // A fight this page watched has ended: its panel, once. The banner is the end renderer's.
           endedId = state.battleId;
           outcome = state.status as Outcome;
+          cause = state.ending?.line ?? null;
           fresh = false;
           joinFor = null;
           wentOn = false;
           parts.lobby.hide();
-          parts.join.ended(outcome);
+          parts.join.ended(outcome, cause);
         }
         set("ended");
         return;
@@ -142,10 +148,12 @@ export function createScreen(parts: ScreenParts): Screen {
       wentOn = true;
       joinFor = null;
       outcome = null;
+      cause = null;
       parts.join.clear();
     },
 
     phase: () => shown,
     lastOutcome: () => outcome,
+    lastCause: () => cause,
   };
 }
