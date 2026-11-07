@@ -1,102 +1,85 @@
 # The Rail
 
-A multiplayer raid in the shape of a JRPG boss fight. People 
-sit down at a table in their browsers, pick a role each, and fight the 
-Orrery, a boss that gets harder and faster the more of you there are. 
-Turns run on a counter, not a clock: everyone's counter ticks, whoever 
-hits zero first acts, and the Orrery's counter is set by the pace of 
-the room, each seat weighted by its speed, so it acts about once for 
-every three player turns however many seats are filled.
+## What this is
 
-Live at https://comp4020-final-harry1357.fly.dev/.
+A multiplayer raid in the shape of a JRPG boss fight. People sit down at 
+a table in their browsers, pick one of five roles, and fight the Orrery, 
+a clockwork boss that gets harder the more of them there are. The turn 
+order runs down the edge of the screen as a strip of portraits. That 
+strip is the rail. Live at comp4020-final-harry1357.fly.dev.
 
-## Playing
+## What good means here
 
-The join screen has three doors. The public raid is always running: 
-you sit down into whatever fight is on, the Orrery's maximum HP grows 
-by your seat with its current percentage kept, and when the fight ends 
-the next one pulls after a short ready window. Creating a room gives 
-you a five-character code and a lobby; sharing the code with a friend 
-puts them in the same lobby. Entering a code is the third door.
+A raid is good when everyone can tell whose turn is next and why, when 
+every change is watched rather than read, when other people change the 
+fight instead of only making the boss bigger, and when losing teaches 
+you something.
 
-A private room's lobby is a seat list, the code, and a Start button 
-that only the host can press. The host is whoever sat down first, 
-passes the role on if they leave, and has no power beyond Start and 
-the Echo buttons; nobody owns a room. Hosting exists because a boss 
-sized at the pull for one person is the wrong boss for the four who 
-arrive a minute later, so HP is set at Start from the seats present. 
-When the fight ends the room returns to its lobby. A private room 
-with nobody in it expires after fifteen minutes. Rooms live in memory, 
-so a redeploy forgets every code.
+The first part comes from Final Fantasy X, which shows the next sixteen 
+turns on screen, computed from each combatant's counter. Dourish and 
+Bellotti argue that coordination comes from awareness of what others 
+are doing, not from rules about who goes when. The strip is that 
+awareness made literal: every attack the Orrery will make sits on it as 
+a card, with its target and a countdown, before it lands. The log is a 
+receipt for what you saw.
 
-A name is for life and a role is for a fight: the name you give is 
-yours for as long as your browser keeps its cookie, the role is chosen 
-each fight. Your session acts only for its own seat; naming another 
-seat's action is refused.
+The third part is Shirky's "Situated Software" and Sloan's "home-cooked 
+meal": software built for a group in a room, where fit matters more than 
+scale. The crit-8 version answered co-presence with hit points per 
+joiner, a placeholder. Now the Orrery's HP follows a sub-linear curve of 
+the seats present, its tempo scales to the table, and its mechanics need 
+roles to answer them: a Lunge needs a Warden's swap, a Retrograde a 
+Chronist's cancel. Five people with five roles have a fight one person 
+can't.
 
-### Roles
+The fourth part came from playing it. A boss that can't kill you teaches 
+nothing, so difficulty is measured: scripted naive, competent and expert 
+tables play thirty-one rooms, and the roster holds that naive tables wipe 
+before the last phase in at least 25 while expert tables win at least 
+25. The cost is an enrage clock at forty Orrery turns.
 
-Each role runs on its own resource and plays a different job at the 
-table. The Warden holds Resolve and takes hits for the others. The 
-Mender holds Grace and keeps people standing. The Striker holds 
-Momentum and does the damage. The Breaker holds Insight and finds the 
-Orrery's weaknesses. The Chronist holds Flux and bends the turn order. 
-Cards come in ranks one to five; hitting a weakness refunds the rank 
-(Resonance), consecutive hits chain for more damage, Exposed stacks 
-make the next hit land harder, Brace and Charge spend a turn to shape 
-the next, and a Reaction is one off-turn play per Orrery turn when the 
-server says you're ready.
+## Who is at the table
 
-### The Orrery
+Three doors. The public raid never closes: you sit into whatever fight 
+is on. Create a room and you get a five-character code and a lobby, 
+where the host presses Start once everyone has arrived. Enter a code to 
+join a friend's. A visitor on their own can seat up to four Echoes, 
+server-played bots marked as such everywhere, so a solo visitor still 
+gets a fight worth playing: a floor for having people at the table, not 
+the point of it. Echoes answer no mechanic that needs reading the strip, 
+so a solo player still has to learn it. A name is for life, a role is 
+for a fight.
 
-Three phases, at 70% and 35% HP, each with its own cards. Perihelion 
-is a damage check with four slots' warning. Gravity pulls one seat's 
-attention until a Lunge, which a tank swap answers. Retrograde flips 
-the turn strip, and the Chronist can cancel it. Phase three is the 
-Grand Alignment, a clock that ends the fight if the table can't. A 
-fight that runs past forty Orrery turns meets that clock whatever the 
-phase, because no fight is allowed to last forever. Every card shows 
-its intent, its target and its countdown on the strip before it lands, 
-and a phase change stops the screen, flashes, and names itself.
+## The claims, and who enforces them
 
-### Echoes
+Enforced by `spec/`: the server alone decides turn order and two clients 
+see the same queue; an off-turn action is refused, and of two for one 
+turn the server's clock picks; a seat acts only for itself; every card 
+is announced before it lands and every event shown before its log line; 
+a character and a finished fight's log survive a restart and a redeploy; 
+the pace band and the difficulty targets hold on thirty-one scripted rooms; 
+a refusal is one log line with neither the cookie nor the request's text.
 
-An Echo is a bot that plays a role at the table. They're there so a visitor on their own still gets a fight worth 
-playing: sit down, seat Echoes for the roles you don't have, and 
-Start. That's a floor for having people at the table, not the point 
-of it; the game is at its best with five people who can hear each 
-other. The host can seat up 
-to four in a private room's lobby, one per role, and a person who stops 
-acting is played as an Echo until they act again. Echoes play a fixed 
-policy at three-quarters output, count as half a seat for the Orrery's HP, and 
-are marked everywhere: on the strip, in the seat list, and on every 
-line of the fight's log as `echo=true`, so nothing an Echo does is ever 
-credited to a person. The five Echo names are reserved; the check that 
-refuses a look-alike is a courtesy, not a security boundary, because 
-the log tells Echoes apart by that field, not by name.
+Judged: whether the strip reads at a glance on a phone to someone who 
+has never seen a counter, whether a phase change feels like a moment, 
+and whether a wipe makes a table press Start again, all by handing my 
+phone to people at the showcase without explaining anything.
 
-## Running it
+## What I chose not to build
 
-```
-pnpm install
-pnpm build
-DATABASE_PATH=.data/raid.db pnpm start
-```
+Accounts, profiles and feeds: a name and a cookie are all the game needs 
+to tell people apart. Chat, because the strip is the conversation. 
+Levels and loot, because they reward time spent rather than the fight in 
+front of you. A second machine: one process is the one authority on the 
+clock, and a restart ends live fights and says so.
 
-The server and the client run from one process on port 8080 with a 
-SQLite file beside them. `pnpm check` runs typecheck, lint and the 
-test roster against the running app, and some of its tests boot servers of their own; the roster also runs against 
-a container built from the Dockerfile, which is what Fly runs, so what 
-is tested is what ships. Pushing `main` deploys. The database lives on 
-a Fly volume at `/data`.
+## Sources
 
-## Where the thinking is
-
-`CLAUDE.md` holds the rules the project is built under, numbered, with 
-the ones that may never be broken marked. `docs/adr/` holds the 
-decisions and what each one cost. `docs/design/` holds the design 
-study the overhaul came from. `docs/review/` holds every review gate: 
-what the reviewer and the breaker found, what was fixed red-first, and 
-what was closed as a recorded risk by ruling. `docs/narration.md` 
-explains how to read the server's log. `PROCESS.md` is the account of 
-how all of this was made with Claude Code.
+- Dourish, P. and Bellotti, V. (1992). Awareness and Coordination in 
+  Shared Workspaces. CSCW '92.
+- Shirky, C. (2004). Situated Software.
+- Sloan, R. (2020). An app can be a home-cooked meal.
+- Final Fantasy Wiki, Final Fantasy X battle system; SinirothX, FFX Stat 
+  Mechanics FAQ (GameFAQs), for the counter model.
+- Character sprites: Superpowers asset pack by Pixel-boy, CC0; the 
+  Chronist and the Orrery are original. Full attribution in CREDITS.md.
