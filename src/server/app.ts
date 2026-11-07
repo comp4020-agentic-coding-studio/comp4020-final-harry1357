@@ -65,7 +65,7 @@ function refuse(c: Context, r: Refused & { status: Status }, told: string) {
 }
 
 /** A route's refusal: what it knows of the request, so each refusal is logged with it, by its code. */
-type No = (status: Status, code: ReasonCode, told: string, more?: Partial<Omit<Refused, "status" | "reason">>) => Response;
+type No = (status: Status, why: ReasonCode, told: string, more?: Partial<Omit<Refused, "status" | "reason">>) => Response;
 
 /** The names a request body might give a seat by (docs/adr/008). */
 const SEAT_FIELDS = ["seatId", "characterId", "actorId"] as const;
@@ -94,7 +94,8 @@ export function createApp(root: string, store: Store, table: Table): Hono {
     const battle = where.battleId ? table.get(where.battleId) : undefined;
     const room = where.battleId && (battle || store.battle(where.battleId)) ? where.battleId : null;
     const code = where.code ? (table.room(where.code)?.code ?? null) : null;
-    return (status, code, told, more = {}) =>
+    // `why`, not `code`: `code` is the room's (log.ts), and a parameter of that name hid it (the gate's C6).
+    return (status, why, told, more = {}) =>
       refuse(c, {
         route,
         battle,
@@ -107,7 +108,7 @@ export function createApp(root: string, store: Store, table: Table): Hono {
         target: where.target,
         name: where.name,
         status,
-        reason: code,
+        reason: why,
         ...more,
       }, told);
   }
