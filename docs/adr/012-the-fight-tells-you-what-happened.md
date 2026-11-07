@@ -34,13 +34,15 @@ Perihelion; the panel says the Orrery keeps turning.
 ### 1. The ending names its cause
 
 The server keeps an account of the fight as it runs (`Battle.account`): for
-each boss card as it lands, what it found on the seat it landed on (the
-Gravity carried in, a Brace, a Ward, a Warden's swap, a standing Bastion, the
-outer ring Broken, the clock's enrage); which card downed whom; who Broke each
-ring; the longest Chain; and the blow that took the Orrery's last HP.
+each seat a card downs, that card, what it found (the Gravity carried in, a
+Brace, a Ward, a Warden's swap, a standing Bastion, the outer ring Broken,
+every seat Braced, the clock's enrage) and the seats standing as it landed;
+who Broke each ring; the longest Chain; and the blow that took the Orrery's
+last HP.
 
-When a fight ends, the server composes an `Ending` from that account and
-nothing else, and sends it on the `end` event and on the state
+When a fight ends, the server composes an `Ending` from that account, the
+order in which seats fell, and the names seated, and sends it on the `end`
+event and on the state
 (`BattleState.ending`). A room moves on to its next fight in the same step
 (rule 24), so a room's page keeps the ending it was shown and the lobby prints
 it from there; a page that opens a room after the end sees the next fight,
@@ -54,9 +56,9 @@ and the breaker's V5). It carries:
 - **lost:** the card that downed the table's last seat, its target (a seat,
   or `party` for a card on everyone), what it found there, and **the answers
   the table had**, taken from ADR-011's teeth, each named with the person at
-  this table who held it, or with its role when no person did. An Echo is
-  never named as an answer: the line names the people at the table, and an
-  Echo's seat is no person's (rule 25). The table
+  this table who held it, or with its role when no person did: a seat that is
+  an Echo as the card lands, seated on purpose or timed out, is never named
+  as an answer's holder (rule 25). The table
   is the one standing as the card landed (the gate's 1b): an answer already
   made (a Brace, a Ward, a swap, a standing Bastion, a Broken outer ring), or
   held only by a seat already down, is not one it lacked, and a Warden is
@@ -145,19 +147,16 @@ window, and their declared state is the hook their spec holds
 
 - **The server's sentences are a contract.** The ending's line and the phase's
   line are composed in one place each (`src/server/ending.ts`,
-  `src/server/orrery.ts`), from the account, so a mechanic that changes its
+  `src/server/orrery.ts`), so a mechanic that changes its
   answer changes its sentence in the same commit, and the ending's spec fails
   if it doesn't.
 - **The account is memory, not a source of truth.** It is written as cards
   land and read once, at the end. Nothing decides a turn from it (rule 5);
   it is not persisted beyond the `end` line, and a fight closed by a restart
   gets the restart's line, as before (rule 6).
-- **An Echo is never an answer.** A person at a table of Echoes hears an
-  answer an Echo held by its role ("a Warden's Bastion"), never the Echo's
-  name: the line names the people at the table. Some answers an Echo never
-  makes at all (a Reaction, a swap, a cancel, a ring, Charge: rule 25), and a
-  table of Echoes loses to the card only one of those meets, as a Breaker's
-  Fracture meets a Perihelion. That is the lesson ADR-011 wanted taught.
+- **An Echo is never named as an answer's holder.** An answer an Echo held
+  is said by its role ("a Warden's Bastion"). An Echo's own act, a winning
+  blow or a Break, is said as the Echo's ("The Echo of Ada", "Warden Echo").
 - **The command window grows a line.** At 390×844 it is one more row above
   the commands, present only while a card is aimed at you; the viewport and
   tag checks hold it.
