@@ -515,7 +515,9 @@ the rules.
   every finding is fixed, carried red, closed by ruling, or recorded as history,
   and the last review finds no rule or ADR violation.** Residuals that review
   finds in the strength of tests are listed for the next phase, not re-reviewed
-  in this one.
+  in this one. A regression a fix round introduces is fixed in the gate, with a
+  confirm pass on that fix alone, and doesn't count as a round (the owner's
+  ruling on the difficulty gate's C6).
 - Commit when the checks pass. Never commit a red state, **with one
   exception**: a `spec/` test that is red because the feature isn't built yet,
   or because a known bug isn't fixed yet, is a *target*, not a regression.
