@@ -51,13 +51,14 @@ describe("a card aimed at you is pinned in the command window", () => {
     const { win, pinned } = await mount();
     // The server's order: a frozen Eclipse at 0 first (it waits a cycle), then a Lunge at 1. Sorting by countdown
     // would keep this; sorting by when it lands would swap them. The window keeps the server's.
+    // The gate's 3d: an order no sort the client could pick would give (not by countdown either way, not by id).
     win.setSeat({
       token: token("ada"),
       preview: null,
-      threats: [card("e", "eclipse", "ada", 2, 30), card("l", "lunge", "ada", 1, 18)],
+      threats: [card("m", "eclipse", "ada", 1, 30), card("z", "lunge", "ada", 2, 18), card("a", "eclipse", "ada", 0, 12)],
     });
     const ids = [...(pinned()?.querySelectorAll<HTMLElement>("[data-threat-card]") ?? [])].map((i) => i.dataset.threatCard);
-    expect(ids, "drawn in the order sent").toEqual(["e", "l"]);
+    expect(ids, "drawn in the order sent").toEqual(["m", "z", "a"]);
     win.destroy();
   });
 
@@ -94,7 +95,8 @@ describe("a card aimed at you is pinned in the command window", () => {
   it("main.ts hands the window the state's cards as sent, not a list of its own", async () => {
     const { readFile } = await import("node:fs/promises");
     const src = await readFile(resolve("src/client/main.ts"), "utf8");
-    expect(src, "the window is told the server's cards").toMatch(/threats:\s*state\.cards/);
+    expect(src, "the window is told the server's cards, untouched (the gate's 3c)").toMatch(/threats:\s*state\.cards,/);
+    expect(src, "and no client re-sorts them on the way").not.toMatch(/state\.cards\s*\.\s*(?:slice|sort|toSorted|filter|reverse)/);
   });
 });
 

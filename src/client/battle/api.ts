@@ -160,8 +160,9 @@ export type Registry = { readonly [K in EventKind]?: { full: Effect<K>; reduced:
  * The state each event's reduced renderer must produce (review F25): entries
  * of [method, ...args], every one of which it must call. Arguments are matched
  * against the event: "me" is its actorId, "target" its targetId, "card" its
- * card's id (or cardId), "ring" its ringId, "*" anything, and every other value
- * is itself. A motion is never a state. spec/effects.test.ts holds it.
+ * card's id (or cardId), "ring" its ringId, "=a.b" the event's own field at
+ * that path (ADR-012's lines), "*" anything, and every other value is itself.
+ * A motion is never a state. spec/effects.test.ts holds it.
  */
 export type Expected = { readonly [K in EventKind]?: readonly (readonly [string, ...unknown[]])[] };
 

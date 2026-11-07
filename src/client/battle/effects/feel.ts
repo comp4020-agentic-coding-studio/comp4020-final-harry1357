@@ -42,7 +42,7 @@ const expected: Expected = {
   leave: [["scene.depart", "me"]],
   down: [["scene.down", "me"], ["scene.ward", "me", false], ["scene.status", "me", "*"]],
   // ADR-012: the server's cause, printed as sent, under the banner
-  end: [["scene.banner", "*"], ["scene.cause", "*"]],
+  end: [["scene.banner", "*"], ["scene.cause", "=ending.line"]],
   // the lobby (ADR-009): Start clears the last fight's banner and marks the strip; the host's change, the new host
   start: [["scene.banner", null], ["strip.started"]],
   host: [["strip.flag", "me", "host"]],
@@ -69,7 +69,7 @@ const expected: Expected = {
   pull: [["scene.rings", "*", "*"], ["scene.hp", "orrery", "*", "*"], RINGS, ["scene.phase", "*"]],
   // ADR-010: a phase is a moment: its card, its title, the rings' new figure, and the flash
   // ADR-012: and the title carries what the phase changes, the server's line
-  phase: [["strip.phaseCard", "*", "*"], ["scene.title", "*", "*"], ["scene.phase", "*"], ["scene.hit", "orrery"], RINGS],
+  phase: [["strip.phaseCard", "*", "*"], ["scene.title", "*", "=change"], ["scene.phase", "*"], ["scene.hit", "orrery"], RINGS],
   grow: [["scene.hp", "orrery", "*", "*"], ["scene.rings", "*", "*"]],
   break: [RINGS, ["scene.hit", "orrery"]],
   // each blow's card leaves the strip as it lands (the sample's isn't spent)

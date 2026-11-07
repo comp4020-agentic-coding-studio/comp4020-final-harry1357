@@ -154,7 +154,8 @@ describe("a hint is advice: it never changes what the window accepts (rule 2)", 
           );
           if (prompts === every) {
             // The hints are drawn (so this compared something), and nothing more.
-            expect(options.filter((o) => o.hasAttribute("data-prompt")).length, "the hints are drawn").toBeGreaterThan(0);
+            // Every option not refused carries its hint (the gate's 3h: not just one).
+            expect(options.filter((o) => o.hasAttribute("data-prompt")).length, "the hints are drawn").toBe(options.filter((o) => !o.hasAttribute("data-refused")).length);
           }
           win.destroy();
         }
