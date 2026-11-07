@@ -55,18 +55,20 @@ and the breaker's V5). It carries:
   or `party` for a card on everyone), what it found there, and **the answers
   the table had**, taken from ADR-011's teeth, each named with the person at
   this table who held it, or with its role when no person did. An Echo is
-  never named as an answer, because it never makes one (rule 25). The table
+  never named as an answer: the line names the people at the table, and an
+  Echo's seat is no person's (rule 25). The table
   is the one standing as the card landed (the gate's 1b): an answer already
   made (a Brace, a Ward, a swap, a standing Bastion, a Broken outer ring), or
   held only by a seat already down, is not one it lacked, and a Warden is
   never offered Anchor on their own blow. When every answer was made, the line
   says the card was met and still took the last of them, and its line names
-  what met it (taken on purpose, Warded, Braced, a Bastion standing, the
-  outer ring Broken, every seat Braced: the confirm pass's C1).
+  what met it (taken on purpose, Braced, a Bastion standing, the outer ring
+  Broken, every seat Braced: the confirm pass's C1). A Warded seat is never
+  downed by the blow its Ward meets, so no ending says it.
 
   A card aimed at one seat ends a fight only on the last seat standing, so
   nobody else stood to answer it: its answers are that seat's own (its Brace,
-  and its Riposte, Nudge, Intercept or Veil when its role has one). The
+  and its Riposte, Nudge, Intercept, or Ward or Veil when its role has one). The
   allies' answers in the table below reach the line through a card on
   everyone, where every seat stands as it lands.
 
@@ -150,9 +152,12 @@ window, and their declared state is the hook their spec holds
   land and read once, at the end. Nothing decides a turn from it (rule 5);
   it is not persisted beyond the `end` line, and a fight closed by a restart
   gets the restart's line, as before (rule 6).
-- **An Echo is never an answer.** A person at a table of Echoes hears the
-  role's answer ("a Warden's Bastion"), not the Echo's, because the Echo would
-  never have made it. That is the lesson ADR-011 wanted taught.
+- **An Echo is never an answer.** A person at a table of Echoes hears an
+  answer an Echo held by its role ("a Warden's Bastion"), never the Echo's
+  name: the line names the people at the table. Some answers an Echo never
+  makes at all (a Reaction, a swap, a cancel, a ring, Charge: rule 25), and a
+  table of Echoes loses to the card only one of those meets, as a Breaker's
+  Fracture meets a Perihelion. That is the lesson ADR-011 wanted taught.
 - **The command window grows a line.** At 390×844 it is one more row above
   the commands, present only while a card is aimed at you; the viewport and
   tag checks hold it.

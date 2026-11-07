@@ -254,7 +254,7 @@ export interface LogEntry {
  * as the fight ran (ADR-012; rule 34). The client prints `line` as sent and
  * composes none of it. On a loss: the card that downed the last seat, its
  * target, what it found there (ADR-011's conditions, as tags: gravity:N,
- * unbraced, unwarded, no-bastion, outer-whole, enraged), and the answers the
+ * unbraced, unwarded, swapped, no-bastion, outer-whole, all-braced, enraged), and the answers the
  * table had, each with the person who held it, or null when only an Echo did
  * (role "any": every seat's). On a win: the blow (by, intent, ringId), who
  * Broke its ring, and the longest Chain.
