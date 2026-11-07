@@ -18,7 +18,10 @@ import { STRIP } from "./effects/strip.ts";
 /** Which area draws each event kind (phase two). Every kind in EVENT_KINDS appears exactly once. */
 export const OWNERS: Readonly<Record<"strip" | "command" | "feel", readonly EventKind[]>> = {
   // (a) the strip as the play surface: ./effects/strip.ts
-  strip: ["plate", "card", "chain", "resonance", "reaction", "intercept", "anchor", "quicken", "delay", "relay", "stillpoint", "retrograde", "alignment"],
+  strip: [
+    "plate", "card", "chain", "resonance", "reaction", "intercept", "veil", "riposte", "fracture", "nudge", "sting", "anchor", "quicken", "delay",
+    "relay", "stillpoint", "retrograde", "alignment",
+  ],
   // (b) the command window and the roles' surface: ./effects/command.ts
   command: ["hold", "echo"],
   // (c) the feel: ./effects/feel.ts (party.ts, orrery.ts, table.ts)

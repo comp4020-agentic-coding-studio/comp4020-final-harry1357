@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, expect, it } from "vitest";
 import { boot, cleanScratch, scratchDatabase, type Booted } from "./boot.ts";
-import { launchChrome, type Chrome, type Tab } from "./browser.ts";
+import { closeAll, launchChrome, type Chrome, type Tab } from "./browser.ts";
 
 // Phase two's gate (docs/review/phase-two.md): findings that only a page can
 // show, held in real Chrome against a server of the spec's own. Where a test
@@ -19,6 +19,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await chrome?.close();
+  await closeAll(); // the two-browser test's, if its finally never ran
   await server?.kill();
   cleanScratch();
 });

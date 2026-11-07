@@ -23,6 +23,12 @@
 // that card; handing it over darkens it until the server's next word. Card
 // actions (Anchor, Delay, Stillpoint) aim at the strip's boss cards, never at
 // an ally. Hover or focus on an option asks for the strip's ghost (onPreview).
+//
+// ADR-011 (item 9): a blow aimed at the Orrery has a ring step. Its targets
+// are the rings the window is told of (CommandOptions.rings), stepped with the
+// arrows, starting on the ring the server's preview would take with none
+// chosen. The window never works out a ring of its own: no preview target, it
+// starts on the first ring, and the server takes or refuses the one sent.
 import { ACTIONS, BOSS_ID, type ActionId, type ActionInfo, type BattleState } from "../../shared/protocol.ts";
 import type { SeatInfo } from "../battle/api.ts";
 import { RANK_PIPS, costOf, mountMeters } from "./seat.ts";
@@ -51,6 +57,8 @@ export interface CommandOptions {
   cards?: () => { id: string; name: string }[];
   /** Phase two's gate (P2): the allies who have fallen, for Restore. */
   fallen?: () => { id: string; name: string }[];
+  /** ADR-011: the Orrery's rings, outermost first, for a blow's ring step. Absent: a blow aims at the Orrery whole. */
+  rings?: () => { id: string; name: string }[];
   onTarget: (targetId: string | null) => void;
   onChoose: (action: ActionId, targetId: string | null) => void;
   /** Phase two: a command hovered or focused (null when none): the strip ghosts your portrait where the server's preview puts it. */
@@ -536,10 +544,15 @@ export function mountCommandWindow(root: HTMLElement, opts: CommandOptions): Com
     opts.onChoose(action, targetId);
   }
 
-  /** An option whose target the player steps through: allies, the fallen (Restore), or the strip's cards. Not a Reaction (one card). */
+  /** An option whose target the player steps through: allies, the fallen (Restore), the strip's cards, or the rings. Not a Reaction (one card). */
   function choosable(i: number): boolean {
     const info = infos[i];
-    return !info.reaction && (info.target === "ally" || info.target === "card");
+    return !info.reaction && (info.target === "ally" || info.target === "card" || (info.target === "boss" && ringsOf().length > 0));
+  }
+
+  /** The rings the window is told of now, for a blow's ring step (ADR-011); none means the Orrery whole. */
+  function ringsOf(): Target[] {
+    return opts.rings?.() ?? [];
   }
 
   /** Who option i can be aimed at, as the window is told now. */
@@ -547,7 +560,10 @@ export function mountCommandWindow(root: HTMLElement, opts: CommandOptions): Com
     const info = infos[i];
     // The Reaction answers the one card the server names, and no other (rule 2).
     if (info.reaction) return reaction === null ? [] : [{ id: reaction, name: cardName(reaction) }];
-    if (info.target === "boss") return [{ id: BOSS_ID, name: BOSS_NAME }];
+    if (info.target === "boss") {
+      const rings = ringsOf();
+      return rings.length > 0 ? rings : [{ id: BOSS_ID, name: BOSS_NAME }];
+    }
     // Anchor, Delay, Stillpoint: the strip's boss cards, never an ally id (review F7).
     if (info.target === "card") return opts.cards?.() ?? [];
     return fresh(i);
@@ -556,6 +572,7 @@ export function mountCommandWindow(root: HTMLElement, opts: CommandOptions): Com
   function fresh(i: number): Target[] {
     const info = infos[i];
     if (info.target === "card") return opts.cards?.() ?? [];
+    if (info.target === "boss") return ringsOf();
     return AT_THE_FALLEN.has(info.id) ? (opts.fallen?.() ?? []) : opts.allies();
   }
 

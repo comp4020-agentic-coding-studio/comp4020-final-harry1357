@@ -41,6 +41,8 @@ export interface StatusMark {
   left: number | null;
   /** A count drawn on it (Charge 2, Gravity 3), when it has one. */
   count?: number;
+  /** Gravity only: the next Lunge on this seat is lethal, by the count the server sends (state.gravityLethal). */
+  lethal?: boolean;
 }
 
 /** A boss card's moment on the strip (phase two). The card itself is drawn from state; this marks what just happened to it. */

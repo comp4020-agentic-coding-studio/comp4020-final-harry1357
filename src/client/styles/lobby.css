@@ -141,6 +141,16 @@
   gap: 0.35rem;
 }
 
+#battle .lobby-share[hidden] {
+  display: none;
+}
+
+/* sending the code: beside it on the plate, pushed to the line's end */
+#battle .lobby-share {
+  margin-left: auto;
+}
+
+#battle .lobby-share,
 #battle .lobby-add,
 #battle .lobby-leave {
   padding: 0.25rem 0.6rem;
@@ -208,12 +218,14 @@
 }
 
 #battle .lobby-start:focus-visible,
+#battle .lobby-share:focus-visible,
 #battle .lobby-add:focus-visible,
 #battle .lobby-leave:focus-visible {
   outline: 3px solid var(--brass-lit);
   outline-offset: 2px;
 }
 
+#battle .lobby-share:hover,
 #battle .lobby-add:hover:not(:disabled),
 #battle .lobby-leave:hover:not(:disabled) {
   border-color: var(--brass);

@@ -1,6 +1,6 @@
 import { afterAll, expect, it } from "vitest";
 import { boot, cleanScratch, scratchDatabase } from "./boot.ts";
-import { launchChrome, type Tab } from "./browser.ts";
+import { closeAll, launchChrome, type Tab } from "./browser.ts";
 import { sleep } from "./raid.ts";
 
 // Phase two's gate, P1 (from play): after sitting down, focus fell to the page
@@ -12,6 +12,8 @@ import { sleep } from "./raid.ts";
 // check:keyboard does: a page's own dispatchEvent is not a person.
 
 afterAll(cleanScratch);
+// Its Chrome, closed even if the test's finally never ran (the gate's harness ruling).
+afterAll(closeAll);
 
 const KEYS: Record<string, { code: string; vk: number; text?: string }> = {
   Tab: { code: "Tab", vk: 9 },

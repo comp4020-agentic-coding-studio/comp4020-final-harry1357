@@ -27,7 +27,8 @@
 
 import { ACTIONS, BOSS_ID, type BattleEvent, type Hit } from "../shared/protocol.ts";
 import type { CharacterWrite } from "./db.ts";
-import { cleanName, type Battle, type Effects, type Fighter } from "./rules.ts";
+import type { ReasonCode } from "./reasons.ts";
+import { type Battle, type Effects, type Fighter } from "./rules.ts";
 
 type Value = string | number | boolean | null;
 type Field = readonly [key: string, value: Value];
@@ -221,8 +222,8 @@ export interface Refused {
   as?: unknown;
   name?: unknown;
   status: number;
-  /** What the person was told. */
-  reason: string;
+  /** Why, as a code: never the sentence the person was told, which may say back what they sent (C4). */
+  reason: ReasonCode;
 }
 
 /** The refusal path's half: one line for a request the server refused, and why. */
@@ -232,8 +233,7 @@ export function refused(r: Refused): void {
     ["status", r.status],
   ];
   if (r.as !== undefined) extra.push(...aimed(r.battle, r.as, "as_seat", "as_name"));
-  const asked = r.route === "join" ? cleanName(r.name) : null;
-  if (asked) extra.push(["asked_name", asked]);
+  // A refused join's asked name is submitted text: a refusal line carries none (the owner's ruling on C4).
   // The line's action: what was asked, once recognised. A turn action by its name; every other route by its own.
   const action =
     r.route === "action" ? (typeof r.action === "string" && Object.hasOwn(ACTIONS, r.action) ? r.action : "unknown") : r.route;

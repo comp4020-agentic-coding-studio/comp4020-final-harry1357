@@ -13,7 +13,7 @@ export const TURN_MS = 12_000;
 /** Rule 8: three timeouts in a row make an Echo. */
 export const TIMEOUTS_TO_ECHO = 3;
 /** Rule 8: an Echo's output, as a share of a person's. Ours (ADR-010: 0.5 couldn't hold a seat at the room's pace). */
-export const ECHO_POTENCY = 0.75;
+export const ECHO_POTENCY = 0.6;
 /** Rule 8 (ADR-006, "The Echo"): an Echo on the plate waits this long for its
  *  person to reclaim the seat before the server plays it. */
 export const ECHO_BEAT_MS = 3_000;
@@ -29,6 +29,15 @@ export const CHAIN_CAP = 0.5;
 
 /** Rule 17: Brace banks one Charge, to a maximum of 3. */
 export const CHARGE_MAX = 3;
+/** Rule 17 (ADR-011): each pip of Charge a signature move spends adds this much potency. Ours. */
+export const CHARGE_POTENCY = 0.35;
+/** ADR-011: Bastion's cut grows by this per pip of Charge it spends. Ours. */
+export const CHARGE_BASTION = 0.15;
+
+/** ADR-011: every Reaction stings the Orrery for the role's power × this. Ours. */
+export const REACTION_STING = 1.2;
+/** ADR-011: the Breaker's Fracture takes this many pips off the outer ring. Ours. */
+export const FRACTURE_PIPS = 2;
 
 /** Relay: +25% to the next player portrait. */
 export const RELAY_BONUS = 0.25;
@@ -36,8 +45,8 @@ export const RELAY_BONUS = 0.25;
 export const QUICKEN_CUT = 0.3;
 /** Haste: an ally's next 2 waits are halved. */
 export const HASTE_RESETS = 2;
-/** Bastion: −40% to the next raid-wide card. */
-export const BASTION_CUT = 0.4;
+/** Bastion: the next raid-wide card's cut. The design record's 40%; ADR-011 makes it 60% (ours), so a Bastion alone meets a Perihelion. */
+export const BASTION_CUT = 0.6;
 /** Mark: 2 Exposed stacks. Pry: 2 pips. Shatter: at 2 pips or fewer, for 3 Insight. */
 export const MARK_STACKS = 2;
 export const PRY_PIPS = 2;
@@ -56,7 +65,7 @@ export const INSIGHT_MAX = 5;
 export const FLUX_MAX = 5;
 
 /** Rule 20: HP = base × seats^0.75, an Echo half a seat. Base is ours (ADR-010: the Orrery acts three times as often). */
-export const ORRERY_BASE_HP = 160;
+export const ORRERY_BASE_HP = 120;
 export const HP_EXPONENT = 0.75;
 export const ECHO_SEAT = 0.5;
 
@@ -81,11 +90,12 @@ export const PHASE_TWO_BELOW = 0.7;
 export const PHASE_THREE_BELOW = 0.35;
 
 /** Perihelion: announced 4 slots ahead; the outer ring gets 3 + squads pips. One squad for now. */
-export const PERIHELION_LEAD = 4;
+export const PERIHELION_LEAD = 6;
 export const PERIHELION_BASE_PIPS = 3;
 export const SQUADS = 1;
-/** Gravity: lethal at 3 stacks. */
-export const GRAVITY_LETHAL = 3;
+/** Gravity: a Lunge on a seat already carrying this many stacks takes everything, unless it was swapped,
+ *  Braced or Warded (ADR-011's first tooth). Ours: 2 (the design record's 3 let a Lunge land twice unanswered). */
+export const GRAVITY_LETHAL = 2;
 /** Retrograde: flips the next 5 slots. */
 export const RETROGRADE_SLOTS = 5;
 /** Grand Alignment: every 4th boss card in phase III. */

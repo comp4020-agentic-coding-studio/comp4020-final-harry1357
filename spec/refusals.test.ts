@@ -157,3 +157,94 @@ describe("every refusal on every route is one log line", () => {
     }
   }, 120_000);
 });
+
+describe("a refusal line carries a reason code, never the request's own text (the owner's ruling on C4; rule 32)", () => {
+  it("walks every API route with a marker in every field, the path and the query, and no stdout line ever carries it", async () => {
+    const routes = await routesOfTheApp();
+    const server = await boot(scratchDatabase(), { TICK_MS: "20", LOBBY_GRACE_MS: "600000" });
+    // A marker no server text contains: in every body field, the path's ids and the query. A name, an Echo's role,
+    // a card, a ring, a seat: each refusal of each field is walked, so a sentence that echoes any of them shows.
+    const M = "ZQXmark";
+    try {
+      const at = server.base;
+      const door = await raid(at);
+      const raider = await joinRoom(at, door.code as string, `raider-${suffix()}`, "striker");
+      const made = await fetch(new URL("/api/rooms", at), {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ name: `host-${suffix()}`, role: "warden" }),
+      });
+      const room = (await made.json()) as { code: string; battleId: string };
+      const host = made.headers.getSetCookie().map((c) => c.split(";")[0]).join("; ");
+      const guest = await joinRoom(at, room.code, `guest-${suffix()}`, "mender");
+      const bodies = [
+        { name: `${M}name`, role: `${M}role`, action: `${M}action`, targetId: `${M}target`, seatId: `${M}seat`, characterId: `${M}char`, actorId: `${M}actor`, code: `${M}code` },
+        { name: `${M}name`, role: "striker" },
+        { name: `${M}${"W".repeat(40)}`, role: "striker" },
+        { role: `${M}role` },
+        { action: "jab", targetId: `${M}ring` },
+        { action: "brace", targetId: `${M}self` },
+        { action: "anchor", targetId: `${M}card` },
+        { action: "mend", targetId: `${M}ally` },
+        { action: "intercept", targetId: `${M}card` },
+        { action: `${M}action` },
+        { seatId: `${M}seat`, action: "brace" },
+      ];
+      const fill = (path: string, own: boolean) =>
+        path
+          .replace(":code", own ? room.code : `${M}CODE`)
+          .replace(":id", own ? room.battleId : `${M}battle`)
+          .replace(/:\w+/g, `${M}param`);
+      let refusals = 0;
+      for (const route of routes) {
+        const [method, path] = route.split(" ");
+        for (const own of [true, false]) {
+          for (const cookie of ["", host, guest.cookie, raider.cookie]) {
+            for (const body of method === "GET" ? [undefined] : bodies) {
+              const res = await fetch(new URL(`${fill(path, own)}?${M}q=${M}v`, at), {
+                method,
+                headers: { ...(body ? { "content-type": "application/json" } : {}), ...(cookie ? { cookie } : {}) },
+                body: body ? JSON.stringify(body) : undefined,
+              });
+              await res.arrayBuffer();
+              if (res.status >= 400) refusals++;
+            }
+          }
+        }
+      }
+      // And the action route on the raider's own turn in the running raid (it pulls READY_MS after its first
+      // seat), where the engine's own refusals answer: a ring, a card, an ally, each named with the marker.
+      const id = (await (await fetch(new URL(`/api/rooms/${door.code}`, at))).json()) as { battleId: string };
+      let mine = false;
+      for (let i = 0; i < 1500 && !mine; i++) {
+        const st = (await (await fetch(new URL(`/api/battles/${id.battleId}`, at))).json()) as { status: string; activeId: string | null };
+        mine = st.status === "fighting" && st.activeId === raider.characterId;
+        if (!mine) await sleep(20);
+      }
+      expect(mine, "the walk reached the raider's own turn, so the engine's refusals were asked").toBe(true);
+      const engineRefused: string[] = [];
+      for (const body of bodies) {
+        const res = await fetch(new URL(`/api/battles/${id.battleId}/actions`, at), { method: "POST", headers: { "content-type": "application/json", cookie: raider.cookie }, body: JSON.stringify(body) });
+        engineRefused.push(`${res.status} ${(await res.text()).slice(0, 60)}`);
+        refusals++;
+      }
+      expect(engineRefused.some((r) => r.startsWith("400") && /ring/.test(r)), `a bad ring was refused on the turn: ${engineRefused.join(" | ")}`).toBe(true);
+      await (await fetch(new URL(`/${M}/nowhere?${M}=1`, at))).arrayBuffer();
+      await sleep(300);
+      expect(refusals, "the walk was refused, so there was something to read").toBeGreaterThan(100);
+      // Every refusal line: no field carries the marker. Rule 32 lets a seat's own valid name stand on the lines
+      // its seat writes (`name=` of a person seated), which are no refusal of anything; a refusal line carries none.
+      const carrying = server.stdout().filter((l) => l.includes(M) && /\boutcome=refused\b/.test(l));
+      expect(carrying.slice(0, 5), `${carrying.length} refusal lines carry request text`).toEqual([]);
+      const elsewhere = server.stdout().filter((l) => l.includes(M) && !/\boutcome=refused\b/.test(l) && !/^(?:(?! name=)[\s\S])*$/.test(l));
+      const fields = elsewhere.flatMap((l) => [...l.matchAll(/([a-z_]+)=("(?:[^"\\]|\\.)*"|\S+)/g)].filter((m) => m[2].includes(M)).map((m) => m[1]));
+      // Outside refusals, only where a line names a seated person by name: its own `name`, and a blow on everyone's
+      // `hits` (name:amount for each seat). Both are the server's own record of a seat, not request text.
+      expect([...new Set(fields)].filter((f) => !["name", "hits"].includes(f)), "outside refusals, only a seated person's own name carries it").toEqual([]);
+      const reasons = refusedLines(server).map((l) => l.reason);
+      expect(reasons.filter((r) => !/^[a-z][a-z0-9-]*$/.test(r ?? "")).slice(0, 5), "every refusal's reason is a code").toEqual([]);
+    } finally {
+      await server.kill();
+    }
+  }, 180_000);
+});

@@ -49,6 +49,12 @@
 // - Restore re-enters at rank 3 (FFX), at half HP rounded up, with Gravity,
 //   Ward and Brace cleared. The HP it brings back counts as healing. Without
 //   a target it picks the first downed ally; someone who left isn't downed.
+// - Charge (rule 17, ADR-011) is spent by each role's signature move
+//   (ACTIONS[a].signature): Bastion cuts deeper, Restore brings back more,
+//   Finisher hits harder, Shatter pushes the cards further, and Stillpoint
+//   costs less Flux. The move empties it, and its event says how many pips.
+// - Anchor is a swap (ADR-011): the Lunge it pulls lands on the Warden as an
+//   ordinary blow, never a lethal one.
 // - Bastion can't be raised over one already standing (it would waste the
 //   Resolve), and Stillpoint can't freeze a card that's already frozen.
 // - Anchor and Delay at a card id the strip no longer holds are refused (409),
@@ -63,7 +69,11 @@ import { ATTACK_RANK, counterReset } from "./ctb.ts";
 import * as economy from "./economy.ts";
 import * as orrery from "./orrery.ts";
 import { wound, type Battle, type Ctx, type Fighter, type Refusal, type RingState } from "./rules.ts";
+import type { ReasonCode } from "./reasons.ts";
 import {
+  BASTION_CUT,
+  CHARGE_BASTION,
+  CHARGE_POTENCY,
   FINISHER_BROKEN,
   FLUX_MAX,
   GRACE_MAX,
@@ -111,6 +121,8 @@ const JAB_MOMENTUM = 1;
 const CLEAVE_MOMENTUM = 2;
 /** Ours: Resolve per Anchor, Grace per pre-emptive Ward, Insight per Scan or Pry, Flux per strip move. */
 const GAIN = 1;
+/** Ours (ADR-011): shield pips a blow on a revealed weakness cracks off its ring. */
+const WEAK_PIPS = 1;
 
 const RING_IDS: readonly RingId[] = ["outer", "middle", "inner"];
 const isRingId = (x: string): x is RingId => (RING_IDS as readonly string[]).includes(x);
@@ -191,10 +203,23 @@ export function perform(ctx: Ctx, actor: Fighter, action: ActionId, target: stri
     case "stillpoint":
       return { rank: stillpoint(ctx, actor, card(ctx, at), rank) };
     case "intercept":
+    case "veil":
+    case "riposte":
+    case "fracture":
+    case "nudge":
       // A Reaction: rules.ts hands it to economy.react and never brings it here.
-      throw new Error("Intercept is a Reaction; economy.react takes it, not perform");
+      throw new Error(`${action} is a Reaction; economy.react takes it, not perform`);
   }
 }
+
+/** Spend the actor's Charge on a signature move (rule 17, ADR-011): how many pips, and the Charge is gone. */
+function spendCharge(actor: Fighter): number {
+  const pips = actor.charge;
+  actor.charge = 0;
+  return pips;
+}
+
+const charged = (pips: number): string => (pips > 0 ? `, ${pips} Charge behind it` : "");
 
 /**
  * The rank a turn action would reset its actor at, aimed at its default
@@ -228,6 +253,7 @@ function anchor(ctx: Ctx, actor: Fighter, c: BossCard, rank: number): number {
   const fromId = c.targetId as string;
   const from = ctx.b.standing.find((f) => f.id === fromId) ?? ctx.b.fallen.find((f) => f.id === fromId);
   orrery.retargetCard(ctx, c.id, actor.id);
+  orrery.swapped(ctx, c.id);
   actor.resource = Math.min(RESOLVE_MAX, actor.resource + GAIN);
   ctx.say(
     "action",
@@ -241,12 +267,15 @@ function anchor(ctx: Ctx, actor: Fighter, c: BossCard, rank: number): number {
 function bastion(ctx: Ctx, actor: Fighter, rank: number): number {
   const spent = actor.resource;
   actor.resource = 0;
+  const charge = spendCharge(actor);
   ctx.b.bastion = true;
-  ctx.say("action", actor.id, `${actor.name} spends ${spent} Resolve to raise a Bastion against the next blow that falls on everyone.`, {
-    kind: "bastion",
-    actorId: actor.id,
-    spent,
-  });
+  ctx.b.bastionCut = Math.min(0.9, BASTION_CUT + CHARGE_BASTION * charge);
+  ctx.say(
+    "action",
+    actor.id,
+    `${actor.name} spends ${spent} Resolve${charged(charge)} to raise a Bastion against the next blow that falls on everyone (${Math.round(ctx.b.bastionCut * 100)}% off).`,
+    { kind: "bastion", actorId: actor.id, spent, charge },
+  );
   return rank;
 }
 
@@ -261,7 +290,7 @@ function counterweight(ctx: Ctx, actor: Fighter, ring: RingState, rank: number):
     amount: dealt,
     exposed: stacks,
   });
-  land(ctx, actor, dealt);
+  land(ctx, actor, dealt, ring);
   economy.applyExposed(ctx, ring.id, actor, stacks);
   return resonate(ctx, actor, rank, hit);
 }
@@ -318,9 +347,10 @@ function restore(ctx: Ctx, actor: Fighter, targetId: string, rank: number): numb
   const f = ctx.b.fallen.find((x) => x.id === targetId && x.out === "downed");
   if (!f) throw new Error(`Restore on ${targetId}, who isn't downed (checkAction should have refused)`);
   actor.resource -= RESTORE_COST;
+  const charge = spendCharge(actor);
   ctx.b.fallen = ctx.b.fallen.filter((x) => x !== f);
   f.out = null;
-  f.hp = Math.ceil(f.maxHp / 2);
+  f.hp = Math.min(f.maxHp, Math.ceil(f.maxHp / 2) + Math.ceil((f.maxHp * charge) / 4));
   // FFX: a revived character re-enters as if they had just used a rank-3 action.
   f.counter = counterReset(f.agility, "normal", ATTACK_RANK);
   f.braced = false;
@@ -328,10 +358,11 @@ function restore(ctx: Ctx, actor: Fighter, targetId: string, rank: number): numb
   f.gravity = 0;
   ctx.b.standing.push(f);
   ctx.stat(actor.id).healing += f.hp;
-  ctx.say("action", actor.id, `${actor.name} spends ${RESTORE_COST} Grace and brings ${f.name} back to the table at ${f.hp} HP.`, {
+  ctx.say("action", actor.id, `${actor.name} spends ${RESTORE_COST} Grace${charged(charge)} and brings ${f.name} back to the table at ${f.hp} HP.`, {
     kind: "restore",
     actorId: actor.id,
     targetId: f.id,
+    charge,
   });
   stripMoved(ctx);
   return rank;
@@ -349,7 +380,7 @@ function jab(ctx: Ctx, actor: Fighter, ring: RingState, rank: number): number {
     ringId: ring.id,
     amount: dealt,
   });
-  land(ctx, actor, dealt);
+  land(ctx, actor, dealt, ring);
   return resonate(ctx, actor, rank, hit);
 }
 
@@ -366,7 +397,7 @@ function cleave(ctx: Ctx, actor: Fighter, ring: RingState, rank: number): number
       : `${actor.name} cleaves the ${ring.id} ring for ${dealt}.`,
     { kind: "cleave", actorId: actor.id, ringId: ring.id, amount: dealt, weakness },
   );
-  land(ctx, actor, dealt);
+  land(ctx, actor, dealt, ring);
   return resonate(ctx, actor, rank, hit);
 }
 
@@ -375,16 +406,17 @@ function finisher(ctx: Ctx, actor: Fighter, ring: RingState, rank: number): numb
   const broken = ring.broken;
   const hit = resonant(ring);
   actor.resource = 0;
-  const dealt = aim(ctx, actor, FINISHER_PER_MOMENTUM * spent * (broken ? FINISHER_BROKEN : 1));
+  const charge = spendCharge(actor);
+  const dealt = aim(ctx, actor, FINISHER_PER_MOMENTUM * spent * (broken ? FINISHER_BROKEN : 1) * (1 + CHARGE_POTENCY * charge));
   ctx.say(
     "action",
     actor.id,
     broken
-      ? `${actor.name} spends ${spent} Momentum on a Finisher into the Broken ${ring.id} ring for ${dealt}.`
-      : `${actor.name} spends ${spent} Momentum on a Finisher into the ${ring.id} ring for ${dealt}.`,
-    { kind: "finisher", actorId: actor.id, ringId: ring.id, amount: dealt, spent, broken },
+      ? `${actor.name} spends ${spent} Momentum${charged(charge)} on a Finisher into the Broken ${ring.id} ring for ${dealt}.`
+      : `${actor.name} spends ${spent} Momentum${charged(charge)} on a Finisher into the ${ring.id} ring for ${dealt}.`,
+    { kind: "finisher", actorId: actor.id, ringId: ring.id, amount: dealt, spent, broken, charge },
   );
-  land(ctx, actor, dealt);
+  land(ctx, actor, dealt, ring);
   return resonate(ctx, actor, rank, hit);
 }
 
@@ -399,7 +431,7 @@ function feint(ctx: Ctx, actor: Fighter, ring: RingState, rank: number): number 
   if (!economy.spendExposed(ctx, ring.id, actor)) {
     throw new Error(`Feint on the ${ring.id} ring with no Exposed stack (checkAction should have refused)`);
   }
-  land(ctx, actor, dealt);
+  land(ctx, actor, dealt, ring);
   // A guaranteed Resonance: the opening someone else left is the weakness.
   return resonate(ctx, actor, rank, true);
 }
@@ -448,12 +480,21 @@ function mark(ctx: Ctx, actor: Fighter, ring: RingState, rank: number): number {
 
 function shatter(ctx: Ctx, actor: Fighter, ring: RingState, rank: number): number {
   actor.resource -= SHATTER_COST;
-  ctx.say("action", actor.id, `${actor.name} spends ${SHATTER_COST} Insight and shatters the ${ring.id} ring's last shields.`, {
+  const charge = spendCharge(actor);
+  ctx.say("action", actor.id, `${actor.name} spends ${SHATTER_COST} Insight${charged(charge)} and shatters the ${ring.id} ring's last shields.`, {
     kind: "shatter",
     actorId: actor.id,
     ringId: ring.id,
+    charge,
   });
-  movesCards(ctx, () => orrery.breakRing(ctx, ring.id, actor));
+  movesCards(ctx, () => {
+    orrery.breakRing(ctx, ring.id, actor);
+    // Each pip of Charge pushes the soonest card back one slot more (ADR-011).
+    for (let i = 0; i < charge; i++) {
+      const next = orrery.nextCard(ctx, (c) => !c.frozen);
+      if (next) orrery.delayCard(ctx, next.id, 1, actor);
+    }
+  });
   return rank;
 }
 
@@ -509,12 +550,15 @@ function relay(ctx: Ctx, actor: Fighter, rank: number): number {
 }
 
 function stillpoint(ctx: Ctx, actor: Fighter, c: BossCard, rank: number): number {
-  actor.resource = 0;
+  // Charge pays for Flux, a pip for a point (ADR-011): what's left of the cost comes out of Flux.
+  const charge = spendCharge(actor);
+  actor.resource = Math.max(0, actor.resource - Math.max(0, FLUX_MAX - charge));
   orrery.freezeCard(ctx, c.id, actor);
-  ctx.say("action", actor.id, `${actor.name} spends all their Flux on a Stillpoint: the Orrery's ${c.intent} is frozen for a cycle.`, {
+  ctx.say("action", actor.id, `${actor.name} spends their Flux${charged(charge)} on a Stillpoint: the Orrery's ${c.intent} is frozen for a cycle.`, {
     kind: "stillpoint",
     actorId: actor.id,
     cardId: c.id,
+    charge,
   });
   return rank;
 }
@@ -532,9 +576,16 @@ function aim(ctx: Ctx, actor: Fighter, scale: number): number {
   return Math.max(0, Math.min(Math.round(raw), ctx.orrery().hp));
 }
 
-/** Land an aimed blow on the Orrery and credit it. */
-function land(ctx: Ctx, actor: Fighter, dealt: number): void {
+/**
+ * Land an aimed blow on the Orrery and credit it. A blow on a ring whose weakness is revealed and that still
+ * has a shield cracks one pip off it (ADR-011, Octopath's Break: the design record's "hitting weaknesses
+ * removes shields"), so every role that strikes can Break a ring the Breaker has Scanned.
+ */
+function land(ctx: Ctx, actor: Fighter, dealt: number, ring: RingState): void {
   ctx.stat(actor.id).damage += wound(ctx, dealt);
+  if (ctx.b.status === "fighting" && ctx.orrery().hp > 0 && weak(ring) && !ring.broken && ring.pips > 0) {
+    movesCards(ctx, () => orrery.stripPips(ctx, ring.id, WEAK_PIPS, actor));
+  }
 }
 
 /**
@@ -563,15 +614,20 @@ function checkResource(actor: Fighter, action: ActionId): Refusal | null {
   const has = actor.resource;
   switch (action) {
     case "bastion":
-      return has > 0 ? null : refuse("Bastion spends Resolve, and you have none yet. Take a blow meant for an ally (Anchor or Intercept) to build it.");
+      return has > 0 ? null : refuse("no-resource", "Bastion spends Resolve, and you have none yet. Take a blow meant for an ally (Anchor or Intercept) to build it.");
     case "restore":
-      return has >= RESTORE_COST ? null : refuse(`Restore needs ${RESTORE_COST} Grace; you have ${has}. Ward an ally a boss card is aimed at to earn it.`);
+      return has >= RESTORE_COST ? null : refuse("no-resource", `Restore needs ${RESTORE_COST} Grace; you have ${has}. Ward an ally a boss card is aimed at to earn it.`);
     case "finisher":
-      return has > 0 ? null : refuse("Finisher spends Momentum, and you have none. Jab, or Cleave a weakness, to build it.");
+      return has > 0 ? null : refuse("no-resource", "Finisher spends Momentum, and you have none. Jab, or Cleave a weakness, to build it.");
     case "shatter":
-      return has >= SHATTER_COST ? null : refuse(`Shatter needs ${SHATTER_COST} Insight; you have ${has}. Scan or Pry to gain it.`);
-    case "stillpoint":
-      return has >= FLUX_MAX ? null : refuse(`Stillpoint needs full Flux (${FLUX_MAX}); you have ${has}. It builds whenever the strip moves.`);
+      return has >= SHATTER_COST ? null : refuse("no-resource", `Shatter needs ${SHATTER_COST} Insight; you have ${has}. Scan or Pry to gain it.`);
+    case "stillpoint": {
+      // Charge pays for Flux, a pip for a point (ADR-011).
+      const need = Math.max(0, FLUX_MAX - actor.charge);
+      return has >= need
+        ? null
+        : refuse("no-resource", `Stillpoint needs ${FLUX_MAX} Flux, Charge paying for some; you have ${has} Flux and ${actor.charge} Charge. Flux builds whenever the strip moves.`);
+    }
     default:
       return null;
   }
@@ -583,36 +639,36 @@ function checkTarget(b: Battle, actor: Fighter, action: ActionId, target: string
   switch (action) {
     case "anchor": {
       const c = b.cards.find((x) => x.id === target);
-      if (!c || !singleTarget(c)) return refuse("Anchor pulls a blow aimed at one ally, and that card isn't aimed at anyone in particular.");
-      if (c.targetId === actor.id) return refuse("That blow is already aimed at you.");
+      if (!c || !singleTarget(c)) return refuse("card-not-single", "Anchor pulls a blow aimed at one ally, and that card isn't aimed at anyone in particular.");
+      if (c.targetId === actor.id) return refuse("card-already-yours", "That blow is already aimed at you.");
       return null;
     }
     case "bastion":
-      return b.bastion ? refuse("A Bastion already stands against the next blow that falls on everyone.") : null;
+      return b.bastion ? refuse("bastion-standing", "A Bastion already stands against the next blow that falls on everyone.") : null;
     case "ward": {
       const f = b.standing.find((x) => x.id === target);
-      return f?.warded ? refuse(`${f.id === actor.id ? "You are" : `${f.name} is`} already Warded; the Ward holds until a blow lands.`) : null;
+      return f?.warded ? refuse("already-warded", `${f.id === actor.id ? "You are" : `${f.name} is`} already Warded; the Ward holds until a blow lands.`) : null;
     }
     case "quicken":
-      return target === actor.id ? refuse("Quicken moves an ally up the strip; your own wait is set by what you do this turn. Choose someone else.") : null;
+      return target === actor.id ? refuse("not-on-yourself", "Quicken moves an ally up the strip; your own wait is set by what you do this turn. Choose someone else.") : null;
     case "feint":
       return ring && ring.exposed.length === 0
-        ? refuse(`There's no Exposed stack on the ${ring.id} ring to spend. Someone has to Mark it or Counterweight it first.`)
+        ? refuse("no-exposed", `There's no Exposed stack on the ${ring.id} ring to spend. Someone has to Mark it or Counterweight it first.`)
         : null;
     case "pry":
       if (!ring) return null;
-      if (ring.broken) return refuse(`The ${ring.id} ring is already Broken; there's nothing left to pry.`);
-      if (!weak(ring)) return refuse(`Pry needs the ${ring.id} ring's weakness revealed first. Scan it.`);
-      if (ring.pips <= 0) return refuse(`The ${ring.id} ring has no shield pips left to pry.`);
+      if (ring.broken) return refuse("ring-broken", `The ${ring.id} ring is already Broken; there's nothing left to pry.`);
+      if (!weak(ring)) return refuse("ring-hidden", `Pry needs the ${ring.id} ring's weakness revealed first. Scan it.`);
+      if (ring.pips <= 0) return refuse("ring-no-pips", `The ${ring.id} ring has no shield pips left to pry.`);
       return null;
     case "shatter":
       if (!ring) return null;
-      if (ring.broken) return refuse(`The ${ring.id} ring is already Broken.`);
-      if (ring.pips > SHATTER_AT) return refuse(`Shatter needs a ring at ${SHATTER_AT} pips or fewer; the ${ring.id} ring has ${ring.pips}. Pry it first.`);
+      if (ring.broken) return refuse("ring-broken", `The ${ring.id} ring is already Broken.`);
+      if (ring.pips > SHATTER_AT) return refuse("ring-too-thick", `Shatter needs a ring at ${SHATTER_AT} pips or fewer; the ${ring.id} ring has ${ring.pips}. Pry it first.`);
       return null;
     case "stillpoint": {
       const c = b.cards.find((x) => x.id === target);
-      return c?.frozen ? refuse("That card is already frozen.") : null;
+      return c?.frozen ? refuse("card-frozen", "That card is already frozen.") : null;
     }
     default:
       return null;
@@ -632,17 +688,18 @@ function resolve(b: Battle, actor: Fighter, action: ActionId, raw: string | null
       if (raw === null || raw === BOSS_ID) return { target: defaultRing(b, action).id };
       return isRingId(raw) && b.rings.some((r) => r.id === raw)
         ? { target: raw }
-        : { status: 400, error: `There's no ring called "${raw}". Aim at the outer, middle or inner ring.` };
+        : { status: 400, code: "no-such-ring", error: `There's no ring called "${said(raw)}". Aim at the outer, middle or inner ring.` };
     }
     case "card": {
       if (raw !== null) {
         return b.cards.some((c) => c.id === raw)
           ? { target: raw }
-          : refuse(`${ACTIONS[action].label} aims at a boss card, and there's no such card on the strip; it may already have resolved.`);
+          : refuse("no-such-card", `${ACTIONS[action].label} aims at a boss card, and there's no such card on the strip; it may already have resolved.`);
       }
       const found = soonest(b.cards, cardFilter(actor, action));
       if (found) return { target: found.id };
       return refuse(
+        "no-such-card",
         action === "anchor"
           ? "There's no boss card aimed at an ally for you to Anchor."
           : `There's no boss card on the strip to ${action === "stillpoint" ? "hold with Stillpoint" : ACTIONS[action].label}.`,
@@ -652,18 +709,18 @@ function resolve(b: Battle, actor: Fighter, action: ActionId, raw: string | null
       if (action === "restore") {
         if (raw === null) {
           const down = b.fallen.find((f) => f.kind === "character" && f.out === "downed");
-          return down ? { target: down.id } : refuse("Nobody has fallen, so there's no one to Restore.");
+          return down ? { target: down.id } : refuse("nobody-fallen", "Nobody has fallen, so there's no one to Restore.");
         }
         if (b.fallen.some((f) => f.id === raw && f.out === "downed")) return { target: raw };
         const standing = b.standing.find((f) => f.id === raw && f.kind === "character");
         return standing
-          ? refuse(`${standing.name} is still standing; Restore brings back someone who has fallen.`)
-          : { status: 400, error: "That ally hasn't fallen in this fight." };
+          ? refuse("ally-not-fallen", `${standing.name} is still standing; Restore brings back someone who has fallen.`)
+          : { status: 400, code: "no-such-ally", error: "That ally hasn't fallen in this fight." };
       }
       const id = raw ?? actor.id;
       return b.standing.some((f) => f.id === id && f.kind === "character")
         ? { target: id }
-        : { status: 400, error: "That ally isn't standing at this table." };
+        : { status: 400, code: "no-such-ally", error: "That ally isn't standing at this table." };
     }
   }
 }
@@ -709,4 +766,11 @@ function card(ctx: Ctx, id: string | null): BossCard {
   return c;
 }
 
-const refuse = (error: string): Refusal => ({ status: 409, error });
+const refuse = (code: ReasonCode, error: string): Refusal => ({ status: 409, code, error });
+
+/** A name the server refused, said back to its sender at most SAID_MAX characters long (the gate's R-B). */
+const SAID_MAX = 40;
+const said = (raw: string): string => {
+  const chars = [...raw];
+  return chars.length > SAID_MAX ? `${chars.slice(0, SAID_MAX - 1).join("")}…` : raw;
+};

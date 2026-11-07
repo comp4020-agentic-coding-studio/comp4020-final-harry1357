@@ -144,7 +144,8 @@ describe("the server names the card a Reaction answers", () => {
     b = e.announce(clean, { intent: "eclipse", targetId: "mender-2", amount: 20, countdown: 0 });
     const card = b.cards[0].id;
     expect(reactionCard(e, b, "warden-1"), "a ready Warden is named the blow on the Mender").toBe(card);
-    expect(reactionCard(e, b, "mender-2"), "a Mender has no Reaction to name a card for").toBeNull();
+    // ADR-011: every role has a Reaction now, so the Mender is named the blow aimed at her too (her Veil).
+    expect(reactionCard(e, b, "mender-2"), "a Mender's Veil is named the same blow").toBe(card);
     const spent = e.act(b, "warden-1", "intercept", card, clock()).battle;
     expect(reactionCard(e, spent, "warden-1"), "a spent Reaction names no card").toBeNull();
   });
@@ -197,12 +198,16 @@ describe("the server names the card a Reaction answers", () => {
   });
 
   it("names no card the Reaction couldn't answer", async () => {
+    // ADR-011 changed what Intercept answers: a blow aimed at the Warden is one they stand into (a Reaction
+    // against a blow aimed at you Wards you). A raid-wide card and a card on the strip itself still aren't.
     const e = await engine();
     let b = table(e, ["warden", "mender"]);
     const clean = structuredClone(b);
     clean.cards = [];
     b = e.announce(clean, { intent: "revolution", targetId: "party", amount: 10, countdown: 0 });
-    b = e.announce(b, { intent: "eclipse", targetId: "warden-1", amount: 20, countdown: 0 });
-    expect(reactionCard(e, b, "warden-1"), "a raid-wide card, and a blow already meant for the Warden: nothing to Intercept").toBeNull();
+    b = e.announce(b, { intent: "retrograde", targetId: null, amount: null, countdown: 0 });
+    expect(reactionCard(e, b, "warden-1"), "a raid-wide card and a Retrograde: nothing to Intercept").toBeNull();
+    const at = e.announce(b, { intent: "eclipse", targetId: "warden-1", amount: 20, countdown: 0 });
+    expect(reactionCard(e, at, "warden-1"), "a blow meant for the Warden: they may stand into it").toBe(at.cards.find((c) => c.intent === "eclipse")!.id);
   });
 });

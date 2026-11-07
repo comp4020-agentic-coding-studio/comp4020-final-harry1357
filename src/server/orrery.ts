@@ -15,20 +15,21 @@
 //   2. every card at 0 that isn't frozen resolves, in strip order;
 //   3. every other card counts down by 1, except a frozen one, which skips the
 //      cycle and thaws (Stillpoint: "freeze one boss card for a full cycle");
-//   4. the script tops the strip up: the next two Orrery turns (countdown 0
-//      and 1) always hold a card, and a Perihelion goes up PERIHELION_LEAD
+//   4. the script tops the strip up: the next AHEAD Orrery turns (countdown 0
+//      to 2) always hold a card, and a Perihelion goes up PERIHELION_LEAD
 //      slots ahead on entering each phase.
-// The script fills its two slots every turn whatever the room did, so a Delay
+// The script fills its slots every turn whatever the room did, so a Delay
 // can't stall the Orrery forever: pushing its next card back empties this
 // turn and doubles up the next. Delay buys time; it doesn't erase damage.
 //
 // THE SCRIPT, phase by phase (rotations below, in SCRIPT):
-//   I   Outer Ring (100-70%): Revolution, Eclipse, Revolution, Lunge. A
-//       Perihelion at the pull teaches Break: the outer ring's shield.
-//   II  Conjunction (70-35%): Lunge, Revolution, Retrograde, Eclipse, Lunge,
-//       Revolution. More Lunges (the Gravity Well's tank swap), and the strip
-//       starts to turn. A Perihelion on entry.
-//   III Grand Alignment (<35%): Eclipse, Revolution, Lunge, with every
+//   I   Outer Ring (100-70%): Revolution, Lunge, Revolution, Eclipse,
+//       Revolution. A Perihelion at the pull teaches Break: the outer ring's
+//       shield.
+//   II  Conjunction (70-35%): Lunge, Revolution, Retrograde, Eclipse,
+//       Revolution, Lunge. More Lunges (the Gravity Well's tank swap), and the
+//       strip starts to turn. A Perihelion on entry.
+//   III Grand Alignment (<35%): Eclipse, Revolution, Lunge, Revolution, with every
 //       ALIGNMENT_EVERY-th card an Alignment. The ALIGNMENT_STEPS-th Alignment
 //       to resolve is the wipe: the visible enrage. A Perihelion on entry.
 //   Any phase that runs PERIHELION_AGAIN Orrery turns without one gets another.
@@ -45,11 +46,25 @@
 //   Perihelion is a fresh Break check. Middle and inner, once Broken, stay so.
 // - Weaknesses: outer ember, middle frost, inner aether, hidden until a
 //   Breaker Scans (roles.ts counts a weakness only once it's revealed).
-// - Lethal Gravity: a Lunge on someone already carrying GRAVITY_LETHAL stacks
-//   takes all their HP ("at 3 stacks the next Lunge is lethal"); the Lunge
-//   that makes the third stack is an ordinary blow. Brace doesn't halve it. A Ward still takes it
-//   (and the Ward is spent): the Mender's answer is to read the strip. The
-//   stack lands either way.
+// - Lethal Gravity (ADR-011's first tooth): a Lunge on someone already
+//   carrying GRAVITY_LETHAL stacks takes all their HP, unless it was swapped,
+//   Braced or Warded; the Lunge that makes that stack is an ordinary blow. A
+//   Ward takes it (and is spent). A Brace halves it as an ordinary blow. A
+//   swap (a Warden's Anchor or Intercept: `swapped`) lands it as an ordinary
+//   blow: a blow a Warden takes on purpose is never lethal. The stack lands
+//   either way.
+// - Eclipse (ADR-011's fourth tooth): on a seat that isn't Warded or Braced,
+//   it takes everything. A Ward takes it; a Brace halves it as an ordinary
+//   blow; a swapped Eclipse lands on its Warden as an ordinary blow.
+// - An uncancelled Retrograde (ADR-011's third tooth) costs the table a full
+//   rotation: after the flip, every seat's counter is set back by the slowest
+//   standing seat's Standard reset, the same for all, so the flipped order
+//   holds. The Orrery's counter isn't touched: the table is slowed, the
+//   Orrery isn't hastened (rule 13).
+// - Weaknesses re-hide and reshuffle at each phase change (ADR-011): every
+//   ring's weakness hidden again and the three elements dealt anew, by a
+//   rotation fixed by the phase and the pull's seats (no randomness, ADR-001),
+//   never the same as before.
 // - The well holds one body at a time: when a Lunge lands, everyone else's
 //   Gravity falls to 0. That's what makes Anchor a real tank swap. The Lunge
 //   aims at whoever holds the most Gravity, else the highest HP.
@@ -78,9 +93,9 @@
 import { BOSS_ID, type BossCard, type Intent, type RingId } from "../shared/protocol.ts";
 import * as roles from "./roles.ts";
 import { downTheFallen, harm, listNames, type Battle, type Ctx, type Fighter, type RingState } from "./rules.ts";
+import { counterReset } from "./ctb.ts";
 import {
   ALIGNMENT_EVERY,
-  BASTION_CUT,
   CARD_DAMAGE,
   ENRAGE_AFTER,
   GRAVITY_LETHAL,
@@ -106,24 +121,30 @@ type Dealt = "revolution" | "eclipse" | "lunge" | "perihelion";
 
 /** What each card deals before mitigation, in phases I, II and III, before CARD_DAMAGE (tuning.ts) scales it. */
 const AMOUNT: Readonly<Record<Dealt, readonly [number, number, number]>> = {
-  revolution: [8, 10, 12],
+  // ADR-011: a Revolution is chip, not the threat; the teeth are the cards a table must answer.
+  revolution: [4, 5, 6],
   eclipse: [20, 24, 28],
   lunge: [16, 20, 24],
-  perihelion: [32, 40, 48],
+  // ADR-011's second tooth: unmet, more than any seat's HP; a Break takes it to an eighth, a Bastion 60% off.
+  perihelion: [360, 360, 360],
 };
 /** The rotation of ordinary cards in each phase. Phase III's every ALIGNMENT_EVERY-th is an Alignment instead. */
 const SCRIPT: Readonly<Record<Phase, readonly Intent[]>> = {
-  1: ["revolution", "eclipse", "revolution", "lunge"],
-  2: ["lunge", "revolution", "retrograde", "eclipse", "lunge", "revolution"],
-  3: ["eclipse", "revolution", "lunge"],
+  // ADR-011: one Eclipse and one Lunge in each rotation, a Revolution between, so a Mender can meet each shadow.
+  1: ["revolution", "lunge", "revolution", "eclipse", "revolution"],
+  2: ["lunge", "revolution", "retrograde", "eclipse", "revolution", "lunge"],
+  3: ["eclipse", "revolution", "lunge", "revolution"],
 };
 /** The middle and inner rings' shields. The outer ring's is the record's 3 + squads. */
 const MIDDLE_PIPS = 5;
 const INNER_PIPS = 6;
-/** How many Orrery turns ahead the strip always holds a card: countdown 0 and 1. */
-const AHEAD = 2;
+/** How many Orrery turns ahead the strip always holds a card: countdown 0, 1 and 2 (ADR-011: was 2; a third slot
+ *  gives a Mender a turn between a shadow's announcing and its landing). Ours. */
+const AHEAD = 3;
 /** Alignments that resolve before the wipe: the countdown runs 2, 1, then 0 is the wipe. */
 const ALIGNMENT_STEPS = 3;
+/** ADR-011: a Break divides a pending Perihelion by this (the design record's 2, steeper). Ours. */
+const BREAK_PERIHELION = 8;
 /** A phase that runs this many Orrery turns without a Perihelion gets another. */
 const PERIHELION_AGAIN = 8;
 
@@ -163,6 +184,7 @@ export function onWound(ctx: Ctx): void {
   for (const [phase, below] of lines) {
     if (ctx.b.phase >= phase || share >= below) continue;
     ctx.b.phase = phase;
+    reshuffle(ctx.b, phase);
     ctx.say(
       "boss",
       BOSS_ID,
@@ -171,7 +193,7 @@ export function onWound(ctx: Ctx): void {
         : script(ctx.b).enraged
           ? `The Orrery falls below ${pct(below)}. ${cap(PHASE_NAME[3])}, already begun by the clock, goes on.`
           : `The Orrery falls below ${pct(below)}. ${cap(PHASE_NAME[3])} begins: every ${nth(ALIGNMENT_EVERY)} card brings it closer.`,
-      { kind: "phase", actorId: BOSS_ID, phase, name: PHASE_NAME[phase] },
+      { kind: "phase", actorId: BOSS_ID, phase, name: PHASE_NAME[phase], reshuffled: true },
     );
   }
 }
@@ -209,12 +231,15 @@ export function takeTurn(ctx: Ctx): void {
       cancelledBy: by,
       cardId: card.id,
       slots: [],
+      setBack: 0,
     });
   }
 
-  // 2. Everything due resolves, in strip order.
+  // 2. Everything due resolves, in strip order. Gravity counts as it stood before this turn (ADR-011): two Lunges
+  //    landing on one turn (a Delay can double one up) can't make a stack and crush with it before anyone acts.
   const due = b.cards.filter((c) => c.countdown <= 0 && !c.frozen);
   b.cards = b.cards.filter((c) => !due.includes(c));
+  s.gravityBefore = Object.fromEntries(ctx.party().map((f) => [f.id, f.gravity]));
   for (const card of due) {
     if (ctx.party().length > 0) resolve(ctx, card);
     forget(s, card.id);
@@ -253,10 +278,11 @@ export function breakRing(ctx: Ctx, ringId: RingId, by: Fighter): void {
   const pushed = nextCard(ctx, (c) => !c.frozen);
   if (pushed) push(ctx.b, pushed, 1);
   const perihelion = ringId === "outer" ? nextCard(ctx, (c) => c.intent === "perihelion") : undefined;
-  if (perihelion?.amount) perihelion.amount = Math.floor(perihelion.amount / 2);
+  // ADR-011: a Break is how a table meets Perihelion, so it takes three quarters off (the design record's half, steeper).
+  if (perihelion?.amount) perihelion.amount = Math.floor(perihelion.amount / BREAK_PERIHELION);
   const consequences = [
     pushed ? `its ${label(pushed.intent)} slips back a slot` : null,
-    perihelion ? `Perihelion's heat halves to ${perihelion.amount}` : null,
+    perihelion ? `Perihelion's heat falls to ${perihelion.amount}` : null,
   ].filter((x): x is string => x !== null);
   ctx.say(
     "boss",
@@ -286,6 +312,28 @@ export function freezeCard(ctx: Ctx, cardId: string, by: Fighter): void {
 export function retargetCard(ctx: Ctx, cardId: string, toId: string): void {
   const card = ctx.b.cards.find((c) => c.id === cardId);
   if (card) card.targetId = toId;
+}
+
+/** A Warden took this card on purpose (Anchor, Intercept): it lands as an ordinary blow, never lethal (ADR-011). */
+export function swapped(ctx: Ctx, cardId: string): void {
+  script(ctx.b).swapped[cardId] = true;
+}
+
+/** The three elements, dealt to the rings outer first, rotated by `shift`. */
+const ELEMENTS: readonly RingState["element"][] = ["ember", "frost", "aether"];
+
+/**
+ * A new phase (ADR-011): every ring's weakness hidden again, and the elements dealt anew by a rotation of
+ * one or two places, fixed by the phase and the pull's seats, so it is never the same as before and is the
+ * same every run of the same room.
+ */
+function reshuffle(b: Battle, phase: number): void {
+  const shift = 1 + ((phase + Math.round(b.pullSeats * 2)) % 2);
+  const at = b.rings.map((r) => ELEMENTS.indexOf(r.element));
+  b.rings.forEach((r, i) => {
+    r.element = ELEMENTS[(at[i] + shift) % ELEMENTS.length];
+    r.weakness = null;
+  });
 }
 
 /** Whether the Grand Alignment has begun: phase III, or the enrage past ENRAGE_AFTER Orrery turns (ADR-010). */
@@ -339,17 +387,25 @@ interface Script {
   aimedAt: Record<string, string | null>;
   /** Card id → the Chronist who Delayed or froze it. */
   touchedBy: Record<string, string>;
+  /** Card ids a Warden took on purpose (Anchor, Intercept): an ordinary blow, never lethal (ADR-011). */
+  swapped: Record<string, true>;
+  /** Each seat's Gravity as this Orrery turn began: what a Lunge on it is judged lethal by (ADR-011). */
+  gravityBefore: Record<string, number>;
 }
 
 /** The script's memory, on the battle's declared `orreryScript` (rules.ts), so it survives each step's clone. */
 function script(b: Battle): Script {
-  b.orreryScript ??= { played: 0, phase: 1, periheliaFor: 0, lastPerihelion: 0, aligned: 0, enraged: false, aimedAt: {}, touchedBy: {} };
-  return b.orreryScript as Script;
+  b.orreryScript ??= { played: 0, phase: 1, periheliaFor: 0, lastPerihelion: 0, aligned: 0, enraged: false, aimedAt: {}, touchedBy: {}, swapped: {} };
+  const s = b.orreryScript as Script;
+  s.swapped ??= {};
+  s.gravityBefore ??= {};
+  return s;
 }
 
 function forget(s: Script, cardId: string): void {
   delete s.aimedAt[cardId];
   delete s.touchedBy[cardId];
+  delete s.swapped[cardId];
 }
 
 /** Top the strip up: a Perihelion when one is owed, and a card for each of the next AHEAD Orrery turns. */
@@ -465,8 +521,14 @@ function spent(ctx: Ctx, card: BossCard, what: string): void {
 function eclipse(ctx: Ctx, card: BossCard): void {
   const target = standing(ctx, card.targetId);
   if (!target) return spent(ctx, card, "Eclipse");
-  const taken = harm(target, card.amount ?? 0);
-  ctx.say("boss", BOSS_ID, `Eclipse: the Orrery's shadow falls on ${target.name} for ${taken}.`, {
+  // ADR-011's fourth tooth: a shadow on a seat with nothing between it and the Orrery takes everything. A Ward
+  // absorbs it; a Brace (the seat's own shield) halves it as an ordinary blow; a Warden who took it on purpose
+  // takes it as an ordinary blow.
+  const swap = script(ctx.b).swapped[card.id] === true;
+  const whole = !target.warded && !target.braced && !swap;
+  const taken = whole ? target.hp : harm(target, card.amount ?? 0);
+  if (whole) target.hp = 0;
+  ctx.say("boss", BOSS_ID, `Eclipse: the Orrery's shadow falls on ${target.name} for ${taken}${whole ? ", and nothing stood between them" : ""}.`, {
     kind: "eclipse",
     actorId: BOSS_ID,
     targetId: target.id,
@@ -487,7 +549,11 @@ function lunge(ctx: Ctx, card: BossCard): void {
   // only on someone already carrying GRAVITY_LETHAL; the Lunge that makes the
   // third stack is an ordinary blow (review F21).
   const gravity = target.gravity + 1;
-  let lethal = target.gravity >= GRAVITY_LETHAL;
+  // ADR-011's first tooth: lethal on a seat already carrying GRAVITY_LETHAL stacks, unless a Warden took it on
+  // purpose (the swap), it was Braced (halved, as an ordinary blow) or Warded (absorbed).
+  const swap = s.swapped[card.id] === true;
+  const carried = Math.min(target.gravity, s.gravityBefore[target.id] ?? target.gravity);
+  let lethal = carried >= GRAVITY_LETHAL && !swap && !target.braced;
   let taken: number;
   if (lethal && target.warded) {
     target.warded = false;
@@ -528,6 +594,7 @@ function lunge(ctx: Ctx, card: BossCard): void {
  * finish() re-sorts the strip into the reversed order.
  */
 function retrograde(ctx: Ctx, card: BossCard): void {
+  const party = ctx.party();
   const next = ctx.b.standing.filter((f) => f.kind === "character").slice(0, RETROGRADE_SLOTS);
   const waits = next.map((f) => f.counter).sort((x, y) => x - y);
   const flipped = [...next].reverse();
@@ -535,15 +602,18 @@ function retrograde(ctx: Ctx, card: BossCard): void {
     const before = flipped[i - 1];
     f.counter = before ? Math.max(waits[i], before.counter + (f.seat < before.seat ? 1 : 0)) : waits[i];
   });
+  // ADR-011's third tooth: the whole table loses a rotation, the slowest seat's Standard turn, every seat alike.
+  const setBack = Math.max(0, ...party.map((f) => counterReset(f.agility, "normal", 3)));
+  for (const f of party) f.counter += setBack;
   ctx.say(
     "boss",
     BOSS_ID,
     next.length > 1
-      ? `Retrograde: the Orrery runs backwards. ${listNames(next)} now come round as ${listNames(flipped)}.`
-      : "Retrograde: the Orrery runs backwards, but there's nobody to turn about.",
-    { kind: "retrograde", actorId: BOSS_ID, flipped: next.length > 1, cancelledBy: null, cardId: card.id, slots: next.map((f) => f.id) },
+      ? `Retrograde: the Orrery runs backwards. ${listNames(next)} now come round as ${listNames(flipped)}, and the whole table loses a turn of the strip.`
+      : "Retrograde: the Orrery runs backwards, and the table loses a turn of the strip.",
+    { kind: "retrograde", actorId: BOSS_ID, flipped: next.length > 1, cancelledBy: null, cardId: card.id, slots: next.map((f) => f.id), setBack },
   );
-  if (next.length > 1) roles.stripMoved(ctx);
+  roles.stripMoved(ctx);
 }
 
 function alignment(ctx: Ctx, card: BossCard): void {
@@ -571,9 +641,10 @@ function raidWide(ctx: Ctx, base: number): { amount: number; hits: { targetId: s
   let amount = base;
   let bastion = "";
   if (ctx.b.bastion) {
-    amount = Math.round(base * (1 - BASTION_CUT));
+    const cut = ctx.b.bastionCut;
+    amount = Math.round(base * (1 - cut));
     ctx.b.bastion = false;
-    bastion = ` (a Bastion took ${pct(BASTION_CUT)} off ${base})`;
+    bastion = ` (a Bastion took ${pct(cut)} off ${base})`;
   }
   const hits = ctx.party().map((f) => ({ targetId: f.id, amount: harm(f, amount) }));
   return { amount, hits, bastion };

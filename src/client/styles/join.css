@@ -17,7 +17,9 @@
   align-content: center;
   justify-items: center;
   gap: 1rem;
-  width: min(100%, 82rem);
+
+  /* wide enough for five cards in one row, each with room for its 2x sprite */
+  width: min(100%, 92rem);
 
   /* Centred in the first screenful, whatever height the stage behind runs
      to, and top-aligned when it doesn't fit, so nothing is lost above the
@@ -276,14 +278,20 @@
   gap: clamp(0.5rem, 1.2vw, 0.9rem);
 }
 
-@container join-deck (width >= 68.5rem) {
+/* Five in one row as soon as five fit, so no role wraps onto a row of its
+   own and pushes the name and the button off the first screen (RICE item 1).
+   At 1920 each card still clears the 16.5rem its 2x sprite needs. */
+@container join-deck (width >= 52rem) {
   #battle .join-cards {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(5, minmax(0, 1fr));
   }
 }
 
 #battle .join-card {
   container: join-card / inline-size;
+
+  /* focus scrolls a card clear of the seat bar below, not under it */
+  scroll-margin-bottom: 11rem;
   position: relative;
   display: flex;
   flex-direction: column;
@@ -609,6 +617,24 @@
 #battle .join-door:has(.join-radio:focus-visible) {
   outline: 3px solid var(--brass-lit);
   outline-offset: 3px;
+}
+
+/* ---- the seat: the name and the button, always on the first screen ------------
+   The plate and the button ride a bar that sticks to the bottom of whatever
+   scrolls the select (the veil on a desktop, the page on a phone), so they
+   are visible without scrolling at any height. DOM and Tab order are
+   unchanged: doors, role, name, submit. A solid ink ground, since cards
+   scroll beneath it. */
+
+#battle .join-seat {
+  position: sticky;
+  bottom: 0;
+  z-index: 1;
+  display: grid;
+  gap: 1rem;
+  padding-block: 0.75rem 0.25rem;
+  background: var(--ink);
+  border-top: 2px solid var(--brass-dim);
 }
 
 /* ---- the seat button and the next-raid link ---------------------------------- */

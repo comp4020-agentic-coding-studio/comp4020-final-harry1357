@@ -29,6 +29,7 @@ import type {
 } from "../shared/protocol.ts";
 import { newId, type Store } from "./db.ts";
 import { refused, type Refused, type Route } from "./log.ts";
+import type { ReasonCode } from "./reasons.ts";
 import { mountPages } from "./pages.ts";
 import { ROLE_IDS, ROLES } from "../shared/protocol.ts";
 import { checkAction, checkJoin, checkSeatEcho, checkStart, cleanName, createBattle, isRole, nameKey, type Battle } from "./rules.ts";
@@ -53,14 +54,18 @@ async function readJson(c: Context): Promise<Record<string, unknown> | null> {
   }
 }
 
-/** The refusal path, and the only answer a refusal gets: one log line for the refused request, then the answer. */
-function refuse(c: Context, r: Refused & { status: Status }) {
+/**
+ * The refusal path, and the only answer a refusal gets: one log line for the refused request, carrying its
+ * reason code, then the answer, carrying the sentence. The sentence may say back what was sent; it never
+ * reaches the log (rule 32; the owner's ruling on C4).
+ */
+function refuse(c: Context, r: Refused & { status: Status }, told: string) {
   refused(r);
-  return c.json({ error: r.reason } satisfies ErrorResponse, r.status);
+  return c.json({ error: told } satisfies ErrorResponse, r.status);
 }
 
-/** A route's refusal: what it knows of the request, so each refusal is logged with it. */
-type No = (status: Status, reason: string, more?: Partial<Omit<Refused, "status" | "reason">>) => Response;
+/** A route's refusal: what it knows of the request, so each refusal is logged with it, by its code. */
+type No = (status: Status, why: ReasonCode, told: string, more?: Partial<Omit<Refused, "status" | "reason">>) => Response;
 
 /** The names a request body might give a seat by (docs/adr/008). */
 const SEAT_FIELDS = ["seatId", "characterId", "actorId"] as const;
@@ -89,7 +94,8 @@ export function createApp(root: string, store: Store, table: Table): Hono {
     const battle = where.battleId ? table.get(where.battleId) : undefined;
     const room = where.battleId && (battle || store.battle(where.battleId)) ? where.battleId : null;
     const code = where.code ? (table.room(where.code)?.code ?? null) : null;
-    return (status, reason, more = {}) =>
+    // `why`, not `code`: `code` is the room's (log.ts), and a parameter of that name hid it (the gate's C6).
+    return (status, why, told, more = {}) =>
       refuse(c, {
         route,
         battle,
@@ -102,9 +108,9 @@ export function createApp(root: string, store: Store, table: Table): Hono {
         target: where.target,
         name: where.name,
         status,
-        reason,
+        reason: why,
         ...more,
-      });
+      }, told);
   }
 
   mountPages(app, root);
@@ -119,13 +125,13 @@ export function createApp(root: string, store: Store, table: Table): Hono {
    */
   /** A join body's name and role, or the refusal to answer with. */
   function seatRequest(no: No, body: Record<string, unknown> | null, own: string | null): { name: string; role: RoleId } | Response {
-    if (!body) return no(400, "Send a JSON object with a name and a role.");
+    if (!body) return no(400, "bad-json", "Send a JSON object with a name and a role.");
     // Your own seat only: a body naming another is refused before anything else is looked at (rule 29; ADR-008).
     const as = otherSeat(body, own);
-    if (as !== undefined) return no(403, "You can only take your own seat.", { as });
+    if (as !== undefined) return no(403, "not-your-seat", "You can only take your own seat.", { as });
     const name = cleanName(body.name);
-    if (!name) return no(400, "A name is 1 to 24 characters, with no control characters.");
-    if (!isRole(body.role)) return no(400, `Choose a role: ${ROLE_IDS.slice(0, -1).join(", ")} or ${ROLE_IDS.at(-1)}.`);
+    if (!name) return no(400, "bad-name", "A name is 1 to 24 characters, with no control characters.");
+    if (!isRole(body.role)) return no(400, "bad-role", `Choose a role: ${ROLE_IDS.slice(0, -1).join(", ")} or ${ROLE_IDS.at(-1)}.`);
     return { name, role: body.role };
   }
 
@@ -142,18 +148,18 @@ export function createApp(root: string, store: Store, table: Table): Hono {
     // fights, but seated at another live table it sits down here as the same
     // role (review R1). Either way it keeps its record.
     if (known && nameKey(name) !== nameKey(known.name)) {
-      return no(409, `You sat down as ${known.name}, and a name stays with you: sit down as ${known.name}.`);
+      return no(409, "name-for-life", `You sat down as ${known.name}, and a name stays with you: sit down as ${known.name}.`);
     }
     if (known && role !== known.role && table.seatedElsewhere(known.id, battle.id)) {
-      return no(409, `You're seated at another table as ${known.name} the ${ROLES[known.role].label}; sit down here as the same role, or finish that fight first.`);
+      return no(409, "role-at-other-table", `You're seated at another table as ${known.name} the ${ROLES[known.role].label}; sit down here as the same role, or finish that fight first.`);
     }
     const check = checkJoin(battle, known?.id ?? null, known ? known.name : name);
     if (check === "already" && known && role !== known.role) {
       // Seated here already: a role is for a fight, so it isn't changed mid-fight, and asking says so (breaker Q9).
-      return no(409, `You're seated at this table already, as ${known.name} the ${ROLES[known.role].label}.`);
+      return no(409, "already-seated", `You're seated at this table already, as ${known.name} the ${ROLES[known.role].label}.`);
     }
     if (check === "already") return known ? "already" : null;
-    return check ? no(check.status, check.error) : null;
+    return check ? no(check.status, check.code, check.error) : null;
   }
 
   /** Seat the cookie's person in the fight `where()` names once the body is read (null: the room went). */
@@ -173,9 +179,9 @@ export function createApp(root: string, store: Store, table: Table): Hono {
     // next one open, while the body is in flight (breaker Q10).
     const id = where();
     const no = refusal(c, "join", { battleId: id, code, name });
-    if (id === null) return no(404, "No such room.");
+    if (id === null) return no(404, "no-such-room", "No such room.");
     const battle = table.get(id);
-    if (!battle) return store.battle(id) ? no(409, "This fight is already over.") : no(404, "No such battle.");
+    if (!battle) return store.battle(id) ? no(409, "fight-over", "This fight is already over.") : no(404, "no-such-battle", "No such battle.");
 
     const sid = getCookie(c, COOKIE);
     const known = sid ? store.characterBySession(sessionKey(sid)) : null;
@@ -206,7 +212,7 @@ export function createApp(root: string, store: Store, table: Table): Hono {
   app.post("/api/battles/:id/join", async (c) => {
     // A private room's fight is joined by its code, never by its id (rule 22; review R4).
     const id = c.req.param("id");
-    if (table.behindCode(id)) return refusal(c, "join")(404, "No such battle.");
+    if (table.behindCode(id)) return refusal(c, "join")(404, "no-such-battle", "No such battle.");
     const seat = await seatIn(c, () => id);
     return seat instanceof Response ? seat : c.json(seat);
   });
@@ -232,7 +238,7 @@ export function createApp(root: string, store: Store, table: Table): Hono {
       if (seat instanceof Response) return seat;
       return c.json({ ...seat, code: room.code } satisfies RoomJoinResponse, 201);
     }
-    if (!known) return no(403, "Sit down at a table before you make a room.");
+    if (!known) return no(403, "seat-first", "Sit down at a table before you make a room.");
     // A seated player's room seats them in it as its host (rule 27; breaker B4), under their name and role
     // (rule 24), vetted against an empty fight before anything is minted, as a founder's is.
     const vetted = vetSeat(no, known, known.name, known.role, createBattle("unminted", false, Date.now()));
@@ -245,13 +251,13 @@ export function createApp(root: string, store: Store, table: Table): Hono {
 
   app.get("/api/rooms/:code", (c) => {
     const room = table.room(c.req.param("code"));
-    return room ? c.json(room satisfies RoomResponse) : refusal(c, "read")(404, "No such room.");
+    return room ? c.json(room satisfies RoomResponse) : refusal(c, "read")(404, "no-such-room", "No such room.");
   });
 
   app.post("/api/rooms/:code/join", async (c) => {
     const code = c.req.param("code");
     const room = table.room(code);
-    if (!room) return refusal(c, "join")(404, "No such room.");
+    if (!room) return refusal(c, "join")(404, "no-such-room", "No such room.");
     const seat = await seatIn(c, () => table.room(code)?.battleId ?? null, undefined, room.code);
     return seat instanceof Response ? seat : c.json({ ...seat, code: room.code } satisfies RoomJoinResponse);
   });
@@ -259,13 +265,13 @@ export function createApp(root: string, store: Store, table: Table): Hono {
   /** The room's fight now and the caller's character, for the lobby's routes, with the route's `no`; or the refusal sent. */
   function lobbyCall(c: Context, route: Route): { battle: Battle; callerId: string; code: string; no: No } | Response {
     const room = table.room(c.req.param("code") ?? "");
-    if (!room) return refusal(c, route)(404, "No such room.");
+    if (!room) return refusal(c, route)(404, "no-such-room", "No such room.");
     const no = refusal(c, route, { battleId: room.battleId, code: room.code });
     const battle = table.get(room.battleId);
-    if (!battle) return no(409, "This fight is already over.");
+    if (!battle) return no(409, "fight-over", "This fight is already over.");
     const sid = getCookie(c, COOKIE);
     const callerId = sid ? table.characterFor(sessionKey(sid)) : undefined;
-    if (!callerId) return no(403, "Only someone seated at this table can do that.");
+    if (!callerId) return no(403, "not-seated", "Only someone seated at this table can do that.");
     return { battle, callerId, code: room.code, no };
   }
 
@@ -275,7 +281,7 @@ export function createApp(root: string, store: Store, table: Table): Hono {
     const call = lobbyCall(c, "start");
     if (call instanceof Response) return call;
     const refused = checkStart(call.battle, call.callerId);
-    if (refused) return call.no(refused.status, refused.error);
+    if (refused) return call.no(refused.status, refused.code, refused.error);
     table.startFight(call.battle.id, call.callerId);
     return c.json({ ok: true, battleId: call.battle.id } satisfies StartResponse);
   });
@@ -284,37 +290,37 @@ export function createApp(root: string, store: Store, table: Table): Hono {
   app.post("/api/rooms/:code/leave", (c) => {
     const call = lobbyCall(c, "leave");
     if (call instanceof Response) return call;
-    if (!table.leave(call.battle.id, call.callerId)) return call.no(409, "You aren't seated in this room's lobby.");
+    if (!table.leave(call.battle.id, call.callerId)) return call.no(409, "not-in-lobby", "You aren't seated in this room's lobby.");
     return c.json({ ok: true, battleId: call.battle.id } satisfies StartResponse);
   });
 
   app.post("/api/rooms/:code/echoes", async (c) => {
     const code = c.req.param("code");
-    if (!table.room(code)) return refusal(c, "echo")(404, "No such room.");
+    if (!table.room(code)) return refusal(c, "echo")(404, "no-such-room", "No such room.");
     const body = await readJson(c);
 
     // No awaits from here on: the check and the seat see the same battle,
     // the room's fight as it is now the body is in (breaker Q10).
     const room = table.room(code);
-    if (!room) return refusal(c, "echo")(404, "No such room.");
+    if (!room) return refusal(c, "echo")(404, "no-such-room", "No such room.");
     const no = refusal(c, "echo", { battleId: room.battleId, code: room.code });
-    if (!body) return no(400, "Send a JSON object with a role.");
+    if (!body) return no(400, "bad-json", "Send a JSON object with a role.");
     const battle = table.get(room.battleId);
-    if (!battle) return no(409, "This fight is already over.");
+    if (!battle) return no(409, "fight-over", "This fight is already over.");
     const sid = getCookie(c, COOKIE);
     const callerId = sid ? table.characterFor(sessionKey(sid)) : undefined;
-    if (!callerId) return no(403, "Only someone seated at this table can seat an Echo here.");
+    if (!callerId) return no(403, "not-seated", "Only someone seated at this table can seat an Echo here.");
 
     const refused = checkSeatEcho(battle, callerId, body.role);
-    if (refused) return no(refused.status, refused.error);
+    if (refused) return no(refused.status, refused.code, refused.error);
     const echoId = table.seatEcho(room.battleId, body.role as RoleId, callerId);
     return c.json({ code: room.code, battleId: room.battleId, echoId } satisfies EchoResponse, 201);
   });
 
   app.get("/api/battles/:id", (c) => {
-    if (table.behindCode(c.req.param("id"))) return refusal(c, "read")(404, "No such battle.");
+    if (table.behindCode(c.req.param("id"))) return refusal(c, "read")(404, "no-such-battle", "No such battle.");
     const state = table.state(c.req.param("id"));
-    return state ? c.json(state) : refusal(c, "read")(404, "No such battle.");
+    return state ? c.json(state) : refusal(c, "read")(404, "no-such-battle", "No such battle.");
   });
 
   // The one place an action enters, and so the one place ADR-008 is checked:
@@ -333,16 +339,16 @@ export function createApp(root: string, store: Store, table: Table): Hono {
     // exist, as its state, log, join and socket already say (rule 22; breaker Q5). Its line names no fight.
     const behind = table.behindCode(id) && !(battle && actorId && [...battle.standing, ...battle.fallen].some((f) => f.id === actorId));
     const no = refusal(c, "action", { battleId: behind ? null : id, code: behind ? null : battle?.room, action: body?.action, target: body?.targetId });
-    if (behind) return no(404, "No such battle.");
-    if (!body) return no(400, "Send a JSON object with an action.");
+    if (behind) return no(404, "no-such-battle", "No such battle.");
+    if (!body) return no(400, "bad-json", "Send a JSON object with an action.");
     // Your own seat only: a body naming another seat is refused before the turn is looked at (rule 29; ADR-008).
     const as = otherSeat(body, actorId ?? null);
-    if (as !== undefined) return no(403, "You can only act for your own seat.", { as });
-    if (!battle) return store.battle(id) ? no(409, "This fight is over.") : no(404, "No such battle.");
-    if (!actorId) return no(403, "You aren't standing in this fight.");
+    if (as !== undefined) return no(403, "not-your-seat", "You can only act for your own seat.", { as });
+    if (!battle) return store.battle(id) ? no(409, "fight-over", "This fight is over.") : no(404, "no-such-battle", "No such battle.");
+    if (!actorId) return no(403, "not-standing", "You aren't standing in this fight.");
 
     const checked = checkAction(battle, actorId, body.action, body.targetId);
-    if ("status" in checked) return no(checked.status, checked.error);
+    if ("status" in checked) return no(checked.status, checked.code, checked.error);
 
     const tick = table.act(id, actorId, checked.action, checked.targetId);
     return c.json({ ok: true, tick } satisfies ActionResponse);
@@ -351,9 +357,9 @@ export function createApp(root: string, store: Store, table: Table): Hono {
   app.get("/api/battles/:id/log", (c) => {
     const id = c.req.param("id");
     // Readable by id once it's over (rule 26), not while a private room is playing it.
-    if (table.behindCode(id)) return refusal(c, "read")(404, "No such battle.");
+    if (table.behindCode(id)) return refusal(c, "read")(404, "no-such-battle", "No such battle.");
     const battle = store.battle(id);
-    if (!battle) return refusal(c, "read")(404, "No such battle.");
+    if (!battle) return refusal(c, "read")(404, "no-such-battle", "No such battle.");
     return c.json({ battleId: id, status: battle.status, entries: store.log(id) } satisfies LogResponse);
   });
 
@@ -384,7 +390,7 @@ export function createApp(root: string, store: Store, table: Table): Hono {
   );
 
   // A path nothing serves is a refused request too, and logged like one (rule 32).
-  app.notFound((c) => refusal(c, "read")(404, "Not found."));
+  app.notFound((c) => refusal(c, "read")(404, "not-found", "Not found."));
   // A crash isn't a refusal: its trace goes to stderr (rule 32), and the answer says only that it failed.
   app.onError((err, c) => {
     console.error(err);

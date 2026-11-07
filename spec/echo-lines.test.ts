@@ -76,6 +76,9 @@ describe("every log line says whether an Echo wrote it", () => {
   }, 60_000);
 });
 
+/** The look-alike sweep is CPU-bound over nine thousand names: 6.6 s on a slow CI runner, past the 5 s default. */
+const SWEEP_MS = 60_000;
+
 describe("the names kept for the Echoes are compared by confusable skeleton (TR39)", () => {
   const cases: [string, string][] = [
     ["Wаrden Echo", "a Cyrillic а in Warden"],
@@ -154,7 +157,7 @@ describe("the names kept for the Echoes are compared by confusable skeleton (TR3
     }
     expect(tried, "the sweep tried look-alikes").toBeGreaterThan(500);
     expect(seated.slice(0, 12), `${seated.length} of ${tried} look-alikes sat down as people`).toEqual([]);
-  });
+  }, SWEEP_MS);
 
   it("refuses a look-alike read as typed beside a character only NFKC folds (D1)", async () => {
     // The confirm pass on C1 found D1 (rule 25 in intent): the name was taken

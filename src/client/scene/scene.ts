@@ -109,8 +109,8 @@ export function createScene(root: HTMLElement, { manifest, orrerySvg }: PartsOpt
   }
 
   /** Every state-drawn phase-two mark on one character. */
-  function seatMarks(a: Actor, t: Token): void {
-    party.setMarks(a, marksOf(t, braceLeft(t)));
+  function seatMarks(a: Actor, t: Token, lethalAt: number | null): void {
+    party.setMarks(a, marksOf(t, braceLeft(t), lethalAt));
     party.setEcho(a, t.echo ? (t.seatedBy ? "seated" : "timeout") : null);
     party.setDrifting(a, t.drifting && t.hp > 0);
     party.setWard(a, t.warded);
@@ -277,7 +277,11 @@ export function createScene(root: HTMLElement, { manifest, orrerySvg }: PartsOpt
     },
 
     target(id: string | null): void {
-      const next = id === null ? null : id === BOSS_ID ? orrery.el : (party.get(id)?.el ?? null);
+      // A ring (ADR-011's ring step) lights the Orrery, naming the ring so its marks are lifted.
+      const ring = id === "outer" || id === "middle" || id === "inner" ? id : null;
+      if (ring) orrery.el.dataset.targetedRing = ring;
+      else delete orrery.el.dataset.targetedRing;
+      const next = id === null ? null : id === BOSS_ID || ring ? orrery.el : (party.get(id)?.el ?? null);
       if (next === targeted) return;
       if (targeted) delete targeted.dataset.targeted;
       targeted = next;
@@ -431,7 +435,7 @@ export function createScene(root: HTMLElement, { manifest, orrerySvg }: PartsOpt
         party.setGuard(a, t.braced);
         party.setHaste(a, t.hasted);
         party.setMine(a, t.id === myId);
-        seatMarks(a, t);
+        seatMarks(a, t, state.gravityLethal ?? null);
       }
 
       for (const t of state.fallen) {
