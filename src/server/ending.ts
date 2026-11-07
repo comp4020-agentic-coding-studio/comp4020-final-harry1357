@@ -138,7 +138,8 @@ const ONE: readonly Answer[] = [
   { role: "mender", action: "veil", made: swappedOrWarded },
   { role: "striker", action: "riposte", made: swappedOrWarded, target: "only" },
   { role: "chronist", action: "nudge", made: swappedOrWarded, target: "only" },
-  { role: "self", action: "brace", made: (f) => !f.includes("unbraced") || f.includes("swapped") },
+  // A swap makes the blow an ordinary one, which a Brace still halves: only the seat's own Brace makes it (C1).
+  { role: "self", action: "brace", made: (f) => !f.includes("unbraced") },
 ];
 const ANSWERS: Readonly<Partial<Record<Intent, readonly Answer[]>>> = {
   lunge: ONE,
@@ -216,23 +217,28 @@ function sayAnswers(b: Battle, answers: Ending["answers"]): string {
   return /^(an?|every) /.test(said) ? said.charAt(0).toUpperCase() + said.slice(1) : said;
 }
 
-/** What the card found, in words: "at Gravity 2, unbraced", ", unwarded and unbraced". */
+/** What the card found, in words, every tag the server recorded (rule 34; the confirm pass's C1). */
 function sayFound(card: Landed): string {
-  if (card.intent === "lunge") {
-    const g = card.found.find((x) => x.startsWith("gravity:"));
-    const bits = [g ? `at Gravity ${g.slice(8)}` : null, card.found.includes("unbraced") ? "unbraced" : null].filter((x): x is string => x !== null);
-    return bits.length ? ` ${bits.join(", ")}` : "";
-  }
-  if (card.intent === "eclipse") {
-    const bits = [card.found.includes("unwarded") ? "unwarded" : null, card.found.includes("unbraced") ? "unbraced" : null].filter((x): x is string => x !== null);
-    return bits.length ? `, ${and(bits)}` : "";
+  const f = card.found;
+  if (card.intent === "lunge" || card.intent === "eclipse") {
+    const g = f.find((x) => x.startsWith("gravity:"));
+    const bits = [
+      card.intent === "lunge" && g ? `at Gravity ${g.slice(8)}` : null,
+      f.includes("swapped") ? "taken on purpose" : null,
+      f.includes("unwarded") ? "unwarded" : "Warded",
+      f.includes("unbraced") ? "unbraced" : "Braced",
+    ].filter((x): x is string => x !== null);
+    // "at Gravity 2" reads straight on from the name; everything else after a comma.
+    const lead = bits[0]?.startsWith("at ") ? ` ${bits.shift()}` : "";
+    return `${lead}${bits.length ? `, ${and(bits)}` : ""}`;
   }
   if (card.intent === "perihelion" || card.intent === "revolution") {
     const bits = [
-      card.found.includes("no-bastion") ? "no Bastion standing" : null,
-      card.intent === "perihelion" && card.found.includes("outer-whole") ? "the outer ring whole" : null,
+      f.includes("no-bastion") ? "no Bastion standing" : "a Bastion standing",
+      card.intent === "perihelion" ? (f.includes("outer-whole") ? "the outer ring whole" : "the outer ring Broken") : null,
+      f.includes("all-braced") ? "every seat Braced" : null,
     ].filter((x): x is string => x !== null);
-    return bits.length ? `, ${and(bits)}` : "";
+    return `, ${and(bits)}`;
   }
   return "";
 }
