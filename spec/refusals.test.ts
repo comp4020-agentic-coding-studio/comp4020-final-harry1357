@@ -238,7 +238,9 @@ describe("a refusal line carries a reason code, never the request's own text (th
       expect(carrying.slice(0, 5), `${carrying.length} refusal lines carry request text`).toEqual([]);
       const elsewhere = server.stdout().filter((l) => l.includes(M) && !/\boutcome=refused\b/.test(l) && !/^(?:(?! name=)[\s\S])*$/.test(l));
       const fields = elsewhere.flatMap((l) => [...l.matchAll(/([a-z_]+)=("(?:[^"\\]|\\.)*"|\S+)/g)].filter((m) => m[2].includes(M)).map((m) => m[1]));
-      expect([...new Set(fields)], "outside refusals, only a seated person's own name carries it").toEqual(fields.length ? ["name"] : []);
+      // Outside refusals, only where a line names a seated person by name: its own `name`, and a blow on everyone's
+      // `hits` (name:amount for each seat). Both are the server's own record of a seat, not request text.
+      expect([...new Set(fields)].filter((f) => !["name", "hits"].includes(f)), "outside refusals, only a seated person's own name carries it").toEqual([]);
       const reasons = refusedLines(server).map((l) => l.reason);
       expect(reasons.filter((r) => !/^[a-z][a-z0-9-]*$/.test(r ?? "")).slice(0, 5), "every refusal's reason is a code").toEqual([]);
     } finally {

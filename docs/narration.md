@@ -55,8 +55,12 @@ ts room [code] tick sid name role seat echo action target [actor] outcome, then 
   person has gone, a lobby seat unseated for having no socket), and
   `actor=server` is the process itself. A line with no `actor` was done by
   the `sid` person.
-- `outcome`: `applied`, or `refused` followed by `reason="…"` (what the
-  person was told) and `status=`.
+- `outcome`: `applied`, or `refused` followed by `reason=` and `status=`.
+  Since the difficulty gate's C4, `reason` is a code from
+  `src/server/reasons.ts` (`not-your-turn`, `no-such-ring`), never the
+  sentence the person was told, which may say back what they sent. The
+  lines quoted below were captured before that change and show the
+  sentence.
 - `-` means no value. `seq` is the line's number in the battle log the app
   stores (`/api/battles/<room>/log`).
 
@@ -161,10 +165,10 @@ Ada's session sent a Jab with `seatId` set to Bo's seat. `as_seat` and
 `as_name` say whose seat she asked for. Nothing happened. Every refusal, on
 every route, is one line like this (rule 32), with `action=` the route when it
 isn't a turn: `join`, `room`, `start`, `leave`, `echo` or `read`. Other
-reasons: `"It isn't your turn."` (rule 2), `"Bo-7kq has just taken this
-turn."` (ADR-005), `"A Striker can't do that."` (off the role's catalogue),
-`"You aren't standing in this fight."`, `"Echoes can't be seated in the
-public raid…"` (rule 25), `"No such room."` (a wrong code, rule 22).
+reasons, as the log now codes them: `not-your-turn` (rule 2, and ADR-005's
+"has just taken this turn"), `not-your-role` (off the role's catalogue),
+`not-standing`, `echo-public-raid` (rule 25), `no-such-room` (a wrong code,
+rule 22). The person is still told the sentence.
 
 **A hold, then an Echo.** The clock Braces for a turn nobody took (rule 8):
 

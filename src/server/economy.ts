@@ -166,17 +166,17 @@ export function echoTurn(ctx: Ctx, f: Fighter): void {
  * strip. There is nothing to keep for later: no card, no Reaction (rule 2).
  */
 export function checkReaction(b: Battle, actor: Fighter, action: ActionId, cardId: string | null): Refusal | null {
-  if (!ACTIONS[action].reaction) return { status: 400, error: `${ACTIONS[action].label} isn't a Reaction.` };
+  if (!ACTIONS[action].reaction) return { status: 400, code: "not-a-reaction", error: `${ACTIONS[action].label} isn't a Reaction.` };
   // Out of turn only (rule 18; the gate's F1): on your own turn, take your turn.
-  if (b.activeId === actor.id) return { status: 409, error: "A Reaction is taken out of turn; it's your turn now." };
-  if (!actor.reactionReady) return { status: 409, error: "You've used your Reaction; it comes back after the Orrery's next turn." };
+  if (b.activeId === actor.id) return { status: 409, code: "reaction-on-turn", error: "A Reaction is taken out of turn; it's your turn now." };
+  if (!actor.reactionReady) return { status: 409, code: "reaction-spent", error: "You've used your Reaction; it comes back after the Orrery's next turn." };
   const card = cardId === null ? undefined : b.cards.find((c) => c.id === cardId);
-  if (!card) return { status: 409, error: "There's no announced card on the strip to react to." };
+  if (!card) return { status: 409, code: "reaction-no-card", error: "There's no announced card on the strip to react to." };
   const refused = answers(b, actor, action, card);
   if (refused) return refused;
   // Live only against the card the server names (rule 2; the token's reactionCard): the soonest it answers.
   if (reactionCardOf(b, actor) !== card.id) {
-    return { status: 409, error: `${ACTIONS[action].label} answers the card the server names, the first it can that lands; this one lands later.` };
+    return { status: 409, code: "reaction-not-named", error: `${ACTIONS[action].label} answers the card the server names, the first it can that lands; this one lands later.` };
   }
   return null;
 }
@@ -211,29 +211,29 @@ function answers(b: Battle, actor: Fighter, action: ActionId, card: BossCard): R
     case "intercept": {
       // A single-target card: aimed at one character, not the room or the strip. At an ally, the Warden takes it;
       // at the Warden, they stand into it (ADR-011: a Reaction against a blow aimed at you Wards you).
-      if (!single) return { status: 409, error: "Intercept answers a blow aimed at one ally; that card isn't one." };
-      if (!standing) return { status: 409, error: "Nobody standing is under that card." };
+      if (!single) return { status: 409, code: "reaction-cant-answer", error: "Intercept answers a blow aimed at one ally; that card isn't one." };
+      if (!standing) return { status: 409, code: "reaction-cant-answer", error: "Nobody standing is under that card." };
       return null;
     }
     case "veil": {
       // The Mender's: whoever a single-target blow is aimed at, themselves included, unless already Warded.
-      if (!single || !standing) return { status: 409, error: "Veil answers a blow aimed at someone standing; that card isn't one." };
-      if (b.standing.find((f) => f.id === card.targetId)?.warded) return { status: 409, error: "They're already Warded against it." };
+      if (!single || !standing) return { status: 409, code: "reaction-cant-answer", error: "Veil answers a blow aimed at someone standing; that card isn't one." };
+      if (b.standing.find((f) => f.id === card.targetId)?.warded) return { status: 409, code: "reaction-cant-answer", error: "They're already Warded against it." };
       return null;
     }
     case "riposte":
       // The Striker's: a blow aimed at the Striker.
-      return card.targetId === actor.id ? null : { status: 409, error: "Riposte answers a blow aimed at you; that card isn't." };
+      return card.targetId === actor.id ? null : { status: 409, code: "reaction-cant-answer", error: "Riposte answers a blow aimed at you; that card isn't." };
     case "fracture":
       // The Breaker's: a card that falls on everyone, while the outer ring still has a shield to crack.
-      if (card.targetId !== "party" || card.intent === "alignment") return { status: 409, error: "Fracture answers a blow on everyone; that card isn't one." };
-      if (b.rings.find((r) => r.id === "outer")?.broken) return { status: 409, error: "The outer ring is already Broken." };
+      if (card.targetId !== "party" || card.intent === "alignment") return { status: 409, code: "reaction-cant-answer", error: "Fracture answers a blow on everyone; that card isn't one." };
+      if (b.rings.find((r) => r.id === "outer")?.broken) return { status: 409, code: "reaction-cant-answer", error: "The outer ring is already Broken." };
       return null;
     case "nudge":
       // The Chronist's: any card that isn't frozen.
-      return card.frozen ? { status: 409, error: "That card is frozen; it isn't going anywhere." } : null;
+      return card.frozen ? { status: 409, code: "reaction-cant-answer", error: "That card is frozen; it isn't going anywhere." } : null;
     default:
-      return { status: 400, error: `${ACTIONS[action].label} isn't a Reaction.` };
+      return { status: 400, code: "not-a-reaction", error: `${ACTIONS[action].label} isn't a Reaction.` };
   }
 }
 

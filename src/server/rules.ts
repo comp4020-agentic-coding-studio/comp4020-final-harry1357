@@ -43,6 +43,7 @@ import * as orrery from "./orrery.ts";
 import * as roles from "./roles.ts";
 import { view } from "./view.ts";
 import { sameKept } from "./confusables.ts";
+import type { ReasonCode } from "./reasons.ts";
 
 /** How many log lines the live state carries; the full log is in SQLite. */
 const LOG_TAIL = 50;
@@ -189,6 +190,9 @@ export const plateMs = (f: Fighter, clock: Clock): number =>
 
 export interface Refusal {
   status: 400 | 403 | 409;
+  /** Why, as the log says it: a code, never a sentence (rule 32; ./reasons.ts). */
+  code: ReasonCode;
+  /** What the person is told. It may say back what they sent; it is never logged. */
   error: string;
 }
 
@@ -268,20 +272,20 @@ export function isStanding(b: Battle, id: string): boolean {
 
 /** Why this character can't take a seat, "already" if they're seated, or null to go ahead. */
 export function checkJoin(b: Battle, characterId: string | null, name: string): Refusal | "already" | null {
-  if (isEnded(b)) return { status: 409, error: "This fight is already over." };
+  if (isEnded(b)) return { status: 409, code: "fight-over", error: "This fight is already over." };
   if (characterId && isStanding(b, characterId)) return "already";
   if (characterId && b.fallen.some((f) => f.id === characterId && f.out === "downed")) {
-    return { status: 409, error: "You fell in this fight; you can't take your seat again." };
+    return { status: 409, code: "fell-this-fight", error: "You fell in this fight; you can't take your seat again." };
   }
   const key = nameKey(name);
   // An Echo's name is kept for the Echo, or a person under it could keep that
   // role's Echo from ever being seated at the table (rule 25; breaker Q6), and
   // compared by confusable skeleton, so a look-alike can't pass for one (Q4).
   const kept = ROLE_IDS.find((role) => isKeptName(name, echoName(role)));
-  if (kept) return { status: 409, error: `"${echoName(kept)}" is kept for the ${ROLES[kept].label}'s Echo; choose another name.` };
+  if (kept) return { status: 409, code: "name-kept-for-echo", error: `"${echoName(kept)}" is kept for the ${ROLES[kept].label}'s Echo; choose another name.` };
   for (const [id, taken] of Object.entries(b.joined)) {
     if (id !== characterId && nameKey(taken) === key) {
-      return { status: 409, error: "Someone at this table already goes by that name." };
+      return { status: 409, code: "name-taken", error: "Someone at this table already goes by that name." };
     }
   }
   return null;
@@ -295,17 +299,17 @@ export function checkAction(
   targetId: unknown,
 ): Refusal | { action: ActionId; targetId: string | null } {
   const actor = b.standing.find((f) => f.id === actorId && f.kind === "character");
-  if (!actor) return { status: 403, error: "You aren't standing in this fight." };
-  if (b.status !== "fighting") return { status: 409, error: "This fight isn't under way." };
+  if (!actor) return { status: 403, code: "not-standing", error: "You aren't standing in this fight." };
+  if (b.status !== "fighting") return { status: 409, code: "fight-not-running", error: "This fight isn't under way." };
   const role = actor.role as RoleId;
   if (typeof action !== "string" || !(ROLES[role].actions as readonly string[]).includes(action)) {
-    return { status: 400, error: `A ${ROLES[role].label} can't do that.` };
+    return { status: 400, code: "not-your-role", error: `A ${ROLES[role].label} can't do that.` };
   }
   const info = ACTIONS[action as ActionId];
   // A target is text or absent: anything else is a malformed request, refused like a ring that isn't one, never
   // read as "no target" and defaulted (the owner's ruling on the difficulty gate's R-A).
   if (targetId !== undefined && targetId !== null && typeof targetId !== "string") {
-    return { status: 400, error: "A target is named by its id, as text." };
+    return { status: 400, code: "bad-target", error: "A target is named by its id, as text." };
   }
   const target = typeof targetId === "string" ? targetId : null;
 
@@ -314,7 +318,7 @@ export function checkAction(
     const refused = economy.checkReaction(b, actor, info.id, target);
     return refused ?? { action: info.id, targetId: target };
   }
-  if (b.activeId !== actorId || actor.counter !== 0) return { status: 409, error: whoseTurn(b, actorId) };
+  if (b.activeId !== actorId || actor.counter !== 0) return { status: 409, code: "not-your-turn", error: whoseTurn(b, actorId) };
   const refused = roles.checkAction(b, actor, info.id, target);
   return refused ?? { action: info.id, targetId: roles.resolveTarget(b, actor, info.id, target) };
 }
@@ -563,12 +567,12 @@ const isPerson = (f: Fighter): boolean => f.kind === "character" && f.seatedBy =
 /** Why `by` can't Start this fight, or null to go ahead (rule 27). */
 export function checkStart(b: Battle, by: string): Refusal | null {
   if (!isLobby(b)) {
-    if (b.status === "waiting") return { status: 403, error: "This fight has no host: it starts on its own." };
-    return { status: 409, error: isEnded(b) ? "This fight is already over." : "This fight has already started." };
+    if (b.status === "waiting") return { status: 403, code: "no-host", error: "This fight has no host: it starts on its own." };
+    return isEnded(b) ? { status: 409, code: "fight-over", error: "This fight is already over." } : { status: 409, code: "fight-started", error: "This fight has already started." };
   }
   if (b.hostId !== by) {
     const host = b.hostId === null ? null : b.joined[b.hostId];
-    return { status: 403, error: host ? `Only the host, ${host}, can start this fight.` : "Only the host can start this fight." };
+    return { status: 403, code: "not-host", error: host ? `Only the host, ${host}, can start this fight.` : "Only the host can start this fight." };
   }
   return null;
 }
@@ -757,22 +761,22 @@ export const echoName = (role: RoleId): string => `${ROLES[role].label} Echo`;
 
 /** Why `seatedBy` can't seat an Echo of `role` in this fight, or null to go ahead (rule 25). */
 export function checkSeatEcho(b: Battle, seatedBy: string, role: unknown): Refusal | null {
-  if (!isRole(role)) return { status: 400, error: "Choose a role for the Echo: warden, mender, striker, breaker or chronist." };
+  if (!isRole(role)) return { status: 400, code: "bad-role", error: "Choose a role for the Echo: warden, mender, striker, breaker or chronist." };
   // Never in the public raid: strangers shouldn't fill a public fight with bots (ADR-009).
-  if (b.isPublic) return { status: 403, error: "Echoes can't be seated in the public raid; make a room of your own for them." };
+  if (b.isPublic) return { status: 403, code: "echo-public-raid", error: "Echoes can't be seated in the public raid; make a room of your own for them." };
   const seater = b.standing.find((f) => f.id === seatedBy && f.kind === "character");
-  if (!seater || seater.seatedBy !== null) return { status: 403, error: "Only someone seated at this table can seat an Echo here." };
-  if (isEnded(b)) return { status: 409, error: "This fight is already over." };
-  if (b.status !== "waiting") return { status: 409, error: "Echoes are seated in the lobby, before the fight starts." };
-  if (isLobby(b) && b.hostId !== seatedBy) return { status: 403, error: `Only the host, ${b.joined[b.hostId ?? ""] ?? "who made the room"}, seats Echoes.` };
+  if (!seater || seater.seatedBy !== null) return { status: 403, code: "not-seated", error: "Only someone seated at this table can seat an Echo here." };
+  if (isEnded(b)) return { status: 409, code: "fight-over", error: "This fight is already over." };
+  if (b.status !== "waiting") return { status: 409, code: "echo-not-in-lobby", error: "Echoes are seated in the lobby, before the fight starts." };
+  if (isLobby(b) && b.hostId !== seatedBy) return { status: 403, code: "not-host", error: `Only the host, ${b.joined[b.hostId ?? ""] ?? "who made the room"}, seats Echoes.` };
   const seated = [...b.standing, ...b.fallen].filter(isEchoSeat);
   // One per role first: a second Warden Echo is refused for being a second
   // Warden Echo, whether or not the table is full (breaker Q4).
-  if (seated.some((f) => f.role === role)) return { status: 409, error: `There's already a ${ROLES[role].label} Echo at this table; one per role.` };
-  if (seated.length >= ECHO_MAX) return { status: 409, error: `A table seats ${ECHO_MAX} Echoes at most, and this one has ${seated.length}.` };
+  if (seated.some((f) => f.role === role)) return { status: 409, code: "echo-role-taken", error: `There's already a ${ROLES[role].label} Echo at this table; one per role.` };
+  if (seated.length >= ECHO_MAX) return { status: 409, code: "echo-table-full", error: `A table seats ${ECHO_MAX} Echoes at most, and this one has ${seated.length}.` };
   const key = nameKey(echoName(role));
   if (Object.values(b.joined).some((taken) => nameKey(taken) === key)) {
-    return { status: 409, error: `Someone at this table already goes by "${echoName(role)}".` };
+    return { status: 409, code: "name-taken", error: `Someone at this table already goes by "${echoName(role)}".` };
   }
   return null;
 }

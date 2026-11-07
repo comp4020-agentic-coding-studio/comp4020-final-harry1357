@@ -69,6 +69,7 @@ import { ATTACK_RANK, counterReset } from "./ctb.ts";
 import * as economy from "./economy.ts";
 import * as orrery from "./orrery.ts";
 import { wound, type Battle, type Ctx, type Fighter, type Refusal, type RingState } from "./rules.ts";
+import type { ReasonCode } from "./reasons.ts";
 import {
   BASTION_CUT,
   CHARGE_BASTION,
@@ -613,19 +614,19 @@ function checkResource(actor: Fighter, action: ActionId): Refusal | null {
   const has = actor.resource;
   switch (action) {
     case "bastion":
-      return has > 0 ? null : refuse("Bastion spends Resolve, and you have none yet. Take a blow meant for an ally (Anchor or Intercept) to build it.");
+      return has > 0 ? null : refuse("no-resource", "Bastion spends Resolve, and you have none yet. Take a blow meant for an ally (Anchor or Intercept) to build it.");
     case "restore":
-      return has >= RESTORE_COST ? null : refuse(`Restore needs ${RESTORE_COST} Grace; you have ${has}. Ward an ally a boss card is aimed at to earn it.`);
+      return has >= RESTORE_COST ? null : refuse("no-resource", `Restore needs ${RESTORE_COST} Grace; you have ${has}. Ward an ally a boss card is aimed at to earn it.`);
     case "finisher":
-      return has > 0 ? null : refuse("Finisher spends Momentum, and you have none. Jab, or Cleave a weakness, to build it.");
+      return has > 0 ? null : refuse("no-resource", "Finisher spends Momentum, and you have none. Jab, or Cleave a weakness, to build it.");
     case "shatter":
-      return has >= SHATTER_COST ? null : refuse(`Shatter needs ${SHATTER_COST} Insight; you have ${has}. Scan or Pry to gain it.`);
+      return has >= SHATTER_COST ? null : refuse("no-resource", `Shatter needs ${SHATTER_COST} Insight; you have ${has}. Scan or Pry to gain it.`);
     case "stillpoint": {
       // Charge pays for Flux, a pip for a point (ADR-011).
       const need = Math.max(0, FLUX_MAX - actor.charge);
       return has >= need
         ? null
-        : refuse(`Stillpoint needs ${FLUX_MAX} Flux, Charge paying for some; you have ${has} Flux and ${actor.charge} Charge. Flux builds whenever the strip moves.`);
+        : refuse("no-resource", `Stillpoint needs ${FLUX_MAX} Flux, Charge paying for some; you have ${has} Flux and ${actor.charge} Charge. Flux builds whenever the strip moves.`);
     }
     default:
       return null;
@@ -638,36 +639,36 @@ function checkTarget(b: Battle, actor: Fighter, action: ActionId, target: string
   switch (action) {
     case "anchor": {
       const c = b.cards.find((x) => x.id === target);
-      if (!c || !singleTarget(c)) return refuse("Anchor pulls a blow aimed at one ally, and that card isn't aimed at anyone in particular.");
-      if (c.targetId === actor.id) return refuse("That blow is already aimed at you.");
+      if (!c || !singleTarget(c)) return refuse("card-not-single", "Anchor pulls a blow aimed at one ally, and that card isn't aimed at anyone in particular.");
+      if (c.targetId === actor.id) return refuse("card-already-yours", "That blow is already aimed at you.");
       return null;
     }
     case "bastion":
-      return b.bastion ? refuse("A Bastion already stands against the next blow that falls on everyone.") : null;
+      return b.bastion ? refuse("bastion-standing", "A Bastion already stands against the next blow that falls on everyone.") : null;
     case "ward": {
       const f = b.standing.find((x) => x.id === target);
-      return f?.warded ? refuse(`${f.id === actor.id ? "You are" : `${f.name} is`} already Warded; the Ward holds until a blow lands.`) : null;
+      return f?.warded ? refuse("already-warded", `${f.id === actor.id ? "You are" : `${f.name} is`} already Warded; the Ward holds until a blow lands.`) : null;
     }
     case "quicken":
-      return target === actor.id ? refuse("Quicken moves an ally up the strip; your own wait is set by what you do this turn. Choose someone else.") : null;
+      return target === actor.id ? refuse("not-on-yourself", "Quicken moves an ally up the strip; your own wait is set by what you do this turn. Choose someone else.") : null;
     case "feint":
       return ring && ring.exposed.length === 0
-        ? refuse(`There's no Exposed stack on the ${ring.id} ring to spend. Someone has to Mark it or Counterweight it first.`)
+        ? refuse("no-exposed", `There's no Exposed stack on the ${ring.id} ring to spend. Someone has to Mark it or Counterweight it first.`)
         : null;
     case "pry":
       if (!ring) return null;
-      if (ring.broken) return refuse(`The ${ring.id} ring is already Broken; there's nothing left to pry.`);
-      if (!weak(ring)) return refuse(`Pry needs the ${ring.id} ring's weakness revealed first. Scan it.`);
-      if (ring.pips <= 0) return refuse(`The ${ring.id} ring has no shield pips left to pry.`);
+      if (ring.broken) return refuse("ring-broken", `The ${ring.id} ring is already Broken; there's nothing left to pry.`);
+      if (!weak(ring)) return refuse("ring-hidden", `Pry needs the ${ring.id} ring's weakness revealed first. Scan it.`);
+      if (ring.pips <= 0) return refuse("ring-no-pips", `The ${ring.id} ring has no shield pips left to pry.`);
       return null;
     case "shatter":
       if (!ring) return null;
-      if (ring.broken) return refuse(`The ${ring.id} ring is already Broken.`);
-      if (ring.pips > SHATTER_AT) return refuse(`Shatter needs a ring at ${SHATTER_AT} pips or fewer; the ${ring.id} ring has ${ring.pips}. Pry it first.`);
+      if (ring.broken) return refuse("ring-broken", `The ${ring.id} ring is already Broken.`);
+      if (ring.pips > SHATTER_AT) return refuse("ring-too-thick", `Shatter needs a ring at ${SHATTER_AT} pips or fewer; the ${ring.id} ring has ${ring.pips}. Pry it first.`);
       return null;
     case "stillpoint": {
       const c = b.cards.find((x) => x.id === target);
-      return c?.frozen ? refuse("That card is already frozen.") : null;
+      return c?.frozen ? refuse("card-frozen", "That card is already frozen.") : null;
     }
     default:
       return null;
@@ -687,17 +688,18 @@ function resolve(b: Battle, actor: Fighter, action: ActionId, raw: string | null
       if (raw === null || raw === BOSS_ID) return { target: defaultRing(b, action).id };
       return isRingId(raw) && b.rings.some((r) => r.id === raw)
         ? { target: raw }
-        : { status: 400, error: `There's no ring called "${said(raw)}". Aim at the outer, middle or inner ring.` };
+        : { status: 400, code: "no-such-ring", error: `There's no ring called "${said(raw)}". Aim at the outer, middle or inner ring.` };
     }
     case "card": {
       if (raw !== null) {
         return b.cards.some((c) => c.id === raw)
           ? { target: raw }
-          : refuse(`${ACTIONS[action].label} aims at a boss card, and there's no such card on the strip; it may already have resolved.`);
+          : refuse("no-such-card", `${ACTIONS[action].label} aims at a boss card, and there's no such card on the strip; it may already have resolved.`);
       }
       const found = soonest(b.cards, cardFilter(actor, action));
       if (found) return { target: found.id };
       return refuse(
+        "no-such-card",
         action === "anchor"
           ? "There's no boss card aimed at an ally for you to Anchor."
           : `There's no boss card on the strip to ${action === "stillpoint" ? "hold with Stillpoint" : ACTIONS[action].label}.`,
@@ -707,18 +709,18 @@ function resolve(b: Battle, actor: Fighter, action: ActionId, raw: string | null
       if (action === "restore") {
         if (raw === null) {
           const down = b.fallen.find((f) => f.kind === "character" && f.out === "downed");
-          return down ? { target: down.id } : refuse("Nobody has fallen, so there's no one to Restore.");
+          return down ? { target: down.id } : refuse("nobody-fallen", "Nobody has fallen, so there's no one to Restore.");
         }
         if (b.fallen.some((f) => f.id === raw && f.out === "downed")) return { target: raw };
         const standing = b.standing.find((f) => f.id === raw && f.kind === "character");
         return standing
-          ? refuse(`${standing.name} is still standing; Restore brings back someone who has fallen.`)
-          : { status: 400, error: "That ally hasn't fallen in this fight." };
+          ? refuse("ally-not-fallen", `${standing.name} is still standing; Restore brings back someone who has fallen.`)
+          : { status: 400, code: "no-such-ally", error: "That ally hasn't fallen in this fight." };
       }
       const id = raw ?? actor.id;
       return b.standing.some((f) => f.id === id && f.kind === "character")
         ? { target: id }
-        : { status: 400, error: "That ally isn't standing at this table." };
+        : { status: 400, code: "no-such-ally", error: "That ally isn't standing at this table." };
     }
   }
 }
@@ -764,7 +766,7 @@ function card(ctx: Ctx, id: string | null): BossCard {
   return c;
 }
 
-const refuse = (error: string): Refusal => ({ status: 409, error });
+const refuse = (code: ReasonCode, error: string): Refusal => ({ status: 409, code, error });
 
 /** A name the server refused, said back to its sender at most SAID_MAX characters long (the gate's R-B). */
 const SAID_MAX = 40;
