@@ -40,26 +40,37 @@ outer ring Broken, the clock's enrage); which card downed whom; who Broke each
 ring; the longest Chain; and the blow that took the Orrery's last HP.
 
 When a fight ends, the server composes an `Ending` from that account and
-nothing else, and sends it twice: on the `end` event and on the state
-(`BattleState.ending`), so a page that arrives after the end reads the same
-words. It carries:
+nothing else, and sends it on the `end` event and on the state
+(`BattleState.ending`). A room moves on to its next fight in the same step
+(rule 24), so a room's page keeps the ending it was shown and the lobby prints
+it from there; a page that opens a room after the end sees the next fight,
+not the last one's cause, and the end's log line is where that cause stays.
+On a bare battle, a page that arrives after the end reads the state's
+`ending` (the gate's 1d). It carries:
 
 - **lost:** the card that downed the table's last seat, its target (a seat,
   or `party` for a card on everyone), what it found there, and **the answers
   the table had**, taken from ADR-011's teeth, each named with the person at
   this table who held it, or with its role when no person did. An Echo is
-  never named as an answer, because it never makes one (rule 25).
+  never named as an answer, because it never makes one (rule 25). The table
+  is the one standing as the card landed (the gate's 1b): an answer already
+  made (a Brace, a Ward, a swap, a standing Bastion, a Broken outer ring), or
+  held only by a seat already down, is not one it lacked, and a Warden is
+  never offered Anchor on their own blow. When every answer was made, the line
+  says the card was met and still took the last of them.
 
   | the card | its answers (ADR-011) |
   | --- | --- |
-  | a lethal Lunge | a Warden's Anchor or Intercept (the swap), a Mender's Ward or Veil, the seat's own Brace |
-  | a whole Eclipse | a Mender's Ward or Veil, a Warden's Anchor or Intercept, the seat's own Brace |
+  | a lethal Lunge | a Warden's Anchor or Intercept (the swap), a Mender's Ward or Veil, the target's own Riposte or Nudge (ADR-011: a Reaction against a blow aimed at you Wards you), the seat's own Brace |
+  | a whole Eclipse | as a Lunge |
   | an unmet Perihelion | a Warden's Bastion, a Breaker's Break (Shatter, Fracture), a Brace |
   | a Revolution | a Warden's Bastion, a Brace |
   | the third Alignment | none: the Orrery has to fall first, and the line says if the clock began it |
 
 - **won:** the blow that ended it (who struck it, with what, on which ring),
-  who Broke that ring if it was Broken, and the longest Chain.
+  who Broke that ring if it was Broken, and the longest Chain. A blow or a
+  Break an Echo made is said as the Echo's ("The Echo of Ada"), as its own
+  line said it (rules 8 and 25; the gate's 1a).
 - **abandoned:** the line the server already writes.
 
 `Ending.line` is that, in plain words, composed by the server: "Lunge landed
@@ -72,8 +83,9 @@ too, so a finished fight's log, read after a restart, says what ended it.
 ### 2. The phase moment says what changed
 
 The `phase` event carries `change`: one line, the server's, in the game's
-words. Phase II: "Conjunction: the Orrery flips the strip; a Chronist cancels
-it. Every weakness hides again." Phase III: "The Grand Alignment: every
+words. Phase II: "Conjunction: the Orrery flips the strip; a Chronist, or a
+Breaker's charged Shatter, cancels it. Every weakness hides again." (ADR-011's
+two cancels; the gate's 1f.) Phase III: "The Grand Alignment: every
 fourth card is an Alignment, and the third wipes the table. Every weakness
 hides again." The scene's title draws it under the phase's name, in both
 variants, and holds long enough to read.
