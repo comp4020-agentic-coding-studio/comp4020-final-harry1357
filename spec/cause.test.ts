@@ -63,7 +63,10 @@ function leaveOnly(b: Battle, keep: string): Battle {
 }
 
 describe("a loss names the card, the seat, what it found there, and the answers the table had", () => {
-  it("a lethal Lunge on an unbraced seat at Gravity 2: the swap, a Ward, and the seat's own Brace", async () => {
+  // A one-target card ends a fight only on the last seat standing, so nobody else stood to answer it: the
+  // answers are the target's own (its Brace, and its Reaction if it has one for a blow aimed at it). Who
+  // else sat at the table, already down, held nothing (the gate's 1b: the table as it stood when it landed).
+  it("a lethal Lunge on the last seat, unbraced at Gravity 2: the seat's own answers, and nobody downed before it", async () => {
     const { e, b: started, echoIds } = await room(["striker"], ["warden", "mender"]);
     let b = leaveOnly(started, "striker-1");
     b = edit(b, (x) => (x.standing.find((f) => f.id === "striker-1")!.gravity = 2));
@@ -78,34 +81,33 @@ describe("a loss names the card, the seat, what it found there, and the answers 
     expect(ending!.found, "what it found: Gravity 2 carried in, unbraced, unwarded").toEqual(
       expect.arrayContaining(["gravity:2", "unbraced", "unwarded"]),
     );
-    // The Warden and the Mender at this table are Echoes: their answers are named by role, never by the Echo.
-    expect(said(ending!.answers)).toEqual(["warden:anchor:-", "warden:intercept:-", "mender:ward:-", "mender:veil:-", "striker:brace:striker-1"]);
+    // The Warden and Mender Echoes were already down: they held no answer. The Striker's own: its Riposte, its Brace.
+    expect(said(ending!.answers)).toEqual(["striker:riposte:striker-1", "striker:brace:striker-1"]);
     expect(ending!.answers.some((a) => a.by !== null && echoIds.has(a.by)), "an Echo is never named as an answer").toBe(false);
-    expect(ending!.line, "in plain words, the server's").toBe(
-      "Lunge landed on striker 1 at Gravity 2, unbraced. A Warden's Anchor or Intercept, a Mender's Ward or Veil, or striker 1's Brace would have met it.",
-    );
+    expect(ending!.line, "in plain words, the server's").toBe("Lunge landed on striker 1 at Gravity 2, unbraced. striker 1's Riposte or Brace would have met it.");
     expect(stateEnding(e, step.battle), "the state carries the same ending, for a page that arrives after it").toEqual(ending);
     const endLine = step.battle.log.find((l) => l.kind === "end");
     expect(endLine?.text, "and the end's log line says it, so a finished fight's log keeps it").toContain(ending!.line);
   });
 
-  it("a whole Eclipse on a seat that isn't Warded: only the answers of roles at this table", async () => {
+  it("a whole Eclipse on the last seat, not Warded: its own Brace, and no Reaction it doesn't have for it", async () => {
     const { e, b: started } = await room(["breaker"], ["mender"]);
     let b = leaveOnly(started, "breaker-1");
     b = e.announce(b, { intent: "eclipse", targetId: "breaker-1", amount: 20, countdown: 0 });
     const ending = endOf(bossTurn(e, b));
     expect(ending, "an Eclipse downs the last seat").toMatchObject({ outcome: "lost", intent: "eclipse", targetId: "breaker-1" });
     expect(ending!.found).toEqual(expect.arrayContaining(["unwarded", "unbraced"]));
-    // No Warden sat at this table, so no swap is offered: the answers the table had, not every answer there is.
-    expect(said(ending!.answers)).toEqual(["mender:ward:-", "mender:veil:-", "breaker:brace:breaker-1"]);
-    expect(ending!.line).toBe("Eclipse landed on breaker 1, unwarded and unbraced. A Mender's Ward or Veil, or breaker 1's Brace would have met it.");
+    // The Mender Echo was down before it landed; a Breaker's Fracture answers only a blow on everyone.
+    expect(said(ending!.answers)).toEqual(["breaker:brace:breaker-1"]);
+    expect(ending!.line).toBe("Eclipse landed on breaker 1, unwarded and unbraced. breaker 1's Brace would have met it.");
   });
 
-  it("an unmet Perihelion on everyone: the Bastion, the Break and a Brace, with the person who held each", async () => {
+  it("an unmet Perihelion on everyone standing: the Bastion, the Break and a Brace, with the person who held each", async () => {
     const { e, b: started } = await room(["warden"], ["breaker"]);
     const peri = started.cards.find((c) => c.intent === "perihelion")?.amount;
     expect(peri, "the Orrery announces a Perihelion at the pull").toBeTypeOf("number");
-    let b = leaveOnly(started, "warden-1");
+    // Both seats stand as it lands, the Warden a person and the Breaker an Echo, and it downs them both.
+    let b = edit(started, (x) => (x.cards = []));
     b = e.announce(b, { intent: "perihelion", targetId: "party", amount: peri as number, countdown: 0 });
     const ending = endOf(bossTurn(e, b));
     expect(ending, "an unmet Perihelion on everyone").toMatchObject({ outcome: "lost", intent: "perihelion", targetId: "party" });

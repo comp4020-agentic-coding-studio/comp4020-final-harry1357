@@ -26,11 +26,11 @@ async function crossing(share: number, start?: (b: Battle) => Battle) {
 }
 
 describe("the server says what each phase changes", () => {
-  it("Conjunction: the strip flips, a Chronist cancels it, and every weakness hides", async () => {
+  it("Conjunction: the strip flips, a Chronist or a charged Shatter cancels it, and every weakness hides", async () => {
     const { event, step } = await crossing(0.71);
     expect(event, "a blow past 70% crosses into phase II").toMatchObject({ phase: 2, name: "Conjunction" });
     expect(event!.change, "in the game's words").toBe(
-      "Conjunction: the Orrery flips the strip; a Chronist cancels it. Every weakness hides again.",
+      "Conjunction: the Orrery flips the strip; a Chronist, or a Breaker's charged Shatter, cancels it. Every weakness hides again.",
     );
     const line = step.battle.log.find((l) => l.text.includes("Conjunction"));
     expect(line?.text, "the phase's log line says it too").toContain(event!.change as string);
