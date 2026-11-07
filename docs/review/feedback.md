@@ -417,3 +417,12 @@ as history or as a risk, and the last review found no rule or ADR
 contradiction in the code. **The gate closes** under the stopping rule.
 `spec/carried-feedback.test.ts` and `spec/carried-feedback-breaker.test.ts`
 are green: every carried finding closed.
+
+## After the gate: the merge
+
+**On a fresh image of `7e584d7`** (the Dockerfile CI deploys, a throwaway
+`/data`), on `:8096`, the machine at load 2.9 when the roster began: `pnpm
+check` 419 of 419, 51 files, in one run with no reruns (the load reached 8.3
+by its end, from the roster's own Chromes and servers); the probe's worst
+other-browser update 9.2 ms (median 6.1 ms, n=6); `check:viewports` (six
+pairs), `check:keyboard` (26 stops) and `check:tags` green.
