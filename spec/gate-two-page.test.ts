@@ -91,6 +91,9 @@ it("R1: a refused command gives the turn back, as the server still has it", asyn
   await tab.until(`[...document.querySelectorAll("[data-log] li")].some((l) => /Refused Once jabs/.test(l.textContent))`, "the second Jab to land", 10_000);
 }, 60_000);
 
+/** How long a page has to show what the server just told it: a frame and a message, with room for a slow runner. */
+const ANNOUNCE_MS = 5_000;
+
 /** Wrap the page's socket: log every URL, let `window.__react` rewrite your token's Reaction card in each state, and `window.__rewrite(state, me)` anything else. */
 const SOCKET_TAMPER = `(() => {
   window.__react = "off";
@@ -155,6 +158,9 @@ it("U2 (rule 2): the Reaction offered off-turn is at the card the server names, 
   const version = await tab.evaluate<string>(`document.querySelector("[data-rail]").dataset.version`);
   await tab.evaluate(`window.__react = "none"`);
   await tab.until(`document.querySelector("[data-rail]").dataset.version !== ${JSON.stringify(version)}`, "the server's next word", 15_000);
+  // The strip draws a state before the command window is told it (main.ts onState): the window's own state is
+  // waited for, not read the moment the strip moves. Still live within the bound, it fails here.
+  await tab.until(`document.querySelector('button[data-action="intercept"]').disabled`, "the Reaction to go dark", ANNOUNCE_MS).catch(() => undefined);
   expect(await tab.evaluate<boolean>(`document.querySelector('button[data-action="intercept"]').disabled`), "the server names no card: the Reaction is dark").toBe(true);
 }, 60_000);
 
@@ -281,6 +287,11 @@ it("N11 (rule 2): a refused Reaction off-turn lights nothing of the turn", async
   })()`);
   // The refusal must really have happened (the third review's M4: a Reaction never sent lit nothing either).
   expect(await tab.evaluate<boolean>(`window.__refuseNext`), "the Reaction was sent, and the 409 served").toBe(false);
+  // The announcement is written on the next frame after the 409 (main.ts say()): waited for, not read once at a
+  // fixed moment a slow runner can miss. Never said within the bound, it fails here.
+  await tab
+    .until(`document.querySelector("[data-announce]").textContent.includes("Refused, for the test.")`, "the refusal to be said", ANNOUNCE_MS)
+    .catch(() => undefined);
   expect(await tab.evaluate<string>(`document.querySelector("[data-announce]").textContent`), "and the refusal said").toContain("Refused, for the test.");
   expect(lit, "off-turn, a refused Reaction never lights the turn's actions").toBe(0);
 }, 60_000);
