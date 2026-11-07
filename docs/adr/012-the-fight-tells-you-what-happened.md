@@ -60,7 +60,15 @@ and the breaker's V5). It carries:
   made (a Brace, a Ward, a swap, a standing Bastion, a Broken outer ring), or
   held only by a seat already down, is not one it lacked, and a Warden is
   never offered Anchor on their own blow. When every answer was made, the line
-  says the card was met and still took the last of them.
+  says the card was met and still took the last of them, and its line names
+  what met it (taken on purpose, Warded, Braced, a Bastion standing, the
+  outer ring Broken, every seat Braced: the confirm pass's C1).
+
+  A card aimed at one seat ends a fight only on the last seat standing, so
+  nobody else stood to answer it: its answers are that seat's own (its Brace,
+  and its Riposte, Nudge, Intercept or Veil when its role has one). The
+  allies' answers in the table below reach the line through a card on
+  everyone, where every seat stands as it lands.
 
   | the card | its answers (ADR-011) |
   | --- | --- |
@@ -76,9 +84,12 @@ and the breaker's V5). It carries:
   line said it (rules 8 and 25; the gate's 1a).
 - **abandoned:** the line the server already writes.
 
-`Ending.line` is that, in plain words, composed by the server: "Lunge landed
-on Ada at Gravity 2, unbraced. A Warden's Anchor or Ada's Brace would have
-met it." The end renderer draws it under the outcome's banner, and the end
+`Ending.line` is that, in plain words, composed by the server: "Perihelion
+landed on everyone, no Bastion standing and the outer ring whole. A Warden's
+Bastion, Ada's Shatter or Fracture, or every seat's Brace would have met it."
+(the scripted naive fight's own line), or "Lunge landed on Ada at Gravity 2,
+unwarded and unbraced. Ada's Riposte or Brace would have met it." The end
+renderer draws it under the outcome's banner, and the end
 panel and the lobby's last-fight line print it before Start is offered
 again. **The client composes no part of it.** The `end` log line carries it
 too, so a finished fight's log, read after a restart, says what ended it.
@@ -139,9 +150,9 @@ window, and their declared state is the hook their spec holds
   land and read once, at the end. Nothing decides a turn from it (rule 5);
   it is not persisted beyond the `end` line, and a fight closed by a restart
   gets the restart's line, as before (rule 6).
-- **An Echo is never an answer.** A solo person whose last seat was an Echo
-  hears the role's answer ("a Warden's Anchor"), not the Echo's, because the
-  Echo would never have made it. That is the lesson ADR-011 wanted taught.
+- **An Echo is never an answer.** A person at a table of Echoes hears the
+  role's answer ("a Warden's Bastion"), not the Echo's, because the Echo would
+  never have made it. That is the lesson ADR-011 wanted taught.
 - **The command window grows a line.** At 390×844 it is one more row above
   the commands, present only while a card is aimed at you; the viewport and
   tag checks hold it.
