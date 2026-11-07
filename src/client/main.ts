@@ -207,6 +207,8 @@ function onState(state: BattleState): void {
     token,
     preview: myTurn && state.preview?.actorId === app.myId ? state.preview.actions : null,
     prompts: prompts(state, token),
+    // ADR-012: the cards as the server sent them; the window pins the ones aimed at this seat.
+    threats: state.cards,
   });
   app.command?.setCountdown(myTurn ? countdownFraction(state, Date.now()) : null);
   // Just came into the fight (from the join screen or the lobby): focus goes to the commands, not the page body

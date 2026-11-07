@@ -18,7 +18,7 @@
 // is part of the contract the three areas build against. The scene's and the
 // strip's are stubbed until their area fills them in; an effect may call any
 // of them now.
-import type { ActionId, ActionPreview, BattleState, EventKind, EventOf, Ring, RoleId, Token } from "../../shared/protocol.ts";
+import type { ActionId, ActionPreview, BattleState, BossCard, EventKind, EventOf, Ring, RoleId, Token } from "../../shared/protocol.ts";
 
 /** Which animation a sprite plays. Roles have idle, attack, hurt, down; some have more (sprites.json). */
 export type Anim = "idle" | "attack" | "hurt" | "down" | "guard" | "cast" | "special" | "jab";
@@ -243,6 +243,9 @@ export interface SeatInfo {
    *  Warden's Bastion while a Perihelion is coming and none stands). Shown on
    *  and off the turn; the server's refusal, when there is one, comes first. */
   prompts?: Partial<Record<ActionId, string>>;
+  /** ADR-012, piece 4: the strip's boss cards as the server sent them (state.cards). The window pins the
+   *  ones aimed at your seat, in that order, in --ember; it orders and decides nothing. */
+  threats?: readonly BossCard[];
 }
 
 /**
