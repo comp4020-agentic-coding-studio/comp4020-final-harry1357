@@ -99,3 +99,51 @@ describe("Q6: nothing but log.ts writes to stdout (rule 32)", () => {
     }
   }, 30_000);
 });
+
+// The confirm pass's C1: a regression the fix round introduced. Rule 34 says the ending names "what it found
+// there"; the fix round recorded a swap and every seat's Brace as tags, and a met card's line then said only
+// "It was met", never by what. Each tag the server records is said in words.
+describe("C1: a met card says what met it", () => {
+  it("a blow on everyone, every seat Braced, a Bastion standing and the outer ring Broken: all three, in words", async () => {
+    const e = await engine();
+    let b = lobbyTable(e, ["warden"], [{ id: "mender-echo-0", role: "mender" }]);
+    b = edit(b, (x) => (x.cards = []));
+    // Announcing a Perihelion raises the outer ring's shield; it is Broken after.
+    b = e.announce(b, { intent: "perihelion", targetId: "party", amount: 200, countdown: 0 });
+    b = edit(b, (x) => {
+      (x as Battle & { bastion: boolean }).bastion = true;
+      const outer = x.rings.find((r) => r.id === "outer")!;
+      outer.pips = 0;
+      outer.broken = true;
+      for (const f of x.standing.filter((f) => f.kind === "character")) {
+        f.braced = true;
+        f.hp = 1;
+      }
+    });
+    const ending = endOf(bossTurn(e, b));
+    expect(ending.answers, "every answer was made").toEqual([]);
+    expect(ending.line).toBe(
+      "Perihelion landed on everyone, a Bastion standing, the outer ring Broken and every seat Braced. It was met, and still took the last of them.",
+    );
+  });
+
+  it("a swapped Eclipse on a Warden who stood into it: \"taken on purpose\"", async () => {
+    const e = await engine();
+    let b = lobbyTable(e, ["warden"]);
+    b = edit(b, (x) => {
+      x.cards = [];
+      x.standing.find((f) => f.id === "warden-1")!.hp = 1;
+    });
+    b = e.announce(b, { intent: "eclipse", targetId: "warden-1", amount: 40, countdown: 1 });
+    const card = b.cards.find((c) => c.intent === "eclipse")!;
+    // The Warden Intercepts the card aimed at themself: a swap, and a Ward.
+    b = e.act(b, "warden-1", "intercept", card.id, { now: 1_000_000, turnMs: 12_000 }).battle;
+    b = edit(b, (x) => {
+      x.standing.find((f) => f.id === "warden-1")!.warded = false;
+      x.cards.find((c) => c.id === card.id)!.countdown = 0;
+    });
+    const ending = endOf(bossTurn(e, b));
+    expect(ending.found, "a Warden took it on purpose").toContain("swapped");
+    expect(ending.line).toBe("Eclipse landed on warden 1, taken on purpose, unwarded and unbraced. warden 1's Brace would have met it.");
+  });
+});
