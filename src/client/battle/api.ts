@@ -88,8 +88,9 @@ export interface SceneApi {
   ward(id: string, on: boolean): void;
   /** Phase two: the Orrery's look for its phase. */
   phase(phase: 1 | 2 | 3): void;
-  /** ADR-010: a title across the field in the pixel display face ("Phase II: Conjunction"), held for a beat; null clears it. State: shown under reduced motion too. */
-  title(text: string | null): void;
+  /** ADR-010: a title across the field in the pixel display face ("Phase II: Conjunction"), held for a beat; null clears it. State: shown under reduced motion too.
+   *  ADR-012: `line`, what the phase changes in the server's words, under the name, printed as sent; the title holds longer to be read. */
+  title(text: string | null, line?: string | null): void;
 
   // --- motion ---
   shake(strength: "light" | "heavy"): Promise<void>;

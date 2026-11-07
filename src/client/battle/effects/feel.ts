@@ -68,7 +68,8 @@ const expected: Expected = {
   // the Orrery
   pull: [["scene.rings", "*", "*"], ["scene.hp", "orrery", "*", "*"], RINGS, ["scene.phase", "*"]],
   // ADR-010: a phase is a moment: its card, its title, the rings' new figure, and the flash
-  phase: [["strip.phaseCard", "*", "*"], ["scene.title", "*"], ["scene.phase", "*"], ["scene.hit", "orrery"], RINGS],
+  // ADR-012: and the title carries what the phase changes, the server's line
+  phase: [["strip.phaseCard", "*", "*"], ["scene.title", "*", "*"], ["scene.phase", "*"], ["scene.hit", "orrery"], RINGS],
   grow: [["scene.hp", "orrery", "*", "*"], ["scene.rings", "*", "*"]],
   break: [RINGS, ["scene.hit", "orrery"]],
   // each blow's card leaves the strip as it lands (the sample's isn't spent)

@@ -186,17 +186,31 @@ export function onWound(ctx: Ctx): void {
     if (ctx.b.phase >= phase || share >= below) continue;
     ctx.b.phase = phase;
     reshuffle(ctx.b, phase);
+    const enraged = script(ctx.b).enraged;
+    const change = phaseChange(phase, enraged);
     ctx.say(
       "boss",
       BOSS_ID,
       phase === 2
-        ? `The Orrery falls below ${pct(below)}. Its rings lock into ${PHASE_NAME[2]}, and the strip begins to turn.`
-        : script(ctx.b).enraged
-          ? `The Orrery falls below ${pct(below)}. ${cap(PHASE_NAME[3])}, already begun by the clock, goes on.`
-          : `The Orrery falls below ${pct(below)}. ${cap(PHASE_NAME[3])} begins: every ${nth(ALIGNMENT_EVERY)} card brings it closer.`,
-      { kind: "phase", actorId: BOSS_ID, phase, name: PHASE_NAME[phase], reshuffled: true },
+        ? `The Orrery falls below ${pct(below)}. Its rings lock into ${PHASE_NAME[2]}, and the strip begins to turn. ${change}`
+        : enraged
+          ? `The Orrery falls below ${pct(below)}. ${cap(PHASE_NAME[3])}, already begun by the clock, goes on. ${change}`
+          : `The Orrery falls below ${pct(below)}. ${cap(PHASE_NAME[3])} begins: every ${nth(ALIGNMENT_EVERY)} card brings it closer. ${change}`,
+      { kind: "phase", actorId: BOSS_ID, phase, name: PHASE_NAME[phase], reshuffled: true, change },
     );
   }
+}
+
+/**
+ * What a new phase does, in the game's words (ADR-012, item 17): one line for the title under the phase's name.
+ * Composed here, by the script that does it, so a phase that changes its rules changes its sentence too.
+ */
+function phaseChange(phase: 2 | 3, enraged: boolean): string {
+  const hides = "Every weakness hides again.";
+  if (phase === 2) return `${PHASE_NAME[2]}: the Orrery flips the strip; a Chronist cancels it. ${hides}`;
+  return enraged
+    ? `${cap(PHASE_NAME[3])}, already begun by the clock: the ${ordinal(ALIGNMENT_STEPS)} Alignment wipes the table. ${hides}`
+    : `${cap(PHASE_NAME[3])}: every ${ordinal(ALIGNMENT_EVERY)} card is an Alignment, and the ${ordinal(ALIGNMENT_STEPS)} wipes the table. ${hides}`;
 }
 
 /** Put a card on the strip (rule 19). A Perihelion raises the outer ring's shield for the Break check. */
@@ -698,3 +712,5 @@ function label(intent: Intent): string {
 const cap = (s: string): string => s.charAt(0).toUpperCase() + s.slice(1);
 const pct = (x: number): string => `${Math.round(x * 100)}%`;
 const nth = (n: number): string => `${n}${n === 2 ? "nd" : n === 3 ? "rd" : "th"}`;
+/** In words, for a sentence a person reads (ADR-012): "third", "fourth". */
+const ordinal = (n: number): string => ["zeroth", "first", "second", "third", "fourth", "fifth", "sixth"][n] ?? nth(n);

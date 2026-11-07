@@ -33,6 +33,8 @@ const WINDUP_MS = 240;
 const HITSTOP_MS = 90;
 /** How long a phase's title holds across the field (ADR-010), the same with motion or without. */
 const TITLE_MS = 2_200;
+/** How long a title with a line to read stays up (ADR-012). */
+const TITLE_LINE_MS = 5_000;
 
 function div(className: string, hook?: string): HTMLDivElement {
   const node = document.createElement("div");
@@ -78,6 +80,15 @@ export function createScene(root: HTMLElement, { manifest, orrerySvg }: PartsOpt
   titleEl.dataset.title = "";
   titleEl.setAttribute("role", "status");
   titleEl.hidden = true;
+  // ADR-012: the phase's name, and beneath it what the phase changes, in the server's words.
+  const titleName = document.createElement("span");
+  titleName.className = "scene-title-name";
+  titleName.dataset.titleName = "";
+  const titleLine = document.createElement("span");
+  titleLine.className = "scene-title-line";
+  titleLine.dataset.titleLine = "";
+  titleLine.hidden = true;
+  titleEl.append(titleName, titleLine);
   let titleTimer: ReturnType<typeof setTimeout> | null = null;
 
   root.replaceChildren(field, orrery.el, partyHost, layer, bannerEl, causeEl, titleEl);
@@ -293,20 +304,24 @@ export function createScene(root: HTMLElement, { manifest, orrerySvg }: PartsOpt
       if (next) next.dataset.targeted = "";
     },
 
-    title(text: string | null): void {
+    title(text: string | null, line: string | null = null): void {
       if (titleTimer) clearTimeout(titleTimer);
       titleTimer = null;
       if (text === null || text === "") {
         titleEl.hidden = true;
-        titleEl.textContent = "";
+        titleName.textContent = "";
+        titleLine.textContent = "";
         return;
       }
-      titleEl.textContent = text;
+      titleName.textContent = text;
+      titleLine.textContent = line ?? "";
+      titleLine.hidden = !line;
       titleEl.hidden = false;
+      // A line to read holds the title longer (ADR-012): a sentence takes longer than a name.
       titleTimer = setTimeout(() => {
         titleEl.hidden = true;
         titleTimer = null;
-      }, TITLE_MS);
+      }, line ? TITLE_LINE_MS : TITLE_MS);
     },
 
     banner(text: string | null): void {

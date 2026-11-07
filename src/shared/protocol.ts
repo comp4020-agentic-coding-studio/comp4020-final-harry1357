@@ -489,7 +489,8 @@ export type BattleEvent =
   | Boss<"grow", { seats: number; maxHp: number; hp: number }>
   // name: the phase's, for its card on the strip and its title (rule 28).
   // reshuffled: every ring's weakness hidden again and its element dealt anew (ADR-011).
-  | Boss<"phase", { phase: 2 | 3; name: string; reshuffled: boolean }>
+  // change: what the new phase does, in the server's words, for the title (ADR-012).
+  | Boss<"phase", { phase: 2 | 3; name: string; reshuffled: boolean; change: string }>
   | Boss<"break", { ringId: RingId; by: string }>
   // cardId: the strip card that resolved into this event (phase two).
   | Boss<"revolution", { hits: Hit[]; cardId: string }>
