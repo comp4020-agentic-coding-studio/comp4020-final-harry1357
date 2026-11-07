@@ -18,7 +18,7 @@
 // is part of the contract the three areas build against. The scene's and the
 // strip's are stubbed until their area fills them in; an effect may call any
 // of them now.
-import type { ActionId, ActionPreview, BattleState, EventKind, EventOf, Ring, RoleId, Token } from "../../shared/protocol.ts";
+import type { ActionId, ActionPreview, BattleState, BossCard, EventKind, EventOf, Ring, RoleId, Token } from "../../shared/protocol.ts";
 
 /** Which animation a sprite plays. Roles have idle, attack, hurt, down; some have more (sprites.json). */
 export type Anim = "idle" | "attack" | "hurt" | "down" | "guard" | "cast" | "special" | "jab";
@@ -74,6 +74,8 @@ export interface SceneApi {
   target(id: string | null): void;
   /** A line across the field, such as the battle's outcome; null clears it. */
   banner(text: string | null): void;
+  /** ADR-012: the server's line saying why the fight ended, under the banner, printed as sent; null clears it. */
+  cause(text: string | null): void;
   /** Phase two: status marks on a sprite, at most four drawn, each with a duration ring. reconcile() sets them from state too. */
   status(id: string, marks: readonly StatusMark[]): void;
   /** Phase two: the Orrery's rings as the server holds them: shield pips, the weakness once Scanned, Broken, and Exposed stacks in the applier's role colour. */
@@ -86,8 +88,9 @@ export interface SceneApi {
   ward(id: string, on: boolean): void;
   /** Phase two: the Orrery's look for its phase. */
   phase(phase: 1 | 2 | 3): void;
-  /** ADR-010: a title across the field in the pixel display face ("Phase II: Conjunction"), held for a beat; null clears it. State: shown under reduced motion too. */
-  title(text: string | null): void;
+  /** ADR-010: a title across the field in the pixel display face ("Phase II: Conjunction"), held for a beat; null clears it. State: shown under reduced motion too.
+   *  ADR-012: `line`, what the phase changes in the server's words, under the name, printed as sent; the title holds longer to be read. */
+  title(text: string | null, line?: string | null): void;
 
   // --- motion ---
   shake(strength: "light" | "heavy"): Promise<void>;
@@ -157,8 +160,9 @@ export type Registry = { readonly [K in EventKind]?: { full: Effect<K>; reduced:
  * The state each event's reduced renderer must produce (review F25): entries
  * of [method, ...args], every one of which it must call. Arguments are matched
  * against the event: "me" is its actorId, "target" its targetId, "card" its
- * card's id (or cardId), "ring" its ringId, "*" anything, and every other value
- * is itself. A motion is never a state. spec/effects.test.ts holds it.
+ * card's id (or cardId), "ring" its ringId, "=a.b" the event's own field at
+ * that path (ADR-012's lines), "*" anything, and every other value is itself.
+ * A motion is never a state. spec/effects.test.ts holds it.
  */
 export type Expected = { readonly [K in EventKind]?: readonly (readonly [string, ...unknown[]])[] };
 
@@ -240,6 +244,9 @@ export interface SeatInfo {
    *  Warden's Bastion while a Perihelion is coming and none stands). Shown on
    *  and off the turn; the server's refusal, when there is one, comes first. */
   prompts?: Partial<Record<ActionId, string>>;
+  /** ADR-012, piece 4: the strip's boss cards as the server sent them (state.cards). The window pins the
+   *  ones aimed at your seat, in that order, in --ember; it orders and decides nothing. */
+  threats?: readonly BossCard[];
 }
 
 /**
@@ -274,8 +281,8 @@ export interface Join {
   /** Show the select, prefilled from a returning visitor's character and record (their name fixed: rule 24). */
   show(me: import("../../shared/protocol.ts").MeResponse | null, here?: Here): void;
   hide(): void;
-  /** The battle is over: say how, and offer the next raid: in a room, its next fight (next); otherwise the front door. */
-  ended(outcome: "won" | "lost" | "abandoned", next?: Next): void;
+  /** The battle is over: say how, and why in the server's words (cause, ADR-012), and offer the next raid: in a room, its next fight (next); otherwise the front door. */
+  ended(outcome: "won" | "lost" | "abandoned", next?: Next, cause?: string | null): void;
   /** Clear the end panel: a new room or a new fight is a clean screen (ADR-009). */
   clear(): void;
 }

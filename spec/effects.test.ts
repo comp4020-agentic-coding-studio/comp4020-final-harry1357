@@ -105,6 +105,9 @@ const sample = (kind: string): Record<string, unknown> => ({
   flipped: true,
   cancelledBy: null,
   wipe: false,
+  // ADR-012: the server's own lines, which the end and the phase draw as sent.
+  change: "Conjunction: the sample's line.",
+  ending: { outcome: "won", line: "The sample's cause." },
   ...(kind === "finisher" ? { spent: 3 } : kind === "bastion" ? { spent: 2 } : {}),
 });
 
@@ -118,6 +121,8 @@ function resolveArg(arg: unknown, e: Record<string, unknown>): unknown {
   if (arg === "target") return e.targetId;
   if (arg === "card") return (e.card as { id?: string } | undefined)?.id ?? e.cardId;
   if (arg === "ring") return e.ringId;
+  // "=a.b": the event's own field, so a declared state can name the value it must draw (the feedback gate's 3i).
+  if (typeof arg === "string" && arg.startsWith("=")) return arg.slice(1).split(".").reduce<unknown>((v, k) => (v as Record<string, unknown> | undefined)?.[k], e);
   return arg;
 }
 const matches = (call: [string, ...unknown[]], want: [string, ...unknown[]], e: Record<string, unknown>): boolean =>

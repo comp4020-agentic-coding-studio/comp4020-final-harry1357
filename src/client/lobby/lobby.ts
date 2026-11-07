@@ -24,6 +24,8 @@ export interface LobbyOptions {
   onLeave(): Promise<string | null>;
   /** How the fight before this lobby ended, if this page saw it end. */
   lastOutcome(): Outcome | null;
+  /** Why, in the server's words (ADR-012), printed as sent. */
+  lastCause?(): string | null;
 }
 
 export interface Lobby {
@@ -67,6 +69,9 @@ export function createLobby(root: HTMLElement, opts: LobbyOptions): Lobby {
   codeLine.append(codeLabel, code, share);
   const last = el("p", "lobby-last");
   last.hidden = true;
+  const lastCause = el("p", "lobby-cause");
+  lastCause.dataset.lobbyCause = "";
+  lastCause.hidden = true;
   const seatsTitle = el("p", "lobby-label");
   const list = el("ul", "lobby-seats");
   list.setAttribute("aria-label", "Everyone seated");
@@ -93,7 +98,7 @@ export function createLobby(root: HTMLElement, opts: LobbyOptions): Lobby {
 
   const said = el("p", "lobby-said");
   said.setAttribute("aria-live", "polite");
-  panel.append(kicker, title, codeLine, last, seatsTitle, list, echoes, actions, said);
+  panel.append(kicker, title, codeLine, last, lastCause, seatsTitle, list, echoes, actions, said);
   root.replaceChildren(panel);
 
   let busy = false;
@@ -145,7 +150,8 @@ export function createLobby(root: HTMLElement, opts: LobbyOptions): Lobby {
     const host = state.hostId;
     const isHost = !!myId && host === myId;
     const outcome = opts.lastOutcome();
-    const key = JSON.stringify([busy, roomCode, myId, host, state.echoRoles, outcome, seats.map((t) => [t.id, t.name, t.role, t.seatedBy])]);
+    const cause = outcome ? (opts.lastCause?.() ?? null) : null;
+    const key = JSON.stringify([busy, roomCode, myId, host, state.echoRoles, outcome, cause, seats.map((t) => [t.id, t.name, t.role, t.seatedBy])]);
     if (key === shownKey && !force) return;
     shownKey = key;
 
@@ -157,6 +163,8 @@ export function createLobby(root: HTMLElement, opts: LobbyOptions): Lobby {
     last.textContent = outcome ? OUTCOME_LINE[outcome] : "";
     if (outcome) last.dataset.outcome = outcome;
     else delete last.dataset.outcome;
+    lastCause.textContent = cause ?? "";
+    lastCause.hidden = !cause;
 
     const hostName = seats.find((t) => t.id === host)?.name ?? null;
     const people = seats.filter((t) => t.seatedBy === null).length;

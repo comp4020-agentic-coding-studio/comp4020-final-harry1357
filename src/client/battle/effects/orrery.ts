@@ -241,7 +241,7 @@ export const phase: Fx<"phase"> = async (raw, e) => {
   ctx.scene.phase(e.phase);
   showRingMarks(ctx);
   ctx.strip.phaseCard(e.phase, name);
-  ctx.scene.title(phaseTitle(e.phase, name));
+  ctx.scene.title(phaseTitle(e.phase, name), e.change ?? null);
   void ctx.scene.pulse();
   await ctx.wait(900);
 };
@@ -255,7 +255,7 @@ export const phaseReduced: Fx<"phase"> = async (raw, e) => {
   ctx.scene.phase(e.phase);
   showRingMarks(ctx);
   ctx.strip.phaseCard(e.phase, name);
-  ctx.scene.title(phaseTitle(e.phase, name));
+  ctx.scene.title(phaseTitle(e.phase, name), e.change ?? null);
   await ctx.wait(HOLD * 3);
 };
 

@@ -82,6 +82,17 @@ describe("the battle screen's palette, checked as arithmetic", () => {
     expect(contrast(token(fg), token(bg)), `--${fg} on --${bg} is ${ratio(fg, bg)}`).toBeGreaterThanOrEqual(4.5);
   });
 
+  // The feedback gate's 1e: the pinned card (ADR-012, piece 4) is --ember text just under the window's head,
+  // where the window's gradient is warmest (about 3.85:1 at its top stop). It paints its own --ink ground, so
+  // the pair it is held to above ("harm on a window") is the ground it is really on.
+  it("paints the pinned card's --ember on a flat --ink of its own, not the window's warm gradient", () => {
+    const rule = sheet.find((r) => r.selectors.includes("#battle .command-threat"));
+    expect(rule, "a rule for the pinned card").toBeDefined();
+    const decl = (p: string) => rule!.declarations.find((d) => d.property === p)?.value ?? "";
+    expect(decl("color"), "its ink").toMatch(/var\(--ember\)/);
+    expect(decl("background") || decl("background-color"), "its own ground").toMatch(/^var\(--ink\)$/);
+  });
+
   // Graphics, 3:1 (WCAG 1.4.11): window borders, the cursor, the rings.
   it.each([
     ["brass", "ink", "window borders and the cursor"],

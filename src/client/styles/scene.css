@@ -774,6 +774,31 @@
   display: none;
 }
 
+/* Why it ended, in the server's words (ADR-012): under the banner, the body
+   face on the same ink plate, so the line reads as the banner's second half. */
+#battle .banner-cause {
+  position: absolute;
+  z-index: 6;
+  left: 50%;
+  top: calc(18% + 4.2rem);
+  translate: -50% 0;
+  max-width: min(90%, 44rem);
+  margin: 0;
+  padding: 0.4rem 1rem;
+  text-align: center;
+  font-size: 1.3rem;
+  line-height: 1.25;
+  color: var(--card);
+  background: var(--ink);
+  border: 2px solid var(--brass-dim);
+  border-radius: 2px;
+  pointer-events: none;
+}
+
+#battle .banner-cause[hidden] {
+  display: none;
+}
+
 /* A phase's title (ADR-010): the moment a phase line is crossed, across the
    field in the display face, brass on an ink plate. A state, so it shows
    under reduced motion too; only its arrival moves (below). */
@@ -798,6 +823,27 @@
 }
 
 #battle .scene-title[hidden] {
+  display: none;
+}
+
+/* ADR-012: the name in the display face, and beneath it what the phase
+   changes, in the body face and the window's text colour, to be read. */
+#battle .scene-title-name {
+  display: block;
+}
+
+#battle .scene-title-line {
+  display: block;
+  max-width: 40rem;
+  margin: 0.5rem auto 0;
+  font-family: var(--font-body);
+  font-size: clamp(1.1rem, 1.9vw, 1.45rem);
+  line-height: 1.25;
+  letter-spacing: 0;
+  color: var(--card);
+}
+
+#battle .scene-title-line[hidden] {
   display: none;
 }
 

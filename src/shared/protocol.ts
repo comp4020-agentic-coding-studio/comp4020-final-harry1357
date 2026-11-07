@@ -249,6 +249,31 @@ export interface LogEntry {
   echo: boolean;
 }
 
+/**
+ * How a fight ended, and why, as the server composed it from what it recorded
+ * as the fight ran (ADR-012; rule 34). The client prints `line` as sent and
+ * composes none of it. On a loss: the card that downed the last seat, its
+ * target, what it found there (ADR-011's conditions, as tags: gravity:N,
+ * unbraced, unwarded, swapped, no-bastion, outer-whole, all-braced, enraged), and the answers the
+ * table had, each with the person who held it, or null when only an Echo did
+ * (role "any": every seat's). On a win: the blow (by, intent, ringId), who
+ * Broke its ring, and the longest Chain.
+ */
+export interface Ending {
+  outcome: "won" | "lost" | "abandoned";
+  cardId: string | null;
+  /** The card's intent on a loss; the winning blow's action on a win. */
+  intent: Intent | ActionId | null;
+  targetId: string | null;
+  found: string[];
+  answers: { role: RoleId | "any"; action: ActionId; by: string | null }[];
+  by: string | null;
+  ringId: RingId | null;
+  brokenBy: string | null;
+  chain: number;
+  line: string;
+}
+
 export interface BattleState {
   battleId: string;
   /** Bumped on every broadcast. Two clients holding the same version hold the same state. */
@@ -323,6 +348,8 @@ export interface BattleState {
   pullAt: number | null;
   /** The most recent log lines, oldest first. */
   log: LogEntry[];
+  /** How the fight ended and why (ADR-012), once it has; null while it runs. The end panel prints its line. */
+  ending: Ending | null;
 }
 
 // --- events ---------------------------------------------------------------
@@ -422,7 +449,8 @@ export type BattleEvent =
   | Act<"host", { from: string | null }>
   | Act<"down">
   | Act<"plate">
-  | (EventBase & { kind: "end"; outcome: "won" | "lost" | "abandoned" })
+  // ending: the cause, as the server composed it (ADR-012); the screen prints its line.
+  | (EventBase & { kind: "end"; outcome: "won" | "lost" | "abandoned"; ending: Ending })
   | Act<"brace", { charge: number }>
   | Act<"hold", { charge: number; timeouts: number }>
   | Act<"echo", { on: boolean }>
@@ -461,7 +489,8 @@ export type BattleEvent =
   | Boss<"grow", { seats: number; maxHp: number; hp: number }>
   // name: the phase's, for its card on the strip and its title (rule 28).
   // reshuffled: every ring's weakness hidden again and its element dealt anew (ADR-011).
-  | Boss<"phase", { phase: 2 | 3; name: string; reshuffled: boolean }>
+  // change: what the new phase does, in the server's words, for the title (ADR-012).
+  | Boss<"phase", { phase: 2 | 3; name: string; reshuffled: boolean; change: string }>
   | Boss<"break", { ringId: RingId; by: string }>
   // cardId: the strip card that resolved into this event (phase two).
   | Boss<"revolution", { hits: Hit[]; cardId: string }>

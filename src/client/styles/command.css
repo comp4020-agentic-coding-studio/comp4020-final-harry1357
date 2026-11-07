@@ -50,6 +50,29 @@
   background: var(--ember);
 }
 
+/* ---- your next card, pinned (ADR-012, piece 4) ----------------------------
+   A card aimed at your seat, above the commands, in --ember: the colour of
+   harm, with the arrow and "you" saying it in words. It sits just under the
+   head, where the window's gradient is warmest, so it paints its own flat
+   --ink and the ember is measured on the ground it is on (the gate's 1e). */
+
+#battle .command-threat {
+  display: grid;
+  gap: 0.1rem;
+  margin: 0;
+  padding: 0.2rem 0.5rem;
+  list-style: none;
+  font-size: 1.25rem;
+  line-height: 1.2;
+  color: var(--ember);
+  background: var(--ink);
+  border-inline-start: 3px solid var(--ember);
+}
+
+#battle .command-threat[hidden] {
+  display: none;
+}
+
 /* ---- the list ------------------------------------------------------------ */
 
 #battle .command-menu {

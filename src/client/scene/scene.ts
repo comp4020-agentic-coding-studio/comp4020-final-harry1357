@@ -33,6 +33,8 @@ const WINDUP_MS = 240;
 const HITSTOP_MS = 90;
 /** How long a phase's title holds across the field (ADR-010), the same with motion or without. */
 const TITLE_MS = 2_200;
+/** How long a title with a line to read stays up (ADR-012). */
+const TITLE_LINE_MS = 5_000;
 
 function div(className: string, hook?: string): HTMLDivElement {
   const node = document.createElement("div");
@@ -66,6 +68,11 @@ export function createScene(root: HTMLElement, { manifest, orrerySvg }: PartsOpt
   bannerEl.className = "banner";
   bannerEl.dataset.banner = "";
   bannerEl.hidden = true;
+  // Why it ended, in the server's words (ADR-012): under the banner, printed as sent.
+  const causeEl = document.createElement("p");
+  causeEl.className = "banner-cause";
+  causeEl.dataset.cause = "";
+  causeEl.hidden = true;
 
   // A phase's title (ADR-010): across the field in the display face, held for a beat, then gone.
   const titleEl = document.createElement("p");
@@ -73,9 +80,18 @@ export function createScene(root: HTMLElement, { manifest, orrerySvg }: PartsOpt
   titleEl.dataset.title = "";
   titleEl.setAttribute("role", "status");
   titleEl.hidden = true;
+  // ADR-012: the phase's name, and beneath it what the phase changes, in the server's words.
+  const titleName = document.createElement("span");
+  titleName.className = "scene-title-name";
+  titleName.dataset.titleName = "";
+  const titleLine = document.createElement("span");
+  titleLine.className = "scene-title-line";
+  titleLine.dataset.titleLine = "";
+  titleLine.hidden = true;
+  titleEl.append(titleName, titleLine);
   let titleTimer: ReturnType<typeof setTimeout> | null = null;
 
-  root.replaceChildren(field, orrery.el, partyHost, layer, bannerEl, titleEl);
+  root.replaceChildren(field, orrery.el, partyHost, layer, bannerEl, causeEl, titleEl);
   delete root.dataset.stub;
 
   reducedQuery.addEventListener("change", () => party.motionChanged());
@@ -288,31 +304,43 @@ export function createScene(root: HTMLElement, { manifest, orrerySvg }: PartsOpt
       if (next) next.dataset.targeted = "";
     },
 
-    title(text: string | null): void {
+    title(text: string | null, line: string | null = null): void {
       if (titleTimer) clearTimeout(titleTimer);
       titleTimer = null;
       if (text === null || text === "") {
         titleEl.hidden = true;
-        titleEl.textContent = "";
+        titleName.textContent = "";
+        titleLine.textContent = "";
         return;
       }
-      titleEl.textContent = text;
+      titleName.textContent = text;
+      titleLine.textContent = line ?? "";
+      titleLine.hidden = !line;
       titleEl.hidden = false;
+      // A line to read holds the title longer (ADR-012): a sentence takes longer than a name.
       titleTimer = setTimeout(() => {
         titleEl.hidden = true;
         titleTimer = null;
-      }, TITLE_MS);
+      }, line ? TITLE_LINE_MS : TITLE_MS);
     },
 
     banner(text: string | null): void {
       if (text === null || text === "") {
         bannerEl.hidden = true;
         bannerEl.textContent = "";
+        // The cause belongs to the banner: a clean screen clears both.
+        causeEl.hidden = true;
+        causeEl.textContent = "";
         return;
       }
       if (!bannerEl.hidden && bannerEl.textContent === text) return;
       bannerEl.textContent = text;
       bannerEl.hidden = false;
+    },
+
+    cause(text: string | null): void {
+      causeEl.textContent = text ?? "";
+      causeEl.hidden = !text;
     },
 
     // --- motion: nothing visible under reduced motion ---------------------

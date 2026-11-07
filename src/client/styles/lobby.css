@@ -81,6 +81,15 @@
   color: var(--ember);
 }
 
+/* The last fight's cause, in the server's words (ADR-012), before Start. */
+#battle .lobby-cause {
+  margin: 0;
+  font-size: 1.15rem;
+  line-height: 1.3;
+  color: var(--card);
+}
+
+#battle .lobby-cause[hidden],
 #battle .lobby-last[hidden],
 #battle .lobby-echoes[hidden],
 #battle .lobby-start[hidden],

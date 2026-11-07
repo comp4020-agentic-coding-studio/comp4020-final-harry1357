@@ -240,6 +240,13 @@ export function mountCommandWindow(root: HTMLElement, opts: CommandOptions): Com
   const head = el("div", "command-head");
   head.append(title, meters.el);
 
+  // --- your next card, pinned (ADR-012, piece 4): the strip's cards aimed at your seat, as sent, in --ember --
+  const threat = el("ol", "command-threat");
+  threat.dataset.threat = "";
+  threat.setAttribute("aria-label", "Aimed at you");
+  threat.hidden = true;
+  let threatDrawn = "";
+
   // --- the list ------------------------------------------------------------
   const menu = el("div", "command-menu");
   menu.setAttribute("role", "menu");
@@ -339,7 +346,7 @@ export function mountCommandWindow(root: HTMLElement, opts: CommandOptions): Com
   const voice = el("p", "visually-hidden");
   voice.setAttribute("aria-live", "polite");
 
-  root.replaceChildren(clock, head, menu, foot, voice);
+  root.replaceChildren(clock, head, threat, menu, foot, voice);
 
   // --- what is live, as the server last said ----------------------------------
   /** Live: the turn's actions while it's your turn; a Reaction while the server names a card (rule 2). */
@@ -406,6 +413,28 @@ export function mountCommandWindow(root: HTMLElement, opts: CommandOptions): Com
             ? `${info.label}, ${cost.aria}, asked for`
             : `${info.label}, ${cost.aria}`;
     option.setAttribute("aria-label", spoken);
+  }
+
+  /** The cards aimed at your seat, in the order the server sent them (rule 1), each as "Lunge in 1 → you, 18". */
+  function paintThreat(): void {
+    const mine = seat.token ? (seat.threats ?? []).filter((c) => c.targetId === seat.token?.id) : [];
+    const words = mine.map((c) => {
+      const what = c.intent === "alignment" ? "Alignment" : c.intent.charAt(0).toUpperCase() + c.intent.slice(1);
+      const when = c.countdown <= 0 ? "next" : `in ${c.countdown}`;
+      return `${what} ${when}${c.frozen ? ", frozen" : ""} → you${c.amount !== null ? `, ${c.amount}` : ""}`;
+    });
+    const key = JSON.stringify(mine.map((c, i) => [c.id, words[i]]));
+    if (key === threatDrawn) return;
+    threatDrawn = key;
+    threat.replaceChildren(
+      ...mine.map((c, i) => {
+        const item = el("li", "command-threat-card", words[i]);
+        item.dataset.threatCard = c.id;
+        return item;
+      }),
+    );
+    threat.hidden = mine.length === 0;
+    threat.setAttribute("aria-label", mine.length ? `Aimed at you: ${words.join("; ")}` : "Aimed at you");
   }
 
   /** The hint line: whose move it is, the Reaction the server offers, or the Echo playing your seat. */
@@ -765,6 +794,7 @@ export function mountCommandWindow(root: HTMLElement, opts: CommandOptions): Com
       const moved = info.preview !== seat.preview;
       seat = info;
       meters.show(info.token);
+      paintThreat();
       refresh();
       // The server's numbers changed under a hovered or focused option: the ghost follows them.
       if (moved && previewing !== null) syncPreview(true);

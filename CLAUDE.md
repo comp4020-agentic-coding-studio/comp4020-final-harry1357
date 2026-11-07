@@ -495,6 +495,24 @@ the rules.
     *Spec: `spec/difficulty.test.ts`, `spec/pace.test.ts`. Why:
     `docs/adr/011`.*
 
+### The fight tells you what happened (ADR-012)
+
+34. **The server says what happened; the screen prints it, and advice
+    enables nothing.** A fight's ending names its cause: the card that
+    ended it, its target, what it found there, and the answers the table
+    had (ADR-011's, each with the person who held it, never an Echo), or on
+    a win the blow, the Break and the longest Chain. It is composed by the
+    server from what it recorded as the fight ran, carried on the `end`
+    event and the state, and printed by the end panel before Start is
+    offered again; the client composes none of it. A phase change says what
+    changed, in the server's words. Every role has a hint in the command
+    window, read from the state every client is sent, and a hint never
+    makes an option live or dark (rule 2). A card aimed at your seat is
+    shown in the command window with its countdown, in `--ember`, in the
+    order the server sent. *Spec: `spec/cause.test.ts`,
+    `spec/phase-line.test.ts`, `spec/hints.test.ts`, `spec/threat.test.ts`.
+    Why: `docs/adr/012`.*
+
 ## How to work in here
 
 - **No phase merges without the review gate: reviewer and breaker run on a

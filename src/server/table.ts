@@ -10,7 +10,7 @@ import type { WSContext } from "hono/ws";
 import type { ActionId, BattleState, RoleId, RoomInfo } from "../shared/protocol.ts";
 import { newId, type CharacterWrite, type Store } from "./db.ts";
 import { createHub } from "./hub.ts";
-import { emitted } from "./log.ts";
+import { emitted, expired } from "./log.ts";
 import { createRooms, hasPerson, PUBLIC_CODE } from "./rooms.ts";
 import {
   act,
@@ -128,7 +128,7 @@ export function createTable(
         console.error(`room ${room.code}: closing its fight failed`, err);
       }
       hub.expired(room.code);
-      console.log(`room ${room.code} closed after ${roomEmptyMs}ms empty`);
+      expired(room.code, roomEmptyMs);
     }
     // A bare battle (POST /api/battles) is a fight with no code, and goes the
     // same way: one with no person seated for the room window is closed, or it

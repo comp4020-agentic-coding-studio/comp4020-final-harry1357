@@ -382,6 +382,12 @@
     font-size: 0.75rem;
   }
 
+  /* ADR-012: the phase's line, in the body face, sized for a phone. */
+  #battle .scene-title-line {
+    margin-top: 0.35rem;
+    font-size: 1.05rem;
+  }
+
   #battle:not([data-phase="fight"]) > .stage {
     position: absolute;
     inset: 0;
