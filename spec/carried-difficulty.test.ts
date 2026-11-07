@@ -3,9 +3,9 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
-// Carried red from the difficulty gate's confirm pass (docs/review/difficulty.md, C1-C3): findings that name a
-// rule or an ADR, found after the one fix round the stopping rule allows. CLAUDE.md: carried as red tests and
-// listed open; the branch does not merge to main while they are.
+// The difficulty gate's carried findings (docs/review/difficulty.md, C1-C6): each was carried here red, as a
+// finding that named a rule or an ADR, and each is green now that the owner's rulings closed it. They stay as
+// the specs that hold those rulings.
 
 describe("C1 (rule 11): a signature move's Charge spend is drawn before its log line", () => {
   // The conductor writes an event's line once its renderer has run, and redraws a seat's marks from state only

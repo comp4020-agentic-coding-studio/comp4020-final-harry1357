@@ -368,25 +368,60 @@ marks its Chrome. It found:
 | The walk's reach, the code's membership, `code=` unchecked, C5's one-card pins | Listed for the next phase. |
 | orrery.ts comments; `close()` before `Browser.close`; the favicon timeouts beside the walk | Risks, recorded. |
 
-## The gate stands open
+## The owner's ruling on C6, and the gate closes
 
-The fourth confirm pass found a rule 32 violation (C6), carried red. By the
-owner's instruction for this case, the gate is recorded open, the branch
-pushed, and nothing landed on main. **The branch does not merge to main
-while C6 is open.**
+**The ruling.** Fix C6: it is a regression this gate's own fix round
+introduced, and the stopping rule bounds review of the phase's work, not of
+the gate's own regressions. CLAUDE.md's gate rule says so, in its own commit
+(`16bc768`): a regression a fix round introduces is fixed in the gate, with a
+confirm pass on that fix alone, and doesn't count as a round.
+
+**The fix.** `466588c` renames the refusal arrow's reason parameter to `why`,
+so `code=` is the room's again; C6's test goes green. A rename alone, in its
+own commit.
+
+**The fifth confirm pass**, on `466588c` alone, found **no rule or ADR
+violation**. Held: every refusal line carries the server's own code for a room
+it recognises in `code=` and the reason code in `reason=`; nothing else in
+app.ts shadows `code`; the change is a rename, every call site positional and
+unchanged; C6's test would fail if the shadow came back. It listed, in the
+strength of C6's test: it uses the public raid, whose code is always `RAID`,
+so a constant would pass; it checks the reason's shape, not its value; it
+checks only the Start route. And three risks: the naming trap remains
+(`Refusal.code` is a reason, `Refused.code` a room, and `no()`'s `more` can
+carry either); a refused join by battle id, or an action on a fight that has
+left memory, writes `code=-` (on main before this phase; rule 32 doesn't
+require `code`); and the record hadn't caught up, which this section answers.
+
+### Disposition of the fifth confirm pass
+
+| finding | disposition |
+| --- | --- |
+| C6 | **Fixed**, `466588c`. |
+| `5e80852` loosening its own spec in the same commit as the fix | **Recorded as history**, by the owner's ruling. |
+| C6's test's strength (a constant code, the reason's shape, one route) | Listed for the next phase. |
+| The naming trap; `code=-` on a refused join by id; the record | Risks, recorded; the record is this section. |
+
+## The gate closes
+
+Every finding is fixed, carried red and then closed by ruling, or recorded
+as history or as a risk, and the last review found no rule or ADR violation.
+**The gate closes** under the stopping rule. `spec/carried-difficulty.test.ts`
+is green: C1 to C6 closed.
 
 ### For the next phase
 
-- C6: rename the refusal arrow's parameter so `code=` is the room again,
-  and check `code=` on a refusal line in the walk; then one confirm pass on
-  that fix, under the stopping rule. Or the owner rules C6 a risk.
+- The walk in `spec/refusals.test.ts`: check `code=` on refusal lines; reach
+  the card and ally refusals with a role that has them; don't count an
+  applied Brace; hold membership in the reason list.
+- C6's test: a private room's code, the reason's value, and the action route.
 - C5: hold "the soonest card" with a Retrograde that isn't the soonest.
-- The walk: reach the card and ally refusals with a role that has them;
-  don't count an applied Brace; hold membership in the list.
-- Risks: F3 (self-Ward unsaid in the log), "halved" in the Perihelion line,
-  the Bastion's blurb's 40%, an Echo that has Braced never taking its
-  signature again, the three-person table's eight Orrery turns, orrery.ts's
-  comments, `close()` before `Browser.close`.
+- Risks: the naming trap between `Refusal.code` and `Refused.code`; `code=-`
+  on a refused join by battle id; F3 (self-Ward unsaid in the log); "halved"
+  in the Perihelion line; the Bastion's blurb's 40%; an Echo that has Braced
+  never taking its signature again; the three-person table's eight Orrery
+  turns; orrery.ts's comments on who cancels; `close()` before
+  `Browser.close`.
 - Weak tests: T5, T6, W2, W3, W5 to W7, the second confirm pass's 4 to 6,
   the third's C1, C2, C3, R-A and R-B notes.
 - `assets.test.ts`'s reset, carried from the lobby gate, seen again here.
