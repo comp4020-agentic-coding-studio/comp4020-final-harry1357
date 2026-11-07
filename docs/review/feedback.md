@@ -391,3 +391,29 @@ image, the probe, the merge and the deploy.
 - Risks: V6's names that read as roles; Q1, Q2, Q5; `Ending.by` and
   `brokenBy` carrying no Echo flag; the Warden Echo's unreachable Bastion
   branch.
+
+## The owner's ruling on E1 to E4, and the gate closes
+
+**The ruling.** Apply the four proposed edits, each one sentence, in one
+commit, with no code changes. The principle goes into ADR-012's Cost: the
+ADR names the property (the ending names its cause and the answers the
+table had) and points at the spec that holds it; it does not restate the
+mechanism, because every restatement so far has drifted from the code. No
+confirm pass: an ADR edit to match the code is not a code change, and the
+last pass found no rule or ADR contradiction in the code.
+
+**The edit.** `773765a`, "ADR-012: four sentences brought to what the code
+does": E1 ends the first Consequences bullet at where the lines are
+composed; E2 names an answer as §1 says; E3 adds every seat's, for a Brace
+against a blow on everyone; E4, the account is written as the fight runs
+and read at the end. And the Cost section.
+
+| finding | disposition |
+| --- | --- |
+| E1, E2, E3, E4 | **Fixed**, `773765a`, by the owner's ruling. |
+
+Every finding is fixed, carried red and then closed by ruling, or recorded
+as history or as a risk, and the last review found no rule or ADR
+contradiction in the code. **The gate closes** under the stopping rule.
+`spec/carried-feedback.test.ts` and `spec/carried-feedback-breaker.test.ts`
+are green: every carried finding closed.
