@@ -34,7 +34,7 @@ export interface Landed {
   cardId: string;
   intent: Intent;
   targetId: string | "party";
-  /** ADR-011's conditions, as tags: gravity:N, unbraced, unwarded, swapped, no-bastion, outer-whole, enraged. */
+  /** ADR-011's conditions, as tags: gravity:N, unbraced, unwarded, swapped, no-bastion, outer-whole, all-braced, enraged. */
   found: string[];
   /** Everyone standing as it landed (the gate's 1b): only they could have answered it. */
   table: Stood[];
@@ -147,11 +147,11 @@ const ANSWERS: Readonly<Partial<Record<Intent, readonly Answer[]>>> = {
     { role: "warden", action: "bastion", made: (f) => !f.includes("no-bastion") },
     { role: "breaker", action: "shatter", made: (f) => !f.includes("outer-whole") },
     { role: "breaker", action: "fracture", made: (f) => !f.includes("outer-whole") },
-    { role: "any", action: "brace" },
+    { role: "any", action: "brace", made: (f) => f.includes("all-braced") },
   ],
   revolution: [
     { role: "warden", action: "bastion", made: (f) => !f.includes("no-bastion") },
-    { role: "any", action: "brace" },
+    { role: "any", action: "brace", made: (f) => f.includes("all-braced") },
   ],
 };
 
@@ -212,8 +212,8 @@ function sayAnswers(b: Battle, answers: Ending["answers"]): string {
   }
   const phrases = groups.map((g) => `${g.who} ${g.actions.join(" or ")}`);
   const said = or(phrases);
-  // Only a sentence's own article is capitalised: a person's name is said as they wrote it.
-  return /^an? /.test(said) ? said.charAt(0).toUpperCase() + said.slice(1) : said;
+  // A sentence's own first word is capitalised ("A Warden's", "Every seat's"); a person's name is said as they wrote it.
+  return /^(an?|every) /.test(said) ? said.charAt(0).toUpperCase() + said.slice(1) : said;
 }
 
 /** What the card found, in words: "at Gravity 2, unbraced", ", unwarded and unbraced". */

@@ -496,7 +496,7 @@ function resolve(ctx: Ctx, card: BossCard): void {
 }
 
 function revolution(ctx: Ctx, card: BossCard): void {
-  const found = ctx.b.bastion ? [] : ["no-bastion"];
+  const found = [...(ctx.b.bastion ? [] : ["no-bastion"]), ...(allBraced(ctx) ? ["all-braced"] : [])];
   const table = standingAt(ctx.b);
   const { amount, hits, bastion } = raidWide(ctx, card.amount ?? 0);
   ctx.say("boss", BOSS_ID, `The Orrery turns: Revolution, ${amount} to everyone standing${bastion}.`, {
@@ -511,7 +511,7 @@ function revolution(ctx: Ctx, card: BossCard): void {
 
 function perihelion(ctx: Ctx, card: BossCard): void {
   const broken = ctx.ring("outer").broken;
-  const found = [...(ctx.b.bastion ? [] : ["no-bastion"]), ...(broken ? [] : ["outer-whole"])];
+  const found = [...(ctx.b.bastion ? [] : ["no-bastion"]), ...(broken ? [] : ["outer-whole"]), ...(allBraced(ctx) ? ["all-braced"] : [])];
   const table = standingAt(ctx.b);
   const { amount, hits, bastion } = raidWide(ctx, card.amount ?? 0);
   ctx.say(
@@ -664,6 +664,9 @@ function alignment(ctx: Ctx, card: BossCard): void {
   landed(ctx.b, { cardId: card.id, intent: "alignment", targetId: "party", found: s.enraged ? ["enraged"] : [], table: standingAt(ctx.b) });
   downTheFallen(ctx);
 }
+
+/** Every seat standing was Braced as a blow on everyone landed: every seat's Brace was made (ADR-012; the gate's V1). */
+const allBraced = (ctx: Ctx): boolean => ctx.party().length > 0 && ctx.party().every((f) => f.braced);
 
 /** A raid-wide blow: a standing Bastion takes BASTION_CUT off it and is spent. */
 function raidWide(ctx: Ctx, base: number): { amount: number; hits: { targetId: string; amount: number }[]; bastion: string } {

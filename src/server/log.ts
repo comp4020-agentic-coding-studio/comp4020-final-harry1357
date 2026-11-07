@@ -253,6 +253,11 @@ export function refused(r: Refused): void {
 }
 
 /** The process starting, and the fights the last one left open, closed (rule 6). */
+/** A room gone for good (rule 26): one line, as every other, so nothing but this file writes to stdout (rule 32; the gate's Q6). */
+export function expired(code: string, emptyMs: number): void {
+  write({ room: null, code, tick: null, who: who(undefined, null), action: "expire", target: [["target", null]], actor: "server", outcome: "applied", extra: [["empty_ms", emptyMs]] });
+}
+
 export function started(boot: {
   sha: string;
   listen: string;
