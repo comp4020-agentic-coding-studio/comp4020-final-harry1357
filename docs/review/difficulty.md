@@ -308,26 +308,85 @@ reaches every action, not only rings; the mark cache's key leaves out
 | C1, C2, C3, R-A, R-B test strength | Listed for the next phase. |
 | R-A before the turn check; R-A on every action; the mark cache's key; "lethal at 3" in comments | Risks, recorded. |
 
+## The owner's rulings on C4 and C5, and a fourth confirm pass
+
+**The rulings.** C5: the code stands and the ADR moves; ADR-011 names two
+cancels for a Retrograde, a Chronist's Delay, Stillpoint or Nudge, and a
+Breaker's charged Shatter, and the cost note says a table with no Chronist
+pays every Retrograde in full unless its Breaker spends Charge on it. The
+ruling first said "full Charge"; the code cancels on one pip, and the owner
+ruled the ADR stands as written, one pip, which is how the targets were
+measured. C4: a refusal line carries a reason code, never the submitted
+text, for every refused field. The harness: `pnpm check` sweeps Chromes a
+cut-off run left, and every Chrome spec closes its own in afterAll.
+
+**What was done.** C4 red (the walk in `spec/refusals.test.ts`) then
+`5e80852`: a closed list of reason codes (`src/server/reasons.ts`), a
+required code on every refusal, the code logged and the sentence answered,
+`asked_name` off refusal lines. C5 in `5427759`: ADR-011's tooth 3 and cost
+note, and three pins (full Charge cancels, one pip cancels, none doesn't).
+The harness in one commit, `5dfcc1a`. The five targets, re-measured on
+`5dfcc1a`, unchanged: naive wiped before phase III in 25 of 31, competent
+won 11, expert 30, every solo Brace-only table wiped before III, every solo
+expert won.
+
+**The fourth confirm pass** read `7d25c90..5dfcc1a` alone. C4's leak:
+held, no request text on any refusal line, every code true to its
+sentence. C5: held, the ADR matches the code everywhere it speaks of a
+Retrograde's cancel, and an Echo Breaker still can't. The harness: held,
+the sweep kills only a marked Chrome whose starter is gone, every launcher
+marks its Chrome. It found:
+
+- **C6, rule 32 (in intent; the owner may rule it a risk).** C4's fix named
+  the refusal arrow's reason parameter `code`, shadowing the room's `code`,
+  so every refusal line writes its reason in `code=`. log.ts says `code` is
+  the room, and narration.md filters a room's lines on it. Shown on the
+  image: a refused Start in RAID logged `code=not-seated`.
+- **History.** `5e80852` loosened its own red spec in the same commit as the
+  fix (the walk's second assertion now also allows a seated name in `hits`).
+  The loosening is right under rule 32's "a valid name", but CLAUDE.md asks
+  for a spec change in its own commit. Recorded as history.
+- **Weak tests.** The walk's on-turn pass reaches one engine target refusal
+  (a ring): the raider is a Striker, so the card and ally bodies are refused
+  for role first, and an applied Brace is counted as a refusal. The reason
+  check holds the code's shape, not its membership in the list. Nothing
+  checks `code=` on a refusal line, so the walk passes under C6. C5's pins
+  put one card on the strip, so "the soonest card" isn't held.
+- **Risks.** Comments in orrery.ts still say only a Chronist cancels or
+  touches a card. `close()` drops a Chrome from the open set before
+  `Browser.close`, which has no timeout, so a Chrome that hangs there
+  escapes `closeAll` until the next sweep. Its own two full rosters went red
+  on `favicon.test.ts` timeouts beside the new 180 s walk, which it couldn't
+  show is the cause.
+
+### Disposition of the fourth confirm pass
+
+| finding | disposition |
+| --- | --- |
+| C6: the room's code shadowed on every refusal line | **Open, carried red as C6** (`spec/carried-difficulty.test.ts`, a refused Start in RAID must say `code=RAID`). The fix is a rename, but the stopping rule allows no fix round after this pass. |
+| `5e80852` loosening its own spec | Recorded as history. |
+| The walk's reach, the code's membership, `code=` unchecked, C5's one-card pins | Listed for the next phase. |
+| orrery.ts comments; `close()` before `Browser.close`; the favicon timeouts beside the walk | Risks, recorded. |
+
 ## The gate stands open
 
-Every finding from the first pass is fixed, recorded as history, or recorded
-as a risk. The second confirm pass found two rule or ADR violations and one
-more outside its scope, carried red as C1 to C3; the owner's rulings closed
-all three. The last review, the third confirm pass, found two violations, so **the gate is not closed** (CLAUDE.md:
-a gate closes when "the last review finds no rule or ADR violation"), and
-**the branch does not merge to main while C4 and C5 are open.** The branch is
-pushed, unmerged.
-
-The roster on the branch's tip: 356 green, and the carried file's C4 and C5
-red, by design.
+The fourth confirm pass found a rule 32 violation (C6), carried red. By the
+owner's instruction for this case, the gate is recorded open, the branch
+pushed, and nothing landed on main. **The branch does not merge to main
+while C6 is open.**
 
 ### For the next phase
 
-- Close C4 and C5: then one confirm pass on that fix, under the stopping rule.
-- C5 needs a ruling first: Shatter's push stops cancelling a Retrograde, or
-  ADR-011 names the Breaker.
-- Risks: F3 (self-Ward unsaid in the log), "halved", the Bastion's 40%, an
-  Echo that has Braced never taking its signature again, R-A and R-B, and the
-  three-person table's eight Orrery turns.
-- Weak tests: T5, T6, W2, W3, W5 to W7, and the confirm pass's 4 to 6.
-- `assets.test.ts`'s reset, carried from the lobby gate, three times now.
+- C6: rename the refusal arrow's parameter so `code=` is the room again,
+  and check `code=` on a refusal line in the walk; then one confirm pass on
+  that fix, under the stopping rule. Or the owner rules C6 a risk.
+- C5: hold "the soonest card" with a Retrograde that isn't the soonest.
+- The walk: reach the card and ally refusals with a role that has them;
+  don't count an applied Brace; hold membership in the list.
+- Risks: F3 (self-Ward unsaid in the log), "halved" in the Perihelion line,
+  the Bastion's blurb's 40%, an Echo that has Braced never taking its
+  signature again, the three-person table's eight Orrery turns, orrery.ts's
+  comments, `close()` before `Browser.close`.
+- Weak tests: T5, T6, W2, W3, W5 to W7, the second confirm pass's 4 to 6,
+  the third's C1, C2, C3, R-A and R-B notes.
+- `assets.test.ts`'s reset, carried from the lobby gate, seen again here.
