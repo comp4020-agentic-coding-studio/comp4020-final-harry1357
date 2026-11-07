@@ -153,3 +153,22 @@ describe("C5 (ADR-011, tooth 3; the owner's ruling): a Breaker's charged Shatter
     expect(seen.filter((x) => x.cancelledBy === "breaker-1"), "no Breaker cancels it").toEqual([]);
   });
 });
+
+describe("C6 (rule 32; log.ts: `code` is the room it is in): a refusal line names its room by code (the fourth confirm pass)", () => {
+  // C4's fix gave every refusal a reason code, and its parameter `code` shadowed the room's: every refusal line's
+  // `code=` became the reason. A narrator filtering on code=<ROOM> loses every refusal in the room.
+  it("a refused Start in the public raid says code=RAID, and the reason stays in reason=", async () => {
+    const { boot, scratchDatabase } = await import("./boot.ts");
+    const server = await boot(scratchDatabase(), { TICK_MS: "20" });
+    try {
+      const res = await fetch(new URL("/api/rooms/RAID/start", server.base), { method: "POST", headers: { "content-type": "application/json" }, body: "{}" });
+      expect(res.status, "refused").toBeGreaterThanOrEqual(400);
+      await new Promise((r) => setTimeout(r, 200));
+      const line = server.stdout().find((l) => /\baction=start\b/.test(l) && /\boutcome=refused\b/.test(l)) ?? "";
+      expect(/\bcode=(\S+)/.exec(line)?.[1], `the room's code: ${line}`).toBe("RAID");
+      expect(/\breason=(\S+)/.exec(line)?.[1], "and why, as a code").toMatch(/^[a-z][a-z0-9-]*$/);
+    } finally {
+      await server.kill();
+    }
+  }, 60_000);
+});
