@@ -388,6 +388,22 @@ image, the probe, the merge and the deploy.
   winning blow; 3i's declarations; `cause.test.ts:86`; 3b's 40;
   `contrast.test.ts:89`'s first match; the 1b cases' `not.toContain`; a met
   Revolution's words; "taken on purpose" and "Braced" beyond an Eclipse.
+- **The ending names the last seat's card, not the last person's**
+  (`spec/answers.test.ts`, committed red on branch `answers`). Played live
+  on `64d44b8` after the merge (room `3EHT5`, fight `Lat28mo_f5HL`): a solo
+  naive Breaker, Ada, with four Echoes. An unmet Perihelion downed Ada at
+  seq 36 with no Bastion standing and the outer ring whole; the fight ran on
+  with Echoes until a later Perihelion downed the last standing seat, a
+  Braced Striker Echo, at seq 92. The ending named only that card, whose one
+  standing seat had done all it could: "Perihelion landed on everyone, no
+  Bastion standing, the outer ring whole and every seat Braced. It was met,
+  and still took the last of them." The person learns nothing from it: the
+  card that downed them, and the Bastion and the Break that would have met
+  it, are never named. Not V1 treating answers as alternatives, as first
+  diagnosed after the merge: by the last card only one Echo stood, and 1b
+  rightly offers nothing from a seat already down. The spec holds the
+  ending to the card that downed the last person, with the answers the
+  table had then; a table of one person is unchanged.
 - Risks: V6's names that read as roles; Q1, Q2, Q5; `Ending.by` and
   `brokenBy` carrying no Echo flag; the Warden Echo's unreachable Bastion
   branch.
