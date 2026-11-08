@@ -63,7 +63,9 @@ a refusal is one log line with neither the cookie nor the request's text.
 Judged: whether the strip reads at a glance on a phone to someone who 
 has never seen a counter, whether a phase change feels like a moment, 
 and whether a wipe makes a table press Start again, all by handing my 
-phone to people at the showcase without explaining anything.
+phone to people at the showcase without explaining anything. Played as a 
+table on the live build before submission, in two desktop browsers side 
+by side, and both saw the same fight.
 
 ## What I chose not to build
 
